@@ -1,0 +1,63 @@
+{{if eq .package_manager "pnpm"}}
+RUN := pnpm run
+INSTALL := pnpm install
+{{else if eq .package_manager "npm"}}
+RUN := npm run
+INSTALL := npm install
+{{else}}
+RUN := bun run
+INSTALL := bun install
+{{end}}
+
+.PHONY: help install dev build start lint typecheck test test-watch e2e e2e-install ci clean
+
+help:
+	@echo "make install      Install dependencies"
+	@echo "make dev          Start the development server"
+	@echo "make build        Create a production build"
+	@echo "make start        Start the production server"
+	@echo "make lint         Run ESLint"
+	@echo "make typecheck    Run TypeScript checks"
+	@echo "make test         Run Jest"
+	@echo "make test-watch   Run Jest in watch mode"
+	@echo "make e2e          Run Playwright"
+	@echo "make e2e-install  Install Playwright Chromium"
+	@echo "make ci           Install, lint, typecheck, test, and build"
+	@echo "make clean        Remove build and test output"
+
+install:
+	$(INSTALL)
+
+dev:
+	$(RUN) dev
+
+build:
+	$(RUN) build
+
+start:
+	$(RUN) start
+
+lint:
+	$(RUN) lint
+
+typecheck:
+	$(RUN) typecheck
+
+test:
+	$(RUN) test
+
+test-watch:
+	$(RUN) test:watch
+
+e2e:
+	$(RUN) test:e2e
+
+e2e-install:
+	$(RUN) test:e2e:install
+
+ci: install lint typecheck test build
+
+clean:
+	rm -rf .next coverage playwright-report test-results
+
+# smokeforge:anchor docker-targets

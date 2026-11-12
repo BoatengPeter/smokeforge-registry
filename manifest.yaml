@@ -1,0 +1,55 @@
+schemaVersion: 1
+name: smokeforge-registry
+kinds:
+  frontend:
+    max: 1
+stacks:
+  - id: next
+    kind: frontend
+    name: Next.js
+    template: templates/frontend/next
+    variables: [package_manager, site_description]
+features:
+  - id: docker
+    name: Docker
+    kinds: [frontend]
+    overlays:
+      next: overlays/next/docker
+  - id: ci
+    name: CI
+    kinds: [frontend]
+    variants:
+      - id: github
+        name: GitHub Actions
+        default: true
+        overlays:
+          next: overlays/next/ci/github
+  - id: database
+    name: Database
+    kinds: [frontend]
+    variants:
+      - id: postgres
+        name: PostgreSQL
+        default: true
+        overlays:
+          next: overlays/next/database/postgres
+  - id: analytics
+    name: Analytics
+    kinds: [frontend]
+    variants:
+      - id: posthog
+        name: PostHog
+        default: true
+        overlays:
+          next: overlays/next/analytics/posthog
+  - id: auth
+    name: Authentication
+    kinds: [frontend]
+    variants:
+      - id: session
+        name: Email + OTP sessions
+        default: true
+        stacks: [next]
+        requires: [database:postgres]
+        overlays:
+          next: overlays/next/auth/session

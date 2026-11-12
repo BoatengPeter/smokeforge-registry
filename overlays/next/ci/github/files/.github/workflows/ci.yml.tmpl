@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+{{if eq .package_manager "pnpm"}}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+{{else if eq .package_manager "npm"}}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+{{else}}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+{{end}}
+      - name: Install dependencies
+        run: {{if eq .package_manager "pnpm"}}pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile{{else if eq .package_manager "npm"}}npm ci || npm install{{else}}bun install --frozen-lockfile || bun install{{end}}
+      - name: Lint
+        run: make lint
+      - name: Typecheck
+        run: make typecheck
+      - name: Unit tests
+        run: make test
+      - name: Build
+        run: make build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: make e2e

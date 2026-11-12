@@ -1,0 +1,60 @@
+id: database/postgres
+name: PostgreSQL with Drizzle
+files: files
+ops:
+  - addFiles:
+      - path: src/server/env.ts
+        dest: src/server/env.ts
+      - path: src/server/db/index.ts
+        dest: src/server/db/index.ts
+      - path: src/server/db/schema.ts
+        dest: src/server/db/schema.ts
+      - path: drizzle.config.ts
+        dest: drizzle.config.ts
+      - path: compose.db.yaml
+        dest: compose.db.yaml
+  - addDependency:
+      file: package.json
+      module: drizzle-orm
+      version: 0.45.4
+  - addDependency:
+      file: package.json
+      module: postgres
+      version: 4.1.1
+  - addDependency:
+      file: package.json
+      module: server-only
+      version: 0.0.1
+  - patchJSON:
+      file: package.json
+      op: set
+      path: devDependencies.drizzle-kit
+      value: 0.31.11
+  - patchJSON:
+      file: package.json
+      op: set
+      path: devDependencies.dotenv
+      value: 18.0.10
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.db:generate
+      value: drizzle-kit generate
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.db:migrate
+      value: drizzle-kit migrate
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.db:push
+      value: drizzle-kit push
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.db:studio
+      value: drizzle-kit studio
+  - env:
+      key: DATABASE_URL
+      example: postgres://postgres:postgres@localhost:5432/app

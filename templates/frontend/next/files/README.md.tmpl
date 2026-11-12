@@ -1,0 +1,161 @@
+# {{.project_name}}
+
+{{.site_description}}
+
+Generated with [smokeforge](https://github.com/BoatengPeter/smokeforge).
+
+## Stack
+
+- Next.js 16 (App Router, Turbopack)
+- React 19 / TypeScript 5.9
+- Tailwind CSS 4 + shadcn/ui primitives
+- Lucide icons
+- React Hook Form + Zod
+- Zustand state-only store + actions + selectors
+- Pino server logging
+- Jest + Testing Library, Playwright
+- Route Handler API under `src/app/api`
+- Optional Better Auth, Postgres/Drizzle, PostHog, Docker, CI
+
+Package manager: `{{.package_manager}}` (also supported: pnpm, npm, bun).
+
+## Quick start
+
+The first install creates the lockfile; commit it afterward.
+
+```bash
+make install
+make dev
+```
+
+Open http://localhost:3000. The homepage links to `/api/health`.
+
+## Make targets
+
+| Target | Purpose |
+| --- | --- |
+| `make install` | Install dependencies with the selected package manager |
+| `make dev` | Start the development server |
+| `make build` | Create a production build |
+| `make start` | Start the production server |
+| `make lint` | Run ESLint |
+| `make typecheck` | Run TypeScript checks |
+| `make test` | Run Jest |
+| `make test-watch` | Run Jest in watch mode |
+| `make e2e-install` | Install Playwright Chromium |
+| `make e2e` | Run Playwright |
+| `make ci` | Install, lint, typecheck, test, and build |
+| `make clean` | Remove build/test output |
+| `make docker-build` | Build the app image (Docker overlay only) |
+| `make docker-up` | Start the app with Docker Compose (Docker overlay only) |
+| `make docker-down` | Stop the Compose stack (Docker overlay only) |
+
+Raw package-manager commands are also available through `package.json`
+(scripts: `dev`, `build`, `start`, `lint`, `typecheck`, `test`, `test:e2e`).
+
+## Configuration
+
+The smokeforge generator writes `.env` from `.env.example`. Never commit
+`.env`; it is gitignored and may contain secrets generated locally.
+
+| Variable | Required | Used by | Notes |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_APP_URL` | yes | Metadata, OpenGraph, sitemap, robots | Absolute app URL. Defaults to `http://localhost:3000` for local development. |
+| `NEXT_PUBLIC_API_URL` | no | API client | External API origin for standalone apps. Leave unset for same-origin `/api` routes. Must be an absolute URL. |
+| `DATABASE_URL` | database overlay | Drizzle | Postgres connection string. Use `@localhost` for local dev and `@db` inside Docker Compose. |
+| `BETTER_AUTH_SECRET` | auth overlay | Better Auth | Generate with `openssl rand -base64 32`. Never commit it. |
+| `BETTER_AUTH_URL` | auth overlay | Better Auth | Absolute app origin used for auth callbacks. |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | no | Better Auth | Comma-separated additional origins if the app is served elsewhere. |
+| `NEXT_PUBLIC_POSTHOG_KEY` | analytics overlay | PostHog | Public project key. Analytics remains disabled when unset. |
+| `NEXT_PUBLIC_POSTHOG_HOST` | no | PostHog | Defaults to US cloud; set an EU or self-hosted host if needed. |
+| `PORT` | no | Node/Docker runtime | Docker sets `3000`; override only when required. |
+
+Database, auth, and PostHog variables are documented but only used when their
+overlays are selected. Analytics must not capture until the user opts in.
+
+## API and errors
+
+- `GET /api/health`
+- `POST /api/v1/echo` is the validation/error example.
+- Business routes belong under `/api/v1/**/route.ts`.
+- Success: `{ "data": ... }`
+- Error: `{ "error": { "code", "message", "fields"? } }`
+- Throw `AppError` from `@/lib/api/app-error` and wrap handlers with
+  `withApi` from `@/lib/api/handler`. The helper maps thrown errors to the
+  single response shape and logs unexpected failures with Pino.
+- Validate input with Zod (`parseJson`) and authorize inside every protected
+  route handler.
+- Keep secrets server-side; never expose them through `NEXT_PUBLIC_*`.
+
+## Metadata and SEO
+
+`src/app/layout.tsx` uses the Metadata API. `opengraph-image.tsx`, `sitemap.ts`,
+and `robots.ts` provide social images and crawl rules. `robots.ts` blocks
+`/api/` but keeps `/_next/`, CSS, JS, and images crawlable.
+
+## Authentication
+
+Selecting the auth overlay wires Better Auth sessions with email/password and
+6-digit OTP flows:
+
+- `/signup`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password`
+- `/dashboard` is server-protected
+- `POST /api/auth/**` is the Better Auth Route Handler
+- Local development prints OTPs to the server log. Production requires
+  `RESEND_API_KEY` and `EMAIL_FROM`; non-local hosts fail closed without them.
+
+## Logging
+
+Server code uses `logger` from `@/server/logger` (Pino). Set `LOG_LEVEL` to
+control verbosity. Do not log secrets or production OTPs.
+
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the environment matrix, migrations,
+Docker/Node deployment, Vercel constraints, and rollback.
+
+## Optional infrastructure
+
+Docker and CI are opt-in features at generation time:
+
+```bash
+smokeforge new ./app \
+  --kind frontend --stack next --name "App" \
+  --feature docker --feature ci:github
+```
+
+### Docker
+
+The `docker` overlay adds:
+
+- `Dockerfile` — package-manager-aware multi-stage build; non-root runtime.
+- `.dockerignore`
+- `compose.yaml` — app service using `.env` and a health check.
+- `make docker-build`, `make docker-up`, `make docker-down`.
+
+Migrations/backing services are added by their own overlays. Run migrations
+explicitly; the app does not migrate on boot.
+
+### Analytics
+
+The `analytics:posthog` overlay adds privacy-first PostHog bootstrap:
+autocapture and session recording off, memory persistence, and no capture until
+`optInAnalytics()` from `@/lib/analytics/consent` is called.
+
+### CI
+
+The `ci:github` overlay adds `.github/workflows/ci.yml`, which installs with the
+selected package manager, then runs lint, typecheck, Jest, build, and Playwright.
+
+Commit the lockfile so CI can use frozen installs. The workflow falls back to a
+normal install before a lockfile exists.
+
+## Agent skills
+
+Project-scoped skills live in `.agents/skills` and `.claude/skills`, with
+`skills-lock.json`. Read [CONTEXT.md](CONTEXT.md), [AGENTS.md](AGENTS.md), and the
+relevant skill before changing an area.
+
+The Next-specific skills cover App Router patterns, Better Auth, auth security,
+React performance, composition, frontend design, web interface guidelines,
+Tailwind design systems, Zod, robots.txt, and GitHub Actions templates.

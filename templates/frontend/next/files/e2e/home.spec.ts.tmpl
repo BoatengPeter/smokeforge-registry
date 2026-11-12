@@ -1,0 +1,10 @@
+import { expect, test } from "@playwright/test";
+
+test("home page renders the app shell", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    {{quote .project_name}},
+  );
+  await expect(page.getByRole("link", { name: "Health" })).toBeVisible();
+});

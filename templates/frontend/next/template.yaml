@@ -1,0 +1,9 @@
+id: next
+variables:
+  - name: package_manager
+    prompt: Package manager
+    default: pnpm
+    choices: [pnpm, npm, bun]
+  - name: site_description
+    prompt: Site description
+    default: A modern web application built with Next.js.

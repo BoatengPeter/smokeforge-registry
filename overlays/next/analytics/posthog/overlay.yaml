@@ -1,0 +1,31 @@
+id: analytics/posthog
+name: PostHog analytics
+files: files
+ops:
+  - addFiles:
+      - path: src/components/posthog-bootstrap.tsx
+        dest: src/components/posthog-bootstrap.tsx
+      - path: src/lib/analytics/consent.ts
+        dest: src/lib/analytics/consent.ts
+  - addDependency:
+      file: package.json
+      module: posthog-js
+      version: 1.447.15
+  - insertAfter:
+      file: src/app/layout.tsx
+      anchor: analytics
+      marker: analytics:posthog
+      content: |
+        <PostHogBootstrap />
+  - insertAfter:
+      file: src/app/layout.tsx
+      anchor: analytics-imports
+      marker: analytics:posthog-import
+      content: |
+        import { PostHogBootstrap } from "@/components/posthog-bootstrap";
+  - env:
+      key: NEXT_PUBLIC_POSTHOG_KEY
+      example: ""
+  - env:
+      key: NEXT_PUBLIC_POSTHOG_HOST
+      example: https://us.i.posthog.com

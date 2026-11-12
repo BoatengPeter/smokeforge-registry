@@ -1,0 +1,160 @@
+id: auth/session
+name: Better Auth sessions with email OTP
+files: files
+ops:
+  - addFiles:
+      - path: src/server/auth.ts
+        dest: src/server/auth.ts
+      - path: src/server/email.ts
+        dest: src/server/email.ts
+      - path: src/lib/auth-client.ts
+        dest: src/lib/auth-client.ts
+      - path: src/app/api/auth/[...all]/route.ts
+        dest: src/app/api/auth/[...all]/route.ts
+      - path: src/app/(auth)/layout.tsx
+        dest: src/app/(auth)/layout.tsx
+      - path: src/app/(auth)/signup/page.tsx
+        dest: src/app/(auth)/signup/page.tsx
+      - path: src/app/(auth)/login/page.tsx
+        dest: src/app/(auth)/login/page.tsx
+      - path: src/app/(auth)/verify-email/page.tsx
+        dest: src/app/(auth)/verify-email/page.tsx
+      - path: src/app/(auth)/forgot-password/page.tsx
+        dest: src/app/(auth)/forgot-password/page.tsx
+      - path: src/app/(auth)/reset-password/page.tsx
+        dest: src/app/(auth)/reset-password/page.tsx
+      - path: src/app/(app)/dashboard/page.tsx
+        dest: src/app/(app)/dashboard/page.tsx
+      - path: src/components/auth/signup-form.tsx
+        dest: src/components/auth/signup-form.tsx
+      - path: src/components/auth/login-form.tsx
+        dest: src/components/auth/login-form.tsx
+      - path: src/components/auth/verify-email-form.tsx
+        dest: src/components/auth/verify-email-form.tsx
+      - path: src/components/auth/forgot-password-form.tsx
+        dest: src/components/auth/forgot-password-form.tsx
+      - path: src/components/auth/reset-password-form.tsx
+        dest: src/components/auth/reset-password-form.tsx
+      - path: src/components/auth/sign-out-button.tsx
+        dest: src/components/auth/sign-out-button.tsx
+      - path: src/types/auth.ts
+        dest: src/types/auth.ts
+      - path: src/validations/auth.ts
+        dest: src/validations/auth.ts
+      - path: drizzle/0000_flat_iceman.sql
+        dest: drizzle/0000_flat_iceman.sql
+      - path: drizzle/meta/_journal.json
+        dest: drizzle/meta/_journal.json
+      - path: drizzle/meta/0000_snapshot.json
+        dest: drizzle/meta/0000_snapshot.json
+  - addDependency:
+      file: package.json
+      module: better-auth
+      version: 1.7.22
+  - insertAfter:
+      file: src/server/env.ts
+      anchor: auth-env-schema
+      marker: auth:env
+      content: |
+          BETTER_AUTH_SECRET: z.string().min(32),
+          BETTER_AUTH_URL: z.string().url(),
+          BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
+          RESEND_API_KEY: z.string().optional(),
+          EMAIL_FROM: z.string().email().optional(),
+  - insertAfter:
+      file: src/server/env.ts
+      anchor: auth-env-values
+      marker: auth:env-values
+      content: |
+          BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+          BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+          BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS || undefined,
+          RESEND_API_KEY: process.env.RESEND_API_KEY || undefined,
+          EMAIL_FROM: process.env.EMAIL_FROM || undefined,
+  - insertAfter:
+      file: src/server/db/schema.ts
+      anchor: auth-schema-imports
+      marker: auth:schema-imports
+      content: |
+        import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+  - insertAfter:
+      file: src/server/db/schema.ts
+      anchor: auth-schema
+      marker: auth:schema
+      content: |
+        export const user = pgTable("user", {
+          id: text("id").primaryKey(),
+          name: text("name").notNull(),
+          email: text("email").notNull().unique(),
+          emailVerified: boolean("email_verified").default(false).notNull(),
+          image: text("image"),
+          createdAt: timestamp("created_at").defaultNow().notNull(),
+          updatedAt: timestamp("updated_at").defaultNow().notNull(),
+        });
+
+        export const session = pgTable("session", {
+          id: text("id").primaryKey(),
+          expiresAt: timestamp("expires_at").notNull(),
+          token: text("token").notNull().unique(),
+          createdAt: timestamp("created_at").defaultNow().notNull(),
+          updatedAt: timestamp("updated_at").defaultNow().notNull(),
+          ipAddress: text("ip_address"),
+          userAgent: text("user_agent"),
+          userId: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+        });
+
+        export const account = pgTable("account", {
+          id: text("id").primaryKey(),
+          accountId: text("account_id").notNull(),
+          providerId: text("provider_id").notNull(),
+          userId: text("user_id")
+            .notNull()
+            .references(() => user.id, { onDelete: "cascade" }),
+          accessToken: text("access_token"),
+          refreshToken: text("refresh_token"),
+          idToken: text("id_token"),
+          accessTokenExpiresAt: timestamp("access_token_expires_at"),
+          refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+          scope: text("scope"),
+          password: text("password"),
+          createdAt: timestamp("created_at").defaultNow().notNull(),
+          updatedAt: timestamp("updated_at").defaultNow().notNull(),
+        });
+
+        export const verification = pgTable("verification", {
+          id: text("id").primaryKey(),
+          identifier: text("identifier").notNull(),
+          value: text("value").notNull(),
+          expiresAt: timestamp("expires_at").notNull(),
+          createdAt: timestamp("created_at").defaultNow().notNull(),
+          updatedAt: timestamp("updated_at").defaultNow().notNull(),
+        });
+  - insertAfter:
+      file: src/app/page.tsx
+      anchor: auth-cta
+      marker: auth:cta
+      content: |
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/login">Sign in</Link>
+        </Button>
+        <Button asChild size="sm">
+          <Link href="/signup">Create account</Link>
+        </Button>
+  - env:
+      key: BETTER_AUTH_SECRET
+      example: replace-with-a-generated-secret
+      secret: true
+  - env:
+      key: BETTER_AUTH_URL
+      example: http://localhost:3000
+  - env:
+      key: BETTER_AUTH_TRUSTED_ORIGINS
+      example: ""
+  - env:
+      key: RESEND_API_KEY
+      example: ""
+  - env:
+      key: EMAIL_FROM
+      example: ""

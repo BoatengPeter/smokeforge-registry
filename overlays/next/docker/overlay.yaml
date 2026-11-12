@@ -1,0 +1,22 @@
+id: docker
+name: Docker
+files: files
+ops:
+  - addFiles:
+      - path: Dockerfile.tmpl
+        dest: Dockerfile
+      - path: .dockerignore
+        dest: .dockerignore
+      - path: compose.yaml
+        dest: compose.yaml
+  - insertAfter:
+      file: Makefile
+      anchor: docker-targets
+      marker: docker
+      content: |
+        docker-build:
+        	docker build -t {{quote .project_slug}} .
+        docker-up:
+        	docker compose up --build
+        docker-down:
+        	docker compose down
