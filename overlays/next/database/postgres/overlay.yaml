@@ -11,8 +11,8 @@ ops:
         dest: src/server/db/schema.ts
       - path: drizzle.config.ts
         dest: drizzle.config.ts
-      - path: compose.db.yaml
-        dest: compose.db.yaml
+      - path: compose.override.yaml
+        dest: compose.override.yaml
   - addDependency:
       file: package.json
       module: drizzle-orm

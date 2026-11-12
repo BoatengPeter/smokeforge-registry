@@ -20,19 +20,22 @@ templates/
       CLAUDE.md
       skills-lock.json
 overlays/
-  next/                                # database, auth, totp, posthog, docker, ci
+  next/                                # database, auth, state, testing, posthog, docker, ci
 tests/                                 # contract/build matrix
 ```
 
 ## Current Next decisions
 
-- One composable `next` base; standalone = no backend overlays.
+- One composable `next` base; fullstack is the default preset.
+- Presets: `fullstack`, `frontend`, `production`.
 - Next 16.4.6, React 19.3.0, TypeScript 5.9.3, Node 24.
 - pnpm default; npm and bun selectable.
 - App Router; `route.ts` Route Handlers are the backend.
-- Tailwind 4, Jest, Playwright, RHF + Zod, Zustand.
+- Tailwind 4, Jest, Zod, Pino.
 - Metadata API, OpenGraph image, sitemap, robots.
-- Optional overlays: Postgres/Drizzle, Better Auth/TOTP, PostHog, Docker, CI.
+- Overlays: Postgres/Drizzle, Better Auth/RHF, Zustand, Playwright E2E,
+  PostHog, Docker, CI. CI requires E2E, which is auto-added.
+- Required overlays are auto-added; removal is guarded unless `--cascade`.
 
 Full stack and version details: [STACKS.md](https://github.com/BoatengPeter/smokeforge/blob/main/STACKS.md).
 

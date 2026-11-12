@@ -12,8 +12,9 @@ This is a Next.js App Router application scaffolded by smokeforge.
   replace `pnpm` in commands with npm or bun if declared.
 - **Backend:** standard `src/app/api/**/route.ts` Route Handlers.
 - **Validation:** Zod everywhere at trust boundaries.
-- **Forms/state:** React Hook Form + Zod; Zustand provider with per-request stores.
-- **Tests:** Jest + Testing Library; Playwright for e2e.
+- **Forms/state:** React Hook Form + Zod with auth; Zustand provider with
+  per-request stores when the state overlay is selected.
+- **Tests:** Jest + Testing Library; Playwright when the E2E overlay is selected.
 - **Agents:** use the project-scoped skills under `.agents/skills` and
   `.claude/skills`; see `skills-lock.json`.
 

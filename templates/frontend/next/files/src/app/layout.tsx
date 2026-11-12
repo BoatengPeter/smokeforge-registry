@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { site } from "@/lib/site";
 // smokeforge:anchor analytics-imports
-import { AppStoreProvider } from "@/lib/stores/app-store-provider";
+import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
-        <AppStoreProvider>{children}</AppStoreProvider>
+        <Providers>{children}</Providers>
         {/* smokeforge:anchor analytics */}
       </body>
     </html>

@@ -44,7 +44,9 @@ tests/
 - [ ] Overlay operations validate against every supported stack.
 - [ ] Anchors resolve exactly once.
 - [ ] No-op install/build works with pnpm, npm, and bun where supported.
-- [ ] Generated `AGENTS.md`, `CLAUDE.md`, and `skills-lock.json` are current.
+- [ ] Generated `AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`, and `skills-lock.json`
+      are current.
+- [ ] Preset features resolve with their required companions.
 - [ ] Security defaults documented in the generated app remain intact.
 
 ## Commands

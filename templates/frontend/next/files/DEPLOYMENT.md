@@ -69,7 +69,7 @@ make docker-up
 With the database overlay, start Postgres separately:
 
 ```bash
-docker compose -f compose.db.yaml up -d db
+docker compose up -d db
 ```
 
 Then run migrations from your release job or a one-off container:

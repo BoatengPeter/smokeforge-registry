@@ -1,0 +1,40 @@
+id: testing/e2e
+name: Playwright E2E
+files: files
+ops:
+  - addFiles:
+      - path: playwright.config.ts.tmpl
+        dest: playwright.config.ts
+      - path: e2e/home.spec.ts.tmpl
+        dest: e2e/home.spec.ts
+  - patchJSON:
+      file: package.json
+      op: set
+      path: devDependencies.@playwright/test
+      value: 1.65.0
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.test:e2e
+      value: playwright test
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.test:e2e:install
+      value: playwright install chromium
+  - insertAfter:
+      file: Makefile
+      anchor: test-phony
+      marker: testing:e2e-phony
+      content: |
+        .PHONY: e2e e2e-install
+  - insertAfter:
+      file: Makefile
+      anchor: test-help
+      marker: testing:e2e-help
+      content: "@echo \"make e2e          Run Playwright\"\n@echo \"make e2e-install  Install Playwright Chromium\"\n"
+  - insertAfter:
+      file: Makefile
+      anchor: test-targets
+      marker: testing:e2e-targets
+      content: "e2e:\n\t$(RUN) test:e2e\n\ne2e-install:\n\t$(RUN) test:e2e:install\n"

@@ -1,0 +1,39 @@
+id: state/zustand
+name: Zustand client state
+files: files
+ops:
+  - addFiles:
+      - path: src/lib/stores/app-actions.ts
+        dest: src/lib/stores/app-actions.ts
+      - path: src/lib/stores/app-selectors.ts
+        dest: src/lib/stores/app-selectors.ts
+      - path: src/lib/stores/app-store-provider.tsx
+        dest: src/lib/stores/app-store-provider.tsx
+      - path: src/lib/stores/app-store.test.ts
+        dest: src/lib/stores/app-store.test.ts
+      - path: src/lib/stores/app-store.ts
+        dest: src/lib/stores/app-store.ts
+      - path: src/types/store.ts
+        dest: src/types/store.ts
+  - addDependency:
+      file: package.json
+      module: zustand
+      version: 5.1.0
+  - insertAfter:
+      file: src/components/providers.tsx
+      anchor: state-imports
+      marker: state:zustand-import
+      content: |
+        import { AppStoreProvider } from "@/lib/stores/app-store-provider";
+  - insertAfter:
+      file: src/components/providers.tsx
+      anchor: state-begin
+      marker: state:zustand-begin
+      content: |
+        <AppStoreProvider>
+  - insertBefore:
+      file: src/components/providers.tsx
+      anchor: state-end
+      marker: state:zustand-end
+      content: |
+        </AppStoreProvider>

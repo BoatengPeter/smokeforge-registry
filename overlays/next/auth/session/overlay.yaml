@@ -37,6 +37,14 @@ ops:
         dest: src/components/auth/reset-password-form.tsx
       - path: src/components/auth/sign-out-button.tsx
         dest: src/components/auth/sign-out-button.tsx
+      - path: src/components/ui/form.tsx
+        dest: src/components/ui/form.tsx
+      - path: src/components/ui/input.tsx
+        dest: src/components/ui/input.tsx
+      - path: src/components/ui/label.tsx
+        dest: src/components/ui/label.tsx
+      - path: src/components/ui/textarea.tsx
+        dest: src/components/ui/textarea.tsx
       - path: src/types/auth.ts
         dest: src/types/auth.ts
       - path: src/validations/auth.ts
@@ -51,6 +59,14 @@ ops:
       file: package.json
       module: better-auth
       version: 1.7.22
+  - addDependency:
+      file: package.json
+      module: react-hook-form
+      version: 7.92.0
+  - addDependency:
+      file: package.json
+      module: "@hookform/resolvers"
+      version: 7.0.6
   - insertAfter:
       file: src/server/env.ts
       anchor: auth-env-schema

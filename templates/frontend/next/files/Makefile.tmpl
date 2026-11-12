@@ -9,7 +9,8 @@ RUN := bun run
 INSTALL := bun install
 {{end}}
 
-.PHONY: help install dev build start lint typecheck test test-watch e2e e2e-install ci clean
+.PHONY: help install dev build start lint typecheck test test-watch ci clean
+# smokeforge:anchor test-phony
 
 help:
 	@echo "make install      Install dependencies"
@@ -20,8 +21,7 @@ help:
 	@echo "make typecheck    Run TypeScript checks"
 	@echo "make test         Run Jest"
 	@echo "make test-watch   Run Jest in watch mode"
-	@echo "make e2e          Run Playwright"
-	@echo "make e2e-install  Install Playwright Chromium"
+	# smokeforge:anchor test-help
 	@echo "make ci           Install, lint, typecheck, test, and build"
 	@echo "make clean        Remove build and test output"
 
@@ -49,11 +49,7 @@ test:
 test-watch:
 	$(RUN) test:watch
 
-e2e:
-	$(RUN) test:e2e
-
-e2e-install:
-	$(RUN) test:e2e:install
+# smokeforge:anchor test-targets
 
 ci: install lint typecheck test build
 

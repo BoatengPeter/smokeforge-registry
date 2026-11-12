@@ -11,10 +11,11 @@ skills, shadcn-first UI rules, file patterns, and the quality gate.
 - Node.js 24 LTS
 - Package manager: read `packageManager` in `package.json` (pnpm default; npm/bun supported)
 - Tailwind CSS 4 with `@tailwindcss/turbopack`, shadcn/ui, Lucide
-- Jest + Testing Library, Playwright
-- Zod, React Hook Form, Zustand
+- Jest + Testing Library; Playwright when the E2E overlay is selected
+- Zod; React Hook Form with auth; Zustand with the state overlay
 - Pino server logging
-- Optional overlays: Postgres + Drizzle, Better Auth + TOTP, PostHog, Docker, CI
+- Optional overlays: Postgres + Drizzle, Better Auth, Zustand, Playwright E2E,
+  PostHog, Docker, CI
 
 ## Commands
 
@@ -26,7 +27,7 @@ pnpm dev
 pnpm lint
 pnpm typecheck
 pnpm test
-pnpm test:e2e
+pnpm test:e2e     # E2E overlay only
 pnpm build
 pnpm start
 ```
@@ -55,9 +56,9 @@ afterward.
 - Never trust client input; authorize inside every protected route handler.
 - No server actions as the API layer; use Route Handlers.
 - Metadata, OpenGraph image, sitemap, and robots are configured under `src/app`.
-- Forms use React Hook Form + Zod; shared client state uses the Zustand provider.
-- Zustand stores must remain per-request on the server; never store request data in
-  module-level mutable state.
+- When the auth overlay is present, forms use React Hook Form + Zod.
+- When the state overlay is present, read shared client state through the
+  per-request Zustand provider; never use module-level mutable request state.
 
 ## Security
 

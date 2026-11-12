@@ -9,6 +9,20 @@ stacks:
     name: Next.js
     template: templates/frontend/next
     variables: [package_manager, site_description]
+presets:
+  - id: fullstack
+    name: Fullstack SaaS
+    description: Postgres, Better Auth, and Zustand
+    default: true
+    features: [database:postgres, auth:session, state:zustand]
+  - id: frontend
+    name: Frontend only
+    description: The base app without backend or client state
+    features: []
+  - id: production
+    name: Production
+    description: Fullstack plus Docker, CI, E2E, and PostHog
+    features: [database:postgres, auth:session, state:zustand, testing:e2e, docker, ci:github, analytics:posthog]
 features:
   - id: docker
     name: Docker
@@ -18,6 +32,7 @@ features:
   - id: ci
     name: CI
     kinds: [frontend]
+    requires: [testing:e2e]
     variants:
       - id: github
         name: GitHub Actions
@@ -33,6 +48,26 @@ features:
         default: true
         overlays:
           next: overlays/next/database/postgres
+  - id: state
+    name: Client state
+    kinds: [frontend]
+    variants:
+      - id: zustand
+        name: Zustand
+        default: true
+        stacks: [next]
+        overlays:
+          next: overlays/next/state/zustand
+  - id: testing
+    name: End-to-end testing
+    kinds: [frontend]
+    variants:
+      - id: e2e
+        name: Playwright
+        default: true
+        stacks: [next]
+        overlays:
+          next: overlays/next/testing/e2e
   - id: analytics
     name: Analytics
     kinds: [frontend]

@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+env:
+  DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
+  BETTER_AUTH_SECRET: ci-secret-ci-secret-ci-secret-ci-secret
+  BETTER_AUTH_URL: http://localhost:3000
+
 jobs:
   verify:
     runs-on: ubuntu-latest

@@ -10,12 +10,12 @@ Generated with [smokeforge](https://github.com/BoatengPeter/smokeforge).
 - React 19 / TypeScript 5.9
 - Tailwind CSS 4 + shadcn/ui primitives
 - Lucide icons
-- React Hook Form + Zod
-- Zustand state-only store + actions + selectors
+- Zod validation
 - Pino server logging
-- Jest + Testing Library, Playwright
+- Jest + Testing Library
 - Route Handler API under `src/app/api`
-- Optional Better Auth, Postgres/Drizzle, PostHog, Docker, CI
+- Feature overlays: Postgres/Drizzle, Better Auth + React Hook Form, Zustand,
+  Playwright E2E, PostHog, Docker, CI
 
 Package manager: `{{.package_manager}}` (also supported: pnpm, npm, bun).
 
@@ -42,8 +42,8 @@ Open http://localhost:3000. The homepage links to `/api/health`.
 | `make typecheck` | Run TypeScript checks |
 | `make test` | Run Jest |
 | `make test-watch` | Run Jest in watch mode |
-| `make e2e-install` | Install Playwright Chromium |
-| `make e2e` | Run Playwright |
+| `make e2e-install` | Install Playwright Chromium (E2E overlay only) |
+| `make e2e` | Run Playwright (E2E overlay only) |
 | `make ci` | Install, lint, typecheck, test, and build |
 | `make clean` | Remove build/test output |
 | `make docker-build` | Build the app image (Docker overlay only) |
@@ -51,7 +51,8 @@ Open http://localhost:3000. The homepage links to `/api/health`.
 | `make docker-down` | Stop the Compose stack (Docker overlay only) |
 
 Raw package-manager commands are also available through `package.json`
-(scripts: `dev`, `build`, `start`, `lint`, `typecheck`, `test`, `test:e2e`).
+(scripts: `dev`, `build`, `start`, `lint`, `typecheck`, `test`; the E2E overlay
+adds `test:e2e`).
 
 ## Configuration
 
@@ -66,6 +67,9 @@ The smokeforge generator writes `.env` from `.env.example`. Never commit
 | `BETTER_AUTH_SECRET` | auth overlay | Better Auth | Generate with `openssl rand -base64 32`. Never commit it. |
 | `BETTER_AUTH_URL` | auth overlay | Better Auth | Absolute app origin used for auth callbacks. |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | no | Better Auth | Comma-separated additional origins if the app is served elsewhere. |
+| `RESEND_API_KEY` | auth email | Better Auth email | Required for production OTP delivery. |
+| `EMAIL_FROM` | auth email | Better Auth email | Verified sender for Resend. |
+| `LOG_LEVEL` | no | Pino | `trace`, `debug`, `info`, `warn`, `error`, or `fatal`. |
 | `NEXT_PUBLIC_POSTHOG_KEY` | analytics overlay | PostHog | Public project key. Analytics remains disabled when unset. |
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | PostHog | Defaults to US cloud; set an EU or self-hosted host if needed. |
 | `PORT` | no | Node/Docker runtime | Docker sets `3000`; override only when required. |
@@ -114,15 +118,25 @@ control verbosity. Do not log secrets or production OTPs.
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the environment matrix, migrations,
 Docker/Node deployment, Vercel constraints, and rollback.
 
-## Optional infrastructure
+## Presets and optional infrastructure
 
-Docker and CI are opt-in features at generation time:
+The fullstack preset is the default. Presets are starting points; required
+companions are added automatically:
 
 ```bash
-smokeforge new ./app \
-  --kind frontend --stack next --name "App" \
-  --feature docker --feature ci:github
+# Fullstack SaaS: Postgres + Better Auth + Zustand
+smokeforge new ./app --kind frontend --stack next --name "App" --preset fullstack
+
+# Frontend only
+smokeforge new ./app --kind frontend --stack next --name "App" --preset frontend
+
+# Production: fullstack + Docker + CI + E2E + PostHog
+smokeforge new ./app --kind frontend --stack next --name "App" --preset production
 ```
+
+Individual overlays can be added with `--feature` or `smokeforge add`. For
+example, `--feature docker --feature ci:github` brings the required E2E overlay
+with CI.
 
 ### Docker
 
@@ -133,8 +147,9 @@ The `docker` overlay adds:
 - `compose.yaml` — app service using `.env` and a health check.
 - `make docker-build`, `make docker-up`, `make docker-down`.
 
-Migrations/backing services are added by their own overlays. Run migrations
-explicitly; the app does not migrate on boot.
+The database overlay adds `compose.override.yaml`, so `make docker-up`
+automatically starts Postgres alongside the app. Run migrations explicitly; the
+app does not migrate on boot.
 
 ### Analytics
 
@@ -146,6 +161,7 @@ autocapture and session recording off, memory persistence, and no capture until
 
 The `ci:github` overlay adds `.github/workflows/ci.yml`, which installs with the
 selected package manager, then runs lint, typecheck, Jest, build, and Playwright.
+CI requires the E2E overlay, which is added automatically.
 
 Commit the lockfile so CI can use frozen installs. The workflow falls back to a
 normal install before a lockfile exists.
@@ -156,6 +172,6 @@ Project-scoped skills live in `.agents/skills` and `.claude/skills`, with
 `skills-lock.json`. Read [CONTEXT.md](CONTEXT.md), [AGENTS.md](AGENTS.md), and the
 relevant skill before changing an area.
 
-The Next-specific skills cover App Router patterns, Better Auth, auth security,
+The project skills cover App Router patterns, Better Auth, auth security,
 React performance, composition, frontend design, web interface guidelines,
-Tailwind design systems, Zod, robots.txt, and GitHub Actions templates.
+Tailwind design systems, Zustand, Zod, robots.txt, and GitHub Actions templates.

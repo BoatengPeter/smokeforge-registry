@@ -45,7 +45,8 @@ If a change crosses areas, invoke every relevant skill. Read the skill's
 - Style with Tailwind tokens and `class-variance-authority` variants. No inline
   style attributes for layout/color and no hard-coded hex colors in components.
 - Prefer composition and explicit variants over boolean prop proliferation.
-- Use shadcn `Form` with React Hook Form; do not build parallel form wrappers.
+- When the auth/forms overlay is present, use shadcn `Form` with React Hook
+  Form; do not build parallel form wrappers.
 
 ## File and import patterns
 
@@ -69,8 +70,9 @@ If a change crosses areas, invoke every relevant skill. Read the skill's
 
 ## State and data
 
-- Zustand is state-only: state lives in the store, actions live in
-  `AppActions`, and components call actions through `useAppActions()`.
+- When the Zustand overlay is present, state is state-only: state lives in the
+  store, actions live in `AppActions`, and components call actions through
+  `useAppActions()`.
 - Use the per-request `AppStoreProvider`; never share a store at module scope.
 - Read state through selectors from `src/lib/stores/app-selectors.ts`; use
   `useShallow` for multi-field selections.
@@ -116,7 +118,7 @@ Rules:
 
 - A failing command blocks completion. Report the actual output; never claim
   success without fresh evidence.
-- If UI behavior changed, run `pnpm test:e2e` when Playwright is available.
+- If the E2E overlay is present and UI behavior changed, run `pnpm test:e2e`.
 - If Docker or CI files changed, validate the Docker build and the workflow.
 - If the change adds commands, update the Makefile and `README.md`.
 - Commit the lockfile once it exists; do not commit `.env` or `.smokeforge/`.
