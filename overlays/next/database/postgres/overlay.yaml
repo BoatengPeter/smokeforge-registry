@@ -13,6 +13,10 @@ ops:
         dest: drizzle.config.ts
       - path: compose.override.yaml
         dest: compose.override.yaml
+      - path: compose.db.yaml
+        dest: compose.db.yaml
+      - path: scripts/db-up.mjs
+        dest: scripts/db-up.mjs
   - addDependency:
       file: package.json
       module: drizzle-orm
@@ -55,6 +59,22 @@ ops:
       op: set
       path: scripts.db:studio
       value: drizzle-kit studio
+  - insertAfter:
+      file: Makefile
+      anchor: db-phony
+      marker: database:db-phony
+      content: |
+        .PHONY: db-up db-down db-generate db-migrate db-push db-studio
+  - insertAfter:
+      file: Makefile
+      anchor: db-help
+      marker: database:db-help
+      content: "@echo \"make db-up        Start Postgres with Docker\"\n@echo \"make db-down      Stop the Docker Postgres\"\n@echo \"make db-generate  Generate a Drizzle migration\"\n@echo \"make db-migrate   Apply migrations\"\n@echo \"make db-push      Push schema without migration files\"\n@echo \"make db-studio    Open Drizzle Studio\"\n"
+  - insertAfter:
+      file: Makefile
+      anchor: db-targets
+      marker: database:db-targets
+      content: "db-up:\n\tnode scripts/db-up.mjs\n\ndb-down:\n\tdocker compose -f compose.db.yaml down\n\ndb-generate:\n\t$(RUN) db:generate\n\ndb-migrate:\n\t$(RUN) db:migrate\n\ndb-push:\n\t$(RUN) db:push\n\ndb-studio:\n\t$(RUN) db:studio\n"
   - env:
       key: DATABASE_URL
       example: postgres://postgres:postgres@localhost:5432/app

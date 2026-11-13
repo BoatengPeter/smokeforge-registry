@@ -4,6 +4,32 @@ This file is the source of truth for coding style, patterns, and the required
 quality gate. Read it before changing code. `AGENTS.md` and `CLAUDE.md` both
 reference it.
 
+## Agent non-negotiables
+
+These are hard boundaries, not suggestions:
+
+1. **Invoke the relevant frontend skills before acting.** Read the matching
+   `SKILL.md` under `.agents/skills` and `.claude/skills` for every area you
+   touch. If a task crosses areas, invoke every relevant skill.
+2. **Stay inside the selected stack.** Do not introduce another framework,
+   router, state manager, ORM, auth system, UI library, or styling system unless
+   the user explicitly asks for it.
+3. **Use the chosen component library.** This project uses shadcn/ui under
+   `src/components/ui`. Prefer its primitives and add missing ones with the
+   shadcn CLI. Do not replace them with native controls or another library
+   without explicit permission.
+4. **Never run a production build until explicitly asked.** Do not run
+   `pnpm build`, `npm run build`, `bun run build`, `make build`, or any
+   deployment build unless the user requests it. Typechecking, linting, and
+   tests are allowed unless the user says otherwise.
+5. **Do not deploy, publish, or start long-running services** unless explicitly
+   asked.
+6. **Do not weaken security defaults** to make a local check pass. Never commit
+   secrets, disable auth checks, bypass validation, or make destructive
+   database changes without explicit approval.
+7. **Keep changes scoped.** Do not modify generated files, dependencies, or
+   configuration outside the requested task without explaining why.
+
 ## Before any action
 
 Invoke the relevant project skill before starting the work:

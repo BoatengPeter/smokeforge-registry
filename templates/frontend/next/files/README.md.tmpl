@@ -42,6 +42,12 @@ Open http://localhost:3000. The homepage links to `/api/health`.
 | `make typecheck` | Run TypeScript checks |
 | `make test` | Run Jest |
 | `make test-watch` | Run Jest in watch mode |
+| `make db-up` | Start Postgres with Docker (database overlay only) |
+| `make db-down` | Stop the Docker Postgres (database overlay only) |
+| `make db-generate` | Generate a Drizzle migration (database overlay only) |
+| `make db-migrate` | Apply migrations (database overlay only) |
+| `make db-push` | Push schema without migration files (database overlay only) |
+| `make db-studio` | Open Drizzle Studio (database overlay only) |
 | `make e2e-install` | Install Playwright Chromium (E2E overlay only) |
 | `make e2e` | Run Playwright (E2E overlay only) |
 | `make ci` | Install, lint, typecheck, test, and build |
@@ -107,6 +113,8 @@ Selecting the auth overlay wires Better Auth sessions with email/password and
 - `POST /api/auth/**` is the Better Auth Route Handler
 - Local development prints OTPs to the server log. Production requires
   `RESEND_API_KEY` and `EMAIL_FROM`; non-local hosts fail closed without them.
+- Start the local database with `make db-up`. It requires Docker and gives an
+  installation hint if Docker is missing or not running.
 
 ## Logging
 

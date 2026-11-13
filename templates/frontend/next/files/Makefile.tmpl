@@ -11,6 +11,7 @@ INSTALL := bun install
 
 .PHONY: help install dev build start lint typecheck test test-watch ci clean
 # smokeforge:anchor test-phony
+# smokeforge:anchor db-phony
 
 help:
 	@echo "make install      Install dependencies"
@@ -22,6 +23,7 @@ help:
 	@echo "make test         Run Jest"
 	@echo "make test-watch   Run Jest in watch mode"
 	# smokeforge:anchor test-help
+	# smokeforge:anchor db-help
 	@echo "make ci           Install, lint, typecheck, test, and build"
 	@echo "make clean        Remove build and test output"
 
@@ -49,6 +51,7 @@ test:
 test-watch:
 	$(RUN) test:watch
 
+# smokeforge:anchor db-targets
 # smokeforge:anchor test-targets
 
 ci: install lint typecheck test build
