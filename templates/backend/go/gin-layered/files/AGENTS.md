@@ -45,7 +45,8 @@ Run `make ci` before reporting completion. Read `CONTEXT.md` for the full gate.
 
 ```text
 cmd/api/              process startup and graceful shutdown
-internal/httpapi/     Gin transport, middleware, OpenAPI, and Swagger
+internal/httpapi/     Gin transport, middleware, and generated handlers
+internal/swagger/     OpenAPI contract and Swagger UI
 internal/response/    Success responses and RFC 9457 error responses
 internal/app/         application facade exposed to HTTP
 internal/service/     application use cases

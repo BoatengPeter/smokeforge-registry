@@ -122,7 +122,7 @@ values must come from the deployment platform.
 
 Errors use `application/problem+json` with RFC 9457 fields plus stable `code`
 and `request_id` extensions. Validation failures return `422` with field-level
-`errors`. The shared response helpers live in `internal/httpapi`.
+`errors`. The shared response helpers live in `internal/response`.
 
 ## Security
 
@@ -137,7 +137,7 @@ and `request_id` extensions. Validation failures return `422` with field-level
 
 ## Customize this API
 
-1. Change the contract in `internal/httpapi/openapi.yaml`.
+1. Change the contract in `internal/swagger/openapi.yaml`.
 2. Run `make generate`.
 3. Implement handlers in `internal/httpapi`.
 4. Add request/response tests with `httptest`.

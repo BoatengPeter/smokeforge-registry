@@ -57,7 +57,8 @@ If a change crosses areas, invoke every relevant skill. Read the current
 
 ```text
 cmd/api/              composition root; startup and shutdown
-internal/httpapi/     Gin transport, middleware, OpenAPI
+internal/httpapi/     Gin transport, middleware, and generated handlers
+internal/swagger/     OpenAPI contract and Swagger UI
 internal/response/    Success responses and RFC 9457 error responses
 internal/app/         facade consumed by HTTP
 internal/service/     use cases

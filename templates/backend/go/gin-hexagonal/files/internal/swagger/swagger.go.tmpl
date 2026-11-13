@@ -1,4 +1,5 @@
-package httpapi
+// Package swagger embeds the spec-first OpenAPI contract and serves Swagger UI.
+package swagger
 
 import (
 	"bytes"
@@ -6,7 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
+	"github.com/gin-gonic/gin"
+	"github.com/swaggest/swgui/v5emb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -15,8 +19,34 @@ var baseOpenAPISpec []byte
 
 type document map[string]any
 
-// mergeOpenAPISpecs combines the base contract with feature contracts into one
-// document for Swagger UI. Paths and component names must not collide.
+// Register merges the base contract with feature contracts and serves Swagger
+// UI and the merged OpenAPI document.
+func Register(engine *gin.Engine, title string, documents [][]byte) error {
+	all := make([][]byte, 0, len(documents)+1)
+	all = append(all, baseOpenAPISpec)
+	all = append(all, documents...)
+
+	spec, err := mergeOpenAPISpecs(all)
+	if err != nil {
+		return err
+	}
+
+	ui := v5emb.New(title, "/openapi.json", "/docs/")
+
+	engine.GET("/openapi.json", func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/json; charset=utf-8", spec)
+	})
+	engine.GET("/docs", func(c *gin.Context) {
+		c.Redirect(http.StatusTemporaryRedirect, "/docs/")
+	})
+	engine.GET("/docs/*any", gin.WrapH(ui))
+	engine.GET("/swagger", func(c *gin.Context) {
+		c.Redirect(http.StatusTemporaryRedirect, "/docs/")
+	})
+
+	return nil
+}
+
 func mergeOpenAPISpecs(documents [][]byte) ([]byte, error) {
 	if len(documents) == 0 {
 		return nil, errors.New("openapi: at least one document is required")
@@ -74,12 +104,12 @@ func mergeDocument(target, source document) error {
 }
 
 func mergeSection(target, source document, key string) error {
-	sourceSection, ok := source[key].(map[string]any)
+	sourceSection, ok := asMap(source[key])
 	if !ok {
 		return nil
 	}
 
-	targetSection, ok := target[key].(map[string]any)
+	targetSection, ok := asMap(target[key])
 	if !ok {
 		targetSection = make(map[string]any, len(sourceSection))
 		target[key] = targetSection
@@ -96,9 +126,9 @@ func mergeSection(target, source document, key string) error {
 			return fmt.Errorf("%s.%s is declared more than once", key, name)
 		}
 
-		existing, existingOK := targetSection[name].(map[string]any)
+		existing, existingOK := asMap(targetSection[name])
 
-		incoming, incomingOK := value.(map[string]any)
+		incoming, incomingOK := asMap(value)
 		if !existingOK || !incomingOK {
 			return fmt.Errorf("%s.%s is declared more than once", key, name)
 		}
@@ -107,6 +137,17 @@ func mergeSection(target, source document, key string) error {
 	}
 
 	return nil
+}
+
+func asMap(value any) (map[string]any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed, true
+	case document:
+		return map[string]any(typed), true
+	default:
+		return nil, false
+	}
 }
 
 func mergeMap(target, source map[string]any) {
@@ -129,7 +170,7 @@ func mergeTags(target, source document) {
 	seen := make(map[string]bool, len(existing))
 
 	for _, tag := range existing {
-		if item, ok := tag.(map[string]any); ok {
+		if item, ok := asMap(tag); ok {
 			if name, ok := item["name"].(string); ok {
 				seen[name] = true
 			}
@@ -137,7 +178,7 @@ func mergeTags(target, source document) {
 	}
 
 	for _, tag := range incoming {
-		item, ok := tag.(map[string]any)
+		item, ok := asMap(tag)
 		if !ok {
 			continue
 		}

@@ -20,7 +20,8 @@ HTTP request
 | Package | Responsibility |
 | --- | --- |
 | `cmd/api` | Reads config, builds the logger, wires services, starts and stops HTTP. |
-| `internal/httpapi` | Gin engine, middleware, generated server interface, and docs. |
+| `internal/httpapi` | Gin engine, middleware, and generated server handlers. |
+| `internal/swagger` | Embedded OpenAPI contract, document merging, and Swagger UI. |
 | `internal/response` | Success response helpers and RFC 9457 error responses. |
 | `internal/app` | Thin adapters between transport contracts and use cases. |
 | `internal/service` | Transport-neutral application behavior. |
@@ -44,7 +45,7 @@ Feature overlays add self-contained packages. They must not depend on
 
 ## Swagger and contract
 
-`internal/httpapi/openapi.yaml` is the base contract. Each documented feature
+`internal/swagger/openapi.yaml` is the base contract. Each documented feature
 registrar contributes another OpenAPI document. At startup the server merges
 them into `/openapi.json` and serves Swagger UI at `/docs`. The merge fails
 closed if two documents declare the same path or component.

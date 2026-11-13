@@ -75,13 +75,15 @@ run_generated_checks "$target"
 
 echo "== generated code drift check"
 target="$TMP/go-gin-layered-production"
-find "$target/internal" "$target/cmd" -type f \( -name '*.go' -o -name '*.sql' -o -name '*.yaml' \) -print0 \
-  | sort -z \
-  | xargs -0 sha256sum >"$TMP/before.sha"
+{
+  find "$target" -maxdepth 1 -type f -name '*.go' -print0
+  find "$target/internal" "$target/cmd" -type f \( -name '*.go' -o -name '*.sql' -o -name '*.yaml' \) -print0
+} | sort -z | xargs -0 sha256sum >"$TMP/before.sha"
 (cd "$target" && make generate >/dev/null)
-find "$target/internal" "$target/cmd" -type f \( -name '*.go' -o -name '*.sql' -o -name '*.yaml' \) -print0 \
-  | sort -z \
-  | xargs -0 sha256sum >"$TMP/after.sha"
+{
+  find "$target" -maxdepth 1 -type f -name '*.go' -print0
+  find "$target/internal" "$target/cmd" -type f \( -name '*.go' -o -name '*.sql' -o -name '*.yaml' \) -print0
+} | sort -z | xargs -0 sha256sum >"$TMP/after.sha"
 diff -u "$TMP/before.sha" "$TMP/after.sha"
 
 echo "All Go template checks passed."

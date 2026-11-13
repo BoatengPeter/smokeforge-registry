@@ -5,8 +5,8 @@ import (
 
 	"{{.module_path}}/internal/config"
 	"{{.module_path}}/internal/response"
+	"{{.module_path}}/internal/swagger"
 	"github.com/gin-gonic/gin"
-	"github.com/swaggest/swgui/v5emb"
 	"go.uber.org/zap"
 )
 
@@ -103,7 +103,17 @@ func New(cfg config.Config, logger *zap.Logger, opts ...Option) (*gin.Engine, er
 	}
 
 	if cfg.DocsEnabled() {
-		if err := registerDocs(engine, cfg, serverOptions.registrars); err != nil {
+		documents := make([][]byte, 0, len(serverOptions.registrars))
+		for _, registrar := range serverOptions.registrars {
+			documented, ok := registrar.(DocumentedRegistrar)
+			if !ok {
+				continue
+			}
+
+			documents = append(documents, documented.OpenAPISpec())
+		}
+
+		if err := swagger.Register(engine, cfg.APITitle, documents); err != nil {
 			return nil, err
 		}
 	}
@@ -116,38 +126,4 @@ func New(cfg config.Config, logger *zap.Logger, opts ...Option) (*gin.Engine, er
 	})
 
 	return engine, nil
-}
-
-func registerDocs(engine *gin.Engine, cfg config.Config, registrars []Registrar) error {
-	documents := make([][]byte, 0, len(registrars)+1)
-	documents = append(documents, baseOpenAPISpec)
-
-	for _, registrar := range registrars {
-		documented, ok := registrar.(DocumentedRegistrar)
-		if !ok {
-			continue
-		}
-
-		documents = append(documents, documented.OpenAPISpec())
-	}
-
-	spec, err := mergeOpenAPISpecs(documents)
-	if err != nil {
-		return err
-	}
-
-	ui := v5emb.New(cfg.APITitle, "/openapi.json", "/docs/")
-
-	engine.GET("/openapi.json", func(c *gin.Context) {
-		c.Data(http.StatusOK, "application/json; charset=utf-8", spec)
-	})
-	engine.GET("/docs", func(c *gin.Context) {
-		c.Redirect(http.StatusTemporaryRedirect, "/docs/")
-	})
-	engine.GET("/docs/*any", gin.WrapH(ui))
-	engine.GET("/swagger", func(c *gin.Context) {
-		c.Redirect(http.StatusTemporaryRedirect, "/docs/")
-	})
-
-	return nil
 }

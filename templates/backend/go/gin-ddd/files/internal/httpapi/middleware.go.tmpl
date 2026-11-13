@@ -70,37 +70,25 @@ func RequestLogger(logger *zap.Logger) gin.HandlerFunc {
 	}
 }
 
-// Recovery turns panics into RFC 9457 responses and logs the stack trace.
+// Recovery uses Gin's recovery wrapper and returns an RFC 9457 response while
+// logging the panic stack.
 func Recovery(logger *zap.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		defer func() {
-			recovered := recover()
-			if recovered == nil {
-				return
-			}
+	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		logger.Error(
+			"panic recovered",
+			zap.Any("panic", recovered),
+			zap.String("request_id", RequestID(c)),
+			zap.String("method", c.Request.Method),
+			zap.String("path", c.Request.URL.Path),
+			zap.ByteString("stack", debug.Stack()),
+		)
 
-			if recovered == http.ErrAbortHandler { //nolint:errorlint // ErrAbortHandler is a sentinel panic value, not a wrapped error.
-				panic(recovered)
-			}
+		if !c.Writer.Written() {
+			response.WriteError(c, response.NewError(http.StatusInternalServerError, "internal_error", "Internal server error", "The request could not be completed."))
+		}
 
-			logger.Error(
-				"panic recovered",
-				zap.Any("panic", recovered),
-				zap.String("request_id", RequestID(c)),
-				zap.String("method", c.Request.Method),
-				zap.String("path", c.Request.URL.Path),
-				zap.ByteString("stack", debug.Stack()),
-			)
-
-			if !c.Writer.Written() {
-				response.WriteError(c, response.NewError(http.StatusInternalServerError, "internal_error", "Internal server error", "The request could not be completed."))
-			}
-
-			c.Abort()
-		}()
-
-		c.Next()
-	}
+		c.Abort()
+	})
 }
 
 // SecurityHeaders applies conservative browser-facing response headers.

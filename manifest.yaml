@@ -44,8 +44,8 @@ presets:
     kinds: [frontend]
     features: []
   - id: production
-    name: Production
-    description: Fullstack plus Docker, CI, E2E, and PostHog
+    name: Production Next.js
+    description: Fullstack Next.js plus Docker, CI, E2E, and PostHog
     kinds: [frontend]
     features: [database:postgres, auth:session, state:zustand, testing:e2e, docker, ci:github, analytics:posthog]
   - id: api
@@ -61,7 +61,7 @@ presets:
     features: []
   - id: api-production
     name: Production Go API
-    description: Postgres, JWT authentication, TOTP, Docker, and CI
+    description: Postgres, auth/users, Google OAuth, TOTP, Docker, and CI
     kinds: [backend]
     features: [database:postgres, auth:jwt, totp, docker, ci:github]
 features:

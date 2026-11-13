@@ -49,7 +49,8 @@ until there is a real reason to split it.
 
 ```text
 cmd/api/              process startup and shutdown
-internal/httpapi/     Gin transport, middleware, OpenAPI, and Swagger
+internal/httpapi/     Gin transport, middleware, generated handlers
+internal/swagger/     OpenAPI contract, merging, and Swagger UI, and Swagger
 internal/response/    Success responses and RFC 9457 error responses
 internal/app/         application behavior
 internal/config/      typed environment configuration
@@ -119,7 +120,7 @@ values must come from the deployment platform.
 
 Errors use `application/problem+json` with RFC 9457 fields plus stable `code`
 and `request_id` extensions. Validation failures return `422` with field-level
-`errors`. The shared response helpers live in `internal/httpapi`.
+`errors`. The shared response helpers live in `internal/response`.
 
 ## Security
 
@@ -134,7 +135,7 @@ and `request_id` extensions. Validation failures return `422` with field-level
 
 ## Customize this API
 
-1. Change the contract in `internal/httpapi/openapi.yaml`.
+1. Change the contract in `internal/swagger/openapi.yaml`.
 2. Run `make generate`.
 3. Implement handlers in `internal/httpapi`.
 4. Add request/response tests with `httptest`.

@@ -43,6 +43,6 @@ HTTP request
 
 ## Swagger and contract
 
-`internal/httpapi/openapi.yaml` is the base contract. Each documented feature
+`internal/swagger/openapi.yaml` is the base contract. Each documented feature
 registrar contributes another OpenAPI document. At startup the server merges
 them into `/openapi.json` and serves Swagger UI at `/docs`.

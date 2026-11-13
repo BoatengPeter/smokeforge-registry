@@ -69,15 +69,18 @@ vulncheck:
 generate:
 	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
 		-config internal/httpapi/oapi-codegen.yaml \
-		internal/httpapi/openapi.yaml
+		-o internal/httpapi/api.gen.go \
+		internal/swagger/openapi.yaml
 	@if [ -f internal/auth/oapi-codegen.yaml ]; then \
 		go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
 			-config internal/auth/oapi-codegen.yaml \
+			-o internal/auth/api.gen.go \
 			internal/auth/openapi.yaml; \
 	fi
 	@if [ -f internal/auth/totp/oapi-codegen.yaml ]; then \
 		go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
 			-config internal/auth/totp/oapi-codegen.yaml \
+			-o internal/auth/totp/api.gen.go \
 			internal/auth/totp/openapi.yaml; \
 	fi
 	@if [ -f sqlc.yaml ]; then \
