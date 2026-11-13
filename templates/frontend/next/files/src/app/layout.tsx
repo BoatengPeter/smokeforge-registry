@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { site } from "@/lib/site";
 // smokeforge:anchor analytics-imports
 import { Providers } from "@/components/providers";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
@@ -38,7 +45,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
+      <body
+        className={`${manrope.variable} min-h-dvh bg-background font-sans text-foreground antialiased`}
+      >
         <Providers>{children}</Providers>
         {/* smokeforge:anchor analytics */}
       </body>

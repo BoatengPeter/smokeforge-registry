@@ -16,6 +16,9 @@ const config: Config = {
     "<rootDir>/.next/",
     "<rootDir>/e2e/",
     "<rootDir>/node_modules/",
+    "<rootDir>/.agents/",
+    "<rootDir>/.claude/",
+    "<rootDir>/.impeccable/",
   ],
 };
 

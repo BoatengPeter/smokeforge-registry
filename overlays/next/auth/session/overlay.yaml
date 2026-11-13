@@ -152,12 +152,26 @@ ops:
       anchor: auth-cta
       marker: auth:cta
       content: |
-        <Button asChild size="sm" variant="ghost">
+        <Button asChild className="rounded-full text-cream hover:bg-cream/10 hover:text-cream" size="sm" variant="ghost">
           <Link href="/login">Sign in</Link>
         </Button>
-        <Button asChild size="sm">
+        <Button asChild className="rounded-full bg-cream text-charcoal hover:bg-sand" size="sm">
           <Link href="/signup">Create account</Link>
         </Button>
+  - insertAfter:
+      file: src/components/site-menu.tsx
+      anchor: auth-menu
+      marker: auth:menu
+      content: |
+        <Link className="hover:text-cream" href="/login" onClick={close}>Sign in</Link>
+        <Link className="hover:text-cream" href="/signup" onClick={close}>Create account</Link>
+  - insertAfter:
+      file: src/app/page.tsx
+      anchor: auth-footer
+      marker: auth:footer
+      content: |
+        <Link className="hover:text-cream" href="/login">Sign in</Link>
+        <Link className="hover:text-cream" href="/signup">Create account</Link>
   - env:
       key: BETTER_AUTH_SECRET
       example: replace-with-a-generated-secret

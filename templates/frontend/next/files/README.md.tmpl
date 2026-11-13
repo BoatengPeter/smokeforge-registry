@@ -11,6 +11,7 @@ Generated with [smokeforge](https://github.com/BoatengPeter/smokeforge).
 - Tailwind CSS 4 + shadcn/ui primitives
 - Lucide icons
 - Zod validation
+- Motion for restrained scroll reveals and interaction feedback
 - Pino server logging
 - Jest + Testing Library
 - Route Handler API under `src/app/api`
@@ -174,6 +175,68 @@ CI requires the E2E overlay, which is added automatically.
 Commit the lockfile so CI can use frozen installs. The workflow falls back to a
 normal install before a lockfile exists.
 
+## Customize this app
+
+This scaffold is a working demo, not a finished brand. The landing copy,
+contact email, and photography are placeholders. Replace them before presenting
+the site as your own.
+
+### Must change before launch
+
+| What | Where | Default |
+| --- | --- | --- |
+| App name and description | `src/lib/site.ts.tmpl`, metadata in `src/app/layout.tsx` | Values from the generation prompts |
+| Landing-page copy | `src/app/page.tsx` | Boateng Peter developer-portfolio copy |
+| Contact email | `src/app/page.tsx` | `boatengkonadupeter@gmail.com` |
+| Imagery and alt text | `public/images/*.jpeg`, `src/app/page.tsx` | Demo photography; replacement prompts in `public/images/PROMPTS.md` |
+| Public URL | `.env` → `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |
+| Auth URL and secret | `.env` → `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET` | Local URL and a generated local secret |
+| Production email | `.env` → `RESEND_API_KEY`, `EMAIL_FROM` | Unset; local OTPs print to the terminal |
+| Database credentials | `.env` → `DATABASE_URL`; `compose.db.yaml` | Local Postgres `app` database with demo credentials |
+| Legal, social, and contact details | Footer in `src/app/page.tsx` | Not included; add real links |
+| Open Graph and social copy | `src/app/layout.tsx`, `src/app/opengraph-image.tsx` | Generated from the app name and description |
+
+Do not invent clients, testimonials, awards, or outcomes on the landing page.
+
+### Brand choices
+
+| What | Where | Default |
+| --- | --- | --- |
+| Colors, type, spacing, radii | `src/app/globals.css`, `DESIGN.md` | Cream, charcoal, tide teal, signal coral; Manrope |
+| Page structure and sections | `src/app/page.tsx` | Full-bleed hero, editorial work cards, service list, contact block |
+| Product context | `PRODUCT.md` | Studio landing-page context |
+| UI primitives | `src/components/ui`, `components.json` | shadcn/ui; add with the shadcn CLI |
+| Image direction | `public/images/PROMPTS.md` | Documentary, warm developer/studio photography |
+| Fonts | `src/app/layout.tsx`, `src/app/globals.css` | Manrope as a Metropolis-like geometric sans |
+
+### Infrastructure choices
+
+| What | Where |
+| --- | --- |
+| Database schema and migrations | `src/server/db/schema.ts`, `drizzle/`, `drizzle.config.ts` |
+| Docker services | `compose.yaml`, `compose.db.yaml`, `compose.override.yaml` |
+| Auth screens and email copy | `src/app/(auth)`, `src/components/auth`, `src/server/email.ts` |
+| Analytics and consent | `src/components/posthog-bootstrap.tsx`, `src/lib/analytics/consent.ts` |
+| CI workflow | `.github/workflows/ci.yml` |
+| Commands and package manager | `Makefile`, `package.json` |
+| Agent behavior | `CONTEXT.md`, `AGENTS.md`, `CLAUDE.md` |
+
+Read [DESIGN.md](DESIGN.md) before changing visual decisions, and
+[CONTEXT.md](CONTEXT.md) before changing agent behavior. Keep the responsive,
+component-library, skill-invocation, and no-production-build rules intact unless
+the user explicitly changes them.
+
+## Design context
+
+- [DESIGN.md](DESIGN.md) is the visual source of truth: palette, type, layout,
+  components, and image direction.
+- [PRODUCT.md](PRODUCT.md) is the product context for design decisions.
+- `public/images/PROMPTS.md` contains prompts for replacing the placeholder
+  photography.
+
+Use the `impeccable` skill for design work. Do not run a production build until
+explicitly asked.
+
 ## Agent skills
 
 Project-scoped skills live in `.agents/skills` and `.claude/skills`, with
@@ -181,5 +244,6 @@ Project-scoped skills live in `.agents/skills` and `.claude/skills`, with
 relevant skill before changing an area.
 
 The project skills cover App Router patterns, Better Auth, auth security,
-React performance, composition, frontend design, web interface guidelines,
-Tailwind design systems, Zustand, Zod, robots.txt, and GitHub Actions templates.
+React performance, composition, Impeccable design direction, animation
+vocabulary, frontend design, web interface guidelines, Tailwind design systems,
+Zustand, Zod, robots.txt, and GitHub Actions templates.

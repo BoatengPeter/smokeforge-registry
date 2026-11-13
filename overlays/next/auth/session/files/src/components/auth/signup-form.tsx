@@ -63,9 +63,9 @@ export function SignupForm() {
   }
 
   return (
-    <Card>
+    <Card className="auth-card rounded-none border-0 bg-transparent py-0 shadow-none">
       <CardHeader>
-        <CardTitle className="font-display text-2xl">Create account</CardTitle>
+        <CardTitle className="font-display text-4xl font-bold uppercase tracking-[-0.04em] sm:text-5xl">Create account</CardTitle>
         <CardDescription>
           We will email a 6-digit code to verify your address.
         </CardDescription>
@@ -121,7 +121,7 @@ export function SignupForm() {
                 {formError}
               </p>
             ) : null}
-            <Button className="w-full" disabled={form.formState.isSubmitting} type="submit">
+            <Button className="button-fill h-12 w-full rounded-full" disabled={form.formState.isSubmitting} type="submit">
               {form.formState.isSubmitting ? "Creating account..." : "Create account"}
             </Button>
           </form>

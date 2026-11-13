@@ -58,9 +58,9 @@ export function LoginForm() {
   }
 
   return (
-    <Card>
+    <Card className="auth-card rounded-none border-0 bg-transparent py-0 shadow-none">
       <CardHeader>
-        <CardTitle className="font-display text-2xl">Sign in</CardTitle>
+        <CardTitle className="font-display text-4xl font-bold uppercase tracking-[-0.04em] sm:text-5xl">Sign in</CardTitle>
         <CardDescription>Use your email and password.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -101,7 +101,7 @@ export function LoginForm() {
                 {formError}
               </p>
             ) : null}
-            <Button className="w-full" disabled={form.formState.isSubmitting} type="submit">
+            <Button className="button-fill h-12 w-full rounded-full" disabled={form.formState.isSubmitting} type="submit">
               {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
           </form>
@@ -109,16 +109,16 @@ export function LoginForm() {
       </CardContent>
       <CardFooter className="flex-col gap-2 text-sm text-muted-foreground">
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-          <Link className="underline-offset-4 hover:underline" href="/forgot-password">
+          <Link className="underline decoration-coral decoration-2 underline-offset-4 transition-colors hover:text-tide" href="/forgot-password">
             Forgot password?
           </Link>
-          <Link className="underline-offset-4 hover:underline" href="/verify-email">
+          <Link className="underline decoration-coral decoration-2 underline-offset-4 transition-colors hover:text-tide" href="/verify-email">
             Verify email
           </Link>
         </div>
         <p>
           No account?{" "}
-          <Link className="font-medium text-foreground underline-offset-4 hover:underline" href="/signup">
+          <Link className="font-semibold text-foreground underline decoration-coral decoration-2 underline-offset-4 transition-colors hover:text-tide" href="/signup">
             Create one
           </Link>
         </p>

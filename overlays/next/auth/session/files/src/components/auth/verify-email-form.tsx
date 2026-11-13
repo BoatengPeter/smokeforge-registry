@@ -77,9 +77,9 @@ export function VerifyEmailForm({ initialEmail }: { initialEmail: string }) {
   }
 
   return (
-    <Card>
+    <Card className="auth-card rounded-none border-0 bg-transparent py-0 shadow-none">
       <CardHeader>
-        <CardTitle className="font-display text-2xl">Verify email</CardTitle>
+        <CardTitle className="font-display text-4xl font-bold uppercase tracking-[-0.04em] sm:text-5xl">Verify email</CardTitle>
         <CardDescription>
           Enter the 6-digit code from your email. Codes expire after 10 minutes.
         </CardDescription>
@@ -127,7 +127,7 @@ export function VerifyEmailForm({ initialEmail }: { initialEmail: string }) {
             {resendMessage ? (
               <p className="text-sm text-muted-foreground">{resendMessage}</p>
             ) : null}
-            <Button className="w-full" disabled={form.formState.isSubmitting} type="submit">
+            <Button className="button-fill h-12 w-full rounded-full" disabled={form.formState.isSubmitting} type="submit">
               {form.formState.isSubmitting ? "Verifying..." : "Verify email"}
             </Button>
             <Button onClick={resendCode} type="button" variant="ghost">
@@ -137,7 +137,7 @@ export function VerifyEmailForm({ initialEmail }: { initialEmail: string }) {
         </Form>
       </CardContent>
       <CardFooter className="justify-center text-sm text-muted-foreground">
-        <Link className="underline-offset-4 hover:underline" href="/login">
+        <Link className="underline decoration-coral decoration-2 underline-offset-4 transition-colors hover:text-tide" href="/login">
           Back to sign in
         </Link>
       </CardFooter>

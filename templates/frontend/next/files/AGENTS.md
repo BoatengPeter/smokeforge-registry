@@ -3,7 +3,9 @@
 This project was scaffolded by smokeforge. It is a Next.js App Router project.
 
 Read [CONTEXT.md](CONTEXT.md) before changing code. It defines the required
-skills, shadcn-first UI rules, file patterns, and the quality gate.
+skills, shadcn-first UI rules, file patterns, and the quality gate. Read
+[DESIGN.md](DESIGN.md) before visual work and [PRODUCT.md](PRODUCT.md) for
+product truth.
 
 ## Stack
 
@@ -84,6 +86,8 @@ relevant `SKILL.md` before changing that area:
 - `github-actions-templates` — CI workflow patterns, caching, permissions, and Docker publishing
 - `vercel-react-best-practices` — React/Next.js performance rules
 - `vercel-composition-patterns` — component composition and state providers
+- `animation-vocabulary` — precise names for motion effects (scroll reveal, stagger, spring, easing)
+- `impeccable` — design direction, responsive adaptation, critique, audit, and polish
 - `frontend-design` — intentional visual direction
 - `web-design-guidelines` — interface/accessibility review
 - `tailwind-design-system` — Tailwind v4 tokens and components

@@ -57,9 +57,9 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <Card>
+    <Card className="auth-card rounded-none border-0 bg-transparent py-0 shadow-none">
       <CardHeader>
-        <CardTitle className="font-display text-2xl">Reset password</CardTitle>
+        <CardTitle className="font-display text-4xl font-bold uppercase tracking-[-0.04em] sm:text-5xl">Reset password</CardTitle>
         <CardDescription>
           We will email a 6-digit code if an account exists for that address.
         </CardDescription>
@@ -85,14 +85,14 @@ export function ForgotPasswordForm() {
                 {formError}
               </p>
             ) : null}
-            <Button className="w-full" disabled={form.formState.isSubmitting} type="submit">
+            <Button className="button-fill h-12 w-full rounded-full" disabled={form.formState.isSubmitting} type="submit">
               {form.formState.isSubmitting ? "Sending..." : "Send reset code"}
             </Button>
           </form>
         </Form>
       </CardContent>
       <CardFooter className="justify-center text-sm text-muted-foreground">
-        <Link className="underline-offset-4 hover:underline" href="/login">
+        <Link className="underline decoration-coral decoration-2 underline-offset-4 transition-colors hover:text-tide" href="/login">
           Back to sign in
         </Link>
       </CardFooter>

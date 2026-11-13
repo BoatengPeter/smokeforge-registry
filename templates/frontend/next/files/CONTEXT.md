@@ -2,7 +2,8 @@
 
 This file is the source of truth for coding style, patterns, and the required
 quality gate. Read it before changing code. `AGENTS.md` and `CLAUDE.md` both
-reference it.
+reference it. Read `DESIGN.md` before visual work and `PRODUCT.md` for product
+truth.
 
 ## Agent non-negotiables
 
@@ -29,6 +30,18 @@ These are hard boundaries, not suggestions:
    database changes without explicit approval.
 7. **Keep changes scoped.** Do not modify generated files, dependencies, or
    configuration outside the requested task without explaining why.
+8. **Every screen must work at every supported size.** Before calling UI work
+   done, verify mobile (360px), tablet (768px), laptop (1024px), and desktop
+   (1440px): no horizontal overflow, readable type, usable touch targets, and
+   keyboard/focus access. Never ship a hover-only interaction.
+9. **Use Impeccable for design work.** Load the `impeccable` skill for visual
+   changes, then run the matching workflow for the target:
+   - `adapt` when layout or responsive behavior changes.
+   - `optimize` when performance, images, or rendering changes.
+   - `critique` or `audit` before a design review or technical quality check.
+   - `polish` for the final pass before shipping.
+   - `document` when the visual system or `DESIGN.md` needs updating.
+   Invoke the skill even for a small refinement; do not guess its rules.
 
 ## Before any action
 
@@ -40,6 +53,8 @@ Invoke the relevant project skill before starting the work:
 | React components, data fetching, performance | `vercel-react-best-practices` |
 | Component APIs, composition, providers | `vercel-composition-patterns` |
 | Visual direction and layout | `frontend-design` |
+| Any visual design, redesign, responsive change, or polish | `impeccable` |
+| Describing or naming a motion effect | `animation-vocabulary` |
 | Accessibility and interface review | `web-design-guidelines` |
 | Tailwind tokens and components | `tailwind-design-system` |
 | State management | `zustand` |
@@ -50,6 +65,19 @@ Invoke the relevant project skill before starting the work:
 
 If a change crosses areas, invoke every relevant skill. Read the skill's
 `SKILL.md`; do not guess its rules.
+
+## Responsive and performance floor
+
+- Mobile-first. Start at 360px and scale up; never design desktop-only.
+- Use fluid type and spacing (`clamp()`), wrapping layouts, and min-width media
+  queries. No fixed widths that cause horizontal scroll.
+- Images must have dimensions or `fill` with a sized parent, meaningful alt text
+  when informative, and `sizes` appropriate to the layout.
+- Interactive targets must be at least 44×44px on touch screens.
+- Respect `prefers-reduced-motion`; motion is enhancement, never required.
+- Run `impeccable adapt <target>` for responsive changes and
+  `impeccable optimize <target>` for performance-sensitive changes. Do both
+  before claiming the UI is complete.
 
 ## UI components: shadcn first
 

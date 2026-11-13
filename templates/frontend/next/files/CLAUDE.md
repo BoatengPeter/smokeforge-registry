@@ -1,7 +1,8 @@
 # CLAUDE.md — generated Next.js app
 
-Read [AGENTS.md](AGENTS.md) and [CONTEXT.md](CONTEXT.md) first. CONTEXT.md is
-the source of truth for style, patterns, and the quality gate.
+Read [AGENTS.md](AGENTS.md), [CONTEXT.md](CONTEXT.md), and [DESIGN.md](DESIGN.md)
+first. CONTEXT.md is the source of truth for style and the quality gate;
+DESIGN.md owns the visual system.
 
 This is a Next.js App Router application scaffolded by smokeforge.
 
