@@ -1,0 +1,40 @@
+// Package main applies embedded database migrations.
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/database/migrator"
+)
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	if len(os.Args) != 2 || os.Args[1] != "up" {
+		return errors.New("usage: migrate up")
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	if err := migrator.Up(context.Background(), cfg); err != nil {
+		return err
+	}
+
+	if _, err := fmt.Fprintln(os.Stdout, "migrations applied"); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+
+	return nil
+}

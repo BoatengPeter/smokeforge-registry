@@ -2,27 +2,37 @@
 
 Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
-**Status:** the Next.js base, shadcn/ui setup, project-scoped agent skills, and
-Docker/CI/Postgres/auth/PostHog overlays are implemented. Contract tests and
-registry release automation are the remaining M3 work.
+**Status:** the Next.js base and the Go/Gin backend (four architectures) are
+implemented, including PostgreSQL, users/JWT auth, Google OAuth, TOTP, Docker,
+CI, Swagger UI, embedded migrations, and project-scoped Go skills.
+Contract/build-matrix automation is the remaining M3 work.
 
 ## Layout
 
 ```text
-manifest.yaml                          # added when the Next stack is complete
+manifest.yaml
 templates/
+  backend/go/
+    gin-flat/ gin-layered/ gin-hexagonal/ gin-ddd/
   frontend/next/
-    template.yaml
-    files/                             # rendered into the generated project
-      .agents/skills/                  # project-scoped skills for agents
-      .claude/skills/
-      AGENTS.md
-      CLAUDE.md
-      skills-lock.json
 overlays/
+  backend/go/                          # database, auth, totp, docker, ci
   next/                                # database, auth, state, testing, posthog, docker, ci
 tests/                                 # contract/build matrix
 ```
+
+## Current Go decisions
+
+- Four explicit Gin stacks: flat, layered, hexagonal, and DDD.
+- Shared scaffold contract: `cmd/api`, `internal/httpapi`, configuration and
+  main anchors, plus self-contained feature packages.
+- Spec-first OpenAPI with `oapi-codegen`; Swagger UI at `/docs`.
+- Gin, Zap, `caarlos0/env`, validator, RFC 9457, rate limiting, graceful
+  shutdown.
+- Presets: `api` (default backend), `api-minimal`, `api-production`.
+- Overlays: Postgres/pgx/sqlc/goose, users/JWT auth, Google OAuth, TOTP,
+  Docker, CI, embedded migrations, and optional demo-user seeding.
+- All 17 Go skills plus `sql-optimization-patterns` and `postgresql-optimization` ship under `.agents/skills` and `.claude/skills`.
 
 ## Current Next decisions
 
@@ -34,7 +44,7 @@ tests/                                 # contract/build matrix
 - Tailwind 4, Jest, Zod, Pino.
 - Metadata API, OpenGraph image, sitemap, robots.
 - Overlays: Postgres/Drizzle, Better Auth/RHF, Zustand, Playwright E2E,
-  PostHog, Docker, CI. CI requires E2E, which is auto-added.
+  PostHog, Docker, CI. CI runs E2E only when the E2E overlay is present.
 - Required overlays are auto-added; removal is guarded unless `--cascade`.
 
 Full stack and version details: [STACKS.md](https://github.com/BoatengPeter/smokeforge/blob/main/STACKS.md).
@@ -43,7 +53,8 @@ Full stack and version details: [STACKS.md](https://github.com/BoatengPeter/smok
 
 Generated apps receive their own agent skills under `.agents/skills` and
 `.claude/skills`, plus `AGENTS.md`, `CLAUDE.md`, and `skills-lock.json`.
-Frontend skills are scoped to the generated app, not to the smokeforge CLI repo.
+Next and Go skills are scoped to the generated app, not to the smokeforge CLI
+repo.
 
 ## Release format
 

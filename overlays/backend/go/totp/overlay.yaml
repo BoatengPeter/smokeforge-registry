@@ -1,0 +1,58 @@
+id: totp
+name: TOTP two-factor authentication
+files: files
+ops:
+  - addFiles:
+      - {path: internal/database/migrator/migrations/00003_totp.sql, dest: internal/database/migrator/migrations/00003_totp.sql}
+      - {path: internal/auth/totp/openapi.yaml, dest: internal/auth/totp/openapi.yaml}
+      - {path: internal/auth/totp/oapi-codegen.yaml, dest: internal/auth/totp/oapi-codegen.yaml}
+      - {path: internal/auth/totp/api.gen.go, dest: internal/auth/totp/api.gen.go}
+      - {path: internal/auth/totp/service.go.tmpl, dest: internal/auth/totp/service.go}
+      - {path: internal/auth/totp/handler.go.tmpl, dest: internal/auth/totp/handler.go}
+      - {path: internal/auth/totp/spec.go, dest: internal/auth/totp/spec.go}
+      - {path: internal/auth/totp/queries.sql, dest: internal/auth/totp/queries.sql}
+      - {path: internal/auth/totp/schema.sql, dest: internal/auth/totp/schema.sql}
+      - {path: internal/auth/totp/db/db.go, dest: internal/auth/totp/db/db.go}
+      - {path: internal/auth/totp/db/models.go, dest: internal/auth/totp/db/models.go}
+      - {path: internal/auth/totp/db/queries.sql.go, dest: internal/auth/totp/db/queries.sql.go}
+      - {path: internal/auth/totp/recovery_test.go, dest: internal/auth/totp/recovery_test.go}
+      - {path: docs/TOTP.md, dest: docs/TOTP.md}
+  - addDependency: {file: go.mod, module: github.com/pquerna/otp, version: v1.5.0}
+  - patchYAML:
+      file: sqlc.yaml
+      op: append
+      path: sql
+      value:
+        engine: postgresql
+        schema: internal/auth/totp/schema.sql
+        queries: internal/auth/totp/queries.sql
+        gen:
+          go:
+            package: totpdb
+            out: internal/auth/totp/db
+            sql_package: pgx/v5
+            emit_json_tags: true
+            emit_pointers_for_null_types: true
+            overrides:
+              - db_type: uuid
+                go_type: github.com/google/uuid.UUID
+              - db_type: timestamptz
+                go_type: time.Time
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-totp
+      marker: totp-import
+      content: '"{{.module_path}}/internal/auth/totp"'
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: main-totp
+      marker: totp-main
+      content: |-
+        totpService := totp.NewService(db.Pool())
+        authService.SetSecondFactor(totpService)
+        totpHandler := totp.NewHandler(totpService, authService, logger)
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: http-options
+      marker: totp-http
+      content: 'httpapi.WithRegistrar(totpHandler),'

@@ -1,0 +1,5 @@
+package: totp
+generate:
+  gin-server: true
+  models: true
+output: api.gen.go

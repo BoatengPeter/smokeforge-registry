@@ -1,0 +1,112 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/mail"
+	"net/smtp"
+	"strconv"
+	"strings"
+
+	"{{.module_path}}/internal/config"
+	"go.uber.org/zap"
+)
+
+// EmailSender delivers transactional authentication emails.
+type EmailSender interface {
+	Send(ctx context.Context, to, subject, body string) error
+}
+
+// NewEmailSender returns a local logger in development or an SMTP sender when
+// SMTP is configured. Production fails closed without SMTP.
+func NewEmailSender(cfg config.Config, logger *zap.Logger) (EmailSender, error) {
+	if strings.TrimSpace(cfg.SMTPHost) == "" {
+		if cfg.IsProduction() {
+			return nil, errors.New("auth: smtp host is required in production")
+		}
+
+		return newLogSender(logger), nil
+	}
+
+	if _, err := mail.ParseAddress(cfg.EmailFrom); err != nil {
+		return nil, fmt.Errorf("auth: parse email from: %w", err)
+	}
+
+	if cfg.SMTPPort < 1 || cfg.SMTPPort > 65535 {
+		return nil, fmt.Errorf("auth: smtp port %d is invalid", cfg.SMTPPort)
+	}
+
+	return &smtpSender{
+		address:  net.JoinHostPort(cfg.SMTPHost, strconv.Itoa(cfg.SMTPPort)),
+		host:     cfg.SMTPHost,
+		username: cfg.SMTPUsername,
+		password: cfg.SMTPPassword,
+		from:     cfg.EmailFrom,
+	}, nil
+}
+
+type logSender struct {
+	logger *zap.Logger
+}
+
+func newLogSender(logger *zap.Logger) *logSender {
+	return &logSender{logger: logger}
+}
+
+func (s *logSender) Send(_ context.Context, to, subject, body string) error {
+	s.logger.Info(
+		"development email",
+		zap.String("to", to),
+		zap.String("subject", subject),
+		zap.String("body", body),
+	)
+
+	return nil
+}
+
+type smtpSender struct {
+	address  string
+	host     string
+	username string
+	password string
+	from     string
+}
+
+func (s *smtpSender) Send(_ context.Context, to, subject, body string) error {
+	recipient, err := mail.ParseAddress(to)
+	if err != nil {
+		return fmt.Errorf("auth: parse email recipient: %w", err)
+	}
+
+	from, err := mail.ParseAddress(s.from)
+	if err != nil {
+		return fmt.Errorf("auth: parse email sender: %w", err)
+	}
+
+	message := strings.Join([]string{
+		"From: " + from.String(),
+		"To: " + recipient.String(),
+		"Subject: " + sanitizeHeader(subject),
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=UTF-8",
+		"",
+		body,
+	}, "\r\n")
+
+	var auth smtp.Auth
+	if s.username != "" {
+		auth = smtp.PlainAuth("", s.username, s.password, s.host)
+	}
+
+	if err := smtp.SendMail(s.address, auth, from.Address, []string{recipient.Address}, []byte(message)); err != nil {
+		return fmt.Errorf("auth: send email: %w", err)
+	}
+
+	return nil
+}
+
+func sanitizeHeader(value string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(value)
+}

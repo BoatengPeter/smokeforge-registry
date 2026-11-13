@@ -1,0 +1,299 @@
+// Package config loads and validates runtime configuration from the
+// environment. Configuration is read once at startup so every component sees
+// the same values.
+package config
+
+import (
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
+	"golang.org/x/net/http/httpguts"
+)
+
+// Config contains all runtime settings for the API.
+type Config struct {
+	AppEnv               string        `env:"APP_ENV" envDefault:"development"`
+	ServiceName          string        `env:"SERVICE_NAME" envDefault:"{{.project_slug}}"`
+	APITitle             string        `env:"API_TITLE" envDefault:"{{.project_name}} API"`
+	HTTPPort             int           `env:"HTTP_PORT" envDefault:"{{.http_port}}"`
+	PublicBaseURL        string        `env:"PUBLIC_BASE_URL" envDefault:"http://localhost:{{.http_port}}"`
+	LogLevel             string        `env:"LOG_LEVEL" envDefault:"info"`
+	GinMode              string        `env:"GIN_MODE" envDefault:"auto"`
+	RequestTimeout       time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`
+	ShutdownTimeout      time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
+	ReadHeaderTimeout    time.Duration `env:"READ_HEADER_TIMEOUT" envDefault:"5s"`
+	ReadTimeout          time.Duration `env:"READ_TIMEOUT" envDefault:"15s"`
+	WriteTimeout         time.Duration `env:"WRITE_TIMEOUT" envDefault:"30s"`
+	IdleTimeout          time.Duration `env:"IDLE_TIMEOUT" envDefault:"60s"`
+	MaxBodyBytes         int64         `env:"MAX_BODY_BYTES" envDefault:"1048576"`
+	RateLimitRPS         float64       `env:"RATE_LIMIT_RPS" envDefault:"20"`
+	RateLimitBurst       int           `env:"RATE_LIMIT_BURST" envDefault:"40"`
+	CORSAllowedOrigins   []string      `env:"CORS_ALLOWED_ORIGINS" envSeparator:","`
+	CORSAllowedMethods   []string      `env:"CORS_ALLOWED_METHODS" envSeparator:","`
+	CORSAllowedHeaders   []string      `env:"CORS_ALLOWED_HEADERS" envSeparator:","`
+	CORSExposedHeaders   []string      `env:"CORS_EXPOSED_HEADERS" envSeparator:","`
+	CORSAllowCredentials bool          `env:"CORS_ALLOW_CREDENTIALS" envDefault:"true"`
+	CORSMaxAge           time.Duration `env:"CORS_MAX_AGE" envDefault:"12h"`
+	TrustedProxies       []string      `env:"TRUSTED_PROXIES" envSeparator:","`
+	PprofAddr            string        `env:"PPROF_ADDR" envDefault:""`
+	APIDocsEnabled       string        `env:"API_DOCS_ENABLED" envDefault:"auto"`
+
+	// smokeforge:anchor config-fields
+}
+
+// Load reads .env when present, parses environment variables, and validates the
+// result. It returns an error instead of guessing at invalid configuration.
+func Load() (Config, error) {
+	_ = godotenv.Load()
+
+	var cfg Config
+	if err := env.Parse(&cfg); err != nil {
+		return Config{}, fmt.Errorf("parse environment: %w", err)
+	}
+
+	cfg.normalize()
+
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
+// Validate rejects settings that would make the service unsafe or unusable.
+func (c Config) Validate() error {
+	if err := c.validateCore(); err != nil {
+		return err
+	}
+
+	if err := c.validateTimeouts(); err != nil {
+		return err
+	}
+
+	if err := c.validateCORS(); err != nil {
+		return err
+	}
+
+	if err := c.validateObservability(); err != nil {
+		return err
+	}
+
+	return c.validateExtended()
+}
+
+func (c Config) validateCore() error {
+	if !slices.Contains([]string{"development", "staging", "production"}, c.AppEnv) {
+		return fmt.Errorf("app env %q must be development, staging, or production", c.AppEnv)
+	}
+
+	if strings.TrimSpace(c.ServiceName) == "" {
+		return errors.New("service name must not be empty")
+	}
+
+	if c.HTTPPort < 1 || c.HTTPPort > 65535 {
+		return fmt.Errorf("http port %d must be between 1 and 65535", c.HTTPPort)
+	}
+
+	if _, err := url.ParseRequestURI(c.PublicBaseURL); err != nil {
+		return fmt.Errorf("public base url %q: %w", c.PublicBaseURL, err)
+	}
+
+	return nil
+}
+
+func (c Config) validateTimeouts() error {
+	if c.RequestTimeout <= 0 || c.ShutdownTimeout <= 0 {
+		return errors.New("request and shutdown timeouts must be positive")
+	}
+
+	if c.MaxBodyBytes <= 0 {
+		return errors.New("max body bytes must be positive")
+	}
+
+	if c.RateLimitRPS < 0 || c.RateLimitBurst < 0 {
+		return errors.New("rate limits must not be negative")
+	}
+
+	if c.RateLimitRPS > 0 && c.RateLimitBurst < 1 {
+		return errors.New("rate limit burst must be at least 1 when rate limiting is enabled")
+	}
+
+	if !slices.Contains([]string{"auto", "debug", "release", "test"}, c.GinMode) {
+		return fmt.Errorf("gin mode %q must be auto, debug, release, or test", c.GinMode)
+	}
+
+	return nil
+}
+
+func (c Config) validateCORS() error {
+	if c.CORSMaxAge < 0 {
+		return errors.New("cors max age must not be negative")
+	}
+
+	if len(c.CORSAllowedOrigins) > 0 {
+		if len(c.CORSAllowedMethods) == 0 {
+			return errors.New("cors allowed methods must not be empty")
+		}
+
+		if len(c.CORSAllowedHeaders) == 0 {
+			return errors.New("cors allowed headers must not be empty")
+		}
+	}
+
+	allowedMethods := map[string]bool{
+		"GET": true, "HEAD": true, "POST": true,
+		"PUT": true, "PATCH": true, "DELETE": true, "OPTIONS": true,
+	}
+
+	for _, method := range c.CORSAllowedMethods {
+		if !allowedMethods[method] {
+			return fmt.Errorf("cors method %q is not supported", method)
+		}
+	}
+
+	headers := append(slices.Clone(c.CORSAllowedHeaders), c.CORSExposedHeaders...)
+	for _, header := range headers {
+		if !httpguts.ValidHeaderFieldName(header) {
+			return fmt.Errorf("cors header %q is invalid", header)
+		}
+	}
+
+	for _, origin := range c.CORSAllowedOrigins {
+		if err := validateOrigin(origin, c.CORSAllowCredentials); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c Config) validateObservability() error {
+	if c.PprofAddr != "" {
+		if _, _, err := net.SplitHostPort(c.PprofAddr); err != nil {
+			return fmt.Errorf("pprof address %q: %w", c.PprofAddr, err)
+		}
+	}
+
+	if !slices.Contains([]string{"auto", "true", "false"}, c.APIDocsEnabled) {
+		return fmt.Errorf("api docs enabled %q must be auto, true, or false", c.APIDocsEnabled)
+	}
+
+	return nil
+}
+
+// Address returns the listen address for the HTTP server.
+func (c Config) Address() string {
+	return fmt.Sprintf(":%d", c.HTTPPort)
+}
+
+// IsProduction reports whether the service is running with production defaults.
+func (c Config) IsProduction() bool {
+	return c.AppEnv == "production"
+}
+
+// HTTPMode returns the Gin mode for the current environment.
+func (c Config) HTTPMode() string {
+	switch c.GinMode {
+	case "debug", "release", "test":
+		return c.GinMode
+	case "auto":
+		if c.AppEnv == "development" {
+			return "debug"
+		}
+
+		return "release"
+	default:
+		return "release"
+	}
+}
+
+// DocsEnabled reports whether Swagger UI and the OpenAPI document are served.
+// Auto mode disables documentation in production.
+func (c Config) DocsEnabled() bool {
+	switch c.APIDocsEnabled {
+	case "true":
+		return true
+	case "false":
+		return false
+	default:
+		return !c.IsProduction()
+	}
+}
+
+func validateOrigin(origin string, allowCredentials bool) error {
+	if origin == "*" {
+		if allowCredentials {
+			return errors.New("cors origin * is not allowed with credentials")
+		}
+
+		return nil
+	}
+
+	parsed, err := url.ParseRequestURI(origin)
+	if err != nil {
+		return fmt.Errorf("cors origin %q: %w", origin, err)
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("cors origin %q must use http or https", origin)
+	}
+
+	if parsed.Host == "" || parsed.User != nil || parsed.Path != "" {
+		return fmt.Errorf("cors origin %q must contain only scheme and host", origin)
+	}
+
+	return nil
+}
+
+func (c *Config) normalize() {
+	c.CORSAllowedOrigins = compact(c.CORSAllowedOrigins)
+	c.TrustedProxies = compact(c.TrustedProxies)
+
+	if len(c.CORSAllowedOrigins) == 0 {
+		return
+	}
+
+	if len(c.CORSAllowedMethods) == 0 {
+		c.CORSAllowedMethods = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	}
+
+	if len(c.CORSAllowedHeaders) == 0 {
+		c.CORSAllowedHeaders = []string{
+			"Authorization",
+			"Content-Type",
+			"X-Requested-With",
+			"X-Refresh-Token-Transport",
+		}
+	}
+
+	if !slices.Contains(c.CORSExposedHeaders, "X-Request-ID") {
+		c.CORSExposedHeaders = append(c.CORSExposedHeaders, "X-Request-ID")
+	}
+}
+
+func compact(values []string) []string {
+	compacted := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+
+		compacted = append(compacted, value)
+	}
+
+	return compacted
+}
+
+// smokeforge:anchor config-validation
+func (c Config) validateExtended() error {
+	// smokeforge:anchor config-validation-body
+	return nil
+}

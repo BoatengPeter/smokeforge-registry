@@ -1,0 +1,469 @@
+package httpapi
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/url"
+	"runtime/debug"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"{{.module_path}}/internal/response"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"golang.org/x/time/rate"
+)
+
+const (
+	limiterTTL  = 3 * time.Minute
+	maxLimiters = 10000
+)
+
+// RequestID returns the server-generated request identifier.
+func RequestID(c *gin.Context) string {
+	return response.RequestID(c)
+}
+
+// RequestIDMiddleware adds a UUIDv7 request identifier to the response and
+// request context.
+func RequestIDMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID, err := uuid.NewV7()
+		if err != nil {
+			requestID = uuid.New()
+		}
+
+		response.SetRequestID(c, requestID.String())
+		c.Header("X-Request-ID", requestID.String())
+		c.Next()
+	}
+}
+
+// RequestLogger records one structured line per request.
+func RequestLogger(logger *zap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		started := time.Now()
+
+		c.Next()
+
+		fields := []zap.Field{
+			zap.String("method", c.Request.Method),
+			zap.String("path", c.Request.URL.Path),
+			zap.Int("status", c.Writer.Status()),
+			zap.Duration("latency", time.Since(started)),
+			zap.String("request_id", RequestID(c)),
+			zap.String("client_ip", c.ClientIP()),
+		}
+
+		if c.Writer.Status() >= http.StatusInternalServerError {
+			logger.Error("http request", fields...)
+
+			return
+		}
+
+		logger.Info("http request", fields...)
+	}
+}
+
+// Recovery turns panics into RFC 9457 responses and logs the stack trace.
+func Recovery(logger *zap.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			recovered := recover()
+			if recovered == nil {
+				return
+			}
+
+			if recovered == http.ErrAbortHandler { //nolint:errorlint // ErrAbortHandler is a sentinel panic value, not a wrapped error.
+				panic(recovered)
+			}
+
+			logger.Error(
+				"panic recovered",
+				zap.Any("panic", recovered),
+				zap.String("request_id", RequestID(c)),
+				zap.String("method", c.Request.Method),
+				zap.String("path", c.Request.URL.Path),
+				zap.ByteString("stack", debug.Stack()),
+			)
+
+			if !c.Writer.Written() {
+				response.WriteError(c, response.NewError(http.StatusInternalServerError, "internal_error", "Internal server error", "The request could not be completed."))
+			}
+
+			c.Abort()
+		}()
+
+		c.Next()
+	}
+}
+
+// SecurityHeaders applies conservative browser-facing response headers.
+func SecurityHeaders(production bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Referrer-Policy", "no-referrer")
+		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+
+		if production {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+
+		c.Next()
+	}
+}
+
+// BodyLimit rejects oversized request bodies before handlers read them.
+func BodyLimit(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if maxBytes <= 0 {
+			c.Next()
+
+			return
+		}
+
+		if c.Request.ContentLength > maxBytes {
+			response.WriteError(c, response.NewError(http.StatusRequestEntityTooLarge, "request_too_large", "Request too large", "The request body exceeds the configured limit."))
+
+			return
+		}
+
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		c.Next()
+	}
+}
+
+// CORSOptions configures credentialed cross-origin requests.
+type CORSOptions struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	ExposedHeaders   []string
+	AllowCredentials bool
+	MaxAge           time.Duration
+}
+
+type corsPolicy struct {
+	allowedOrigins   map[string]bool
+	allowedMethods   map[string]bool
+	allowedHeaders   map[string]bool
+	methodList       []string
+	headerList       []string
+	exposedHeaders   []string
+	allowCredentials bool
+	maxAgeSeconds    int
+	wildcard         bool
+}
+
+// CORS allows configured browser origins and validates preflight requests.
+// Wildcard origins are supported only when credentials are disabled.
+func CORS(options CORSOptions) gin.HandlerFunc {
+	if len(options.AllowedOrigins) == 0 {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	policy := newCORSPolicy(options)
+
+	return policy.handle
+}
+
+func newCORSPolicy(options CORSOptions) corsPolicy {
+	policy := corsPolicy{
+		allowedOrigins:   make(map[string]bool, len(options.AllowedOrigins)),
+		allowedMethods:   make(map[string]bool, len(options.AllowedMethods)),
+		allowedHeaders:   make(map[string]bool, len(options.AllowedHeaders)),
+		exposedHeaders:   options.ExposedHeaders,
+		allowCredentials: options.AllowCredentials,
+		maxAgeSeconds:    int(options.MaxAge.Seconds()),
+	}
+
+	for _, origin := range options.AllowedOrigins {
+		if origin == "*" {
+			policy.wildcard = true
+
+			continue
+		}
+
+		normalized, ok := normalizeOrigin(origin)
+		if ok {
+			policy.allowedOrigins[normalized] = true
+		}
+	}
+
+	for _, method := range options.AllowedMethods {
+		method = strings.ToUpper(strings.TrimSpace(method))
+		if method == "" {
+			continue
+		}
+
+		policy.allowedMethods[method] = true
+		policy.methodList = append(policy.methodList, method)
+	}
+
+	if len(policy.methodList) == 0 {
+		policy.methodList = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+
+		for _, method := range policy.methodList {
+			policy.allowedMethods[method] = true
+		}
+	}
+
+	for _, header := range options.AllowedHeaders {
+		header = strings.TrimSpace(header)
+		if header == "" {
+			continue
+		}
+
+		policy.allowedHeaders[strings.ToLower(header)] = true
+		policy.headerList = append(policy.headerList, header)
+	}
+
+	return policy
+}
+
+func (p corsPolicy) handle(c *gin.Context) {
+	requestOrigin := c.GetHeader("Origin")
+	if requestOrigin == "" {
+		c.Next()
+
+		return
+	}
+
+	addVary(c, "Origin")
+
+	origin, normalized := normalizeOrigin(requestOrigin)
+	if !normalized || !p.allows(origin) {
+		if isPreflight(c) {
+			response.WriteError(c, response.NewError(http.StatusForbidden, "origin_not_allowed", "Origin not allowed", "The request origin is not allowed."))
+		} else {
+			c.Next()
+		}
+
+		return
+	}
+
+	p.writeCommonHeaders(c, requestOrigin)
+
+	if isPreflight(c) {
+		p.writePreflight(c)
+
+		return
+	}
+
+	p.writeActualHeaders(c)
+	c.Next()
+}
+
+func (p corsPolicy) allows(origin string) bool {
+	return p.allowedOrigins[origin] || (p.wildcard && !p.allowCredentials)
+}
+
+func (p corsPolicy) writeCommonHeaders(c *gin.Context, requestOrigin string) {
+	if p.wildcard && !p.allowCredentials {
+		c.Header("Access-Control-Allow-Origin", "*")
+	} else {
+		c.Header("Access-Control-Allow-Origin", requestOrigin)
+	}
+
+	if p.allowCredentials {
+		c.Header("Access-Control-Allow-Credentials", "true")
+	}
+}
+
+func (p corsPolicy) writePreflight(c *gin.Context) {
+	requestedMethod := strings.ToUpper(strings.TrimSpace(c.GetHeader("Access-Control-Request-Method")))
+	if !p.allowedMethods[requestedMethod] {
+		response.WriteError(c, response.NewError(http.StatusForbidden, "cors_method_not_allowed", "CORS method not allowed", "The requested method is not allowed by CORS."))
+
+		return
+	}
+
+	requestedHeaders := splitHeaderList(c.GetHeader("Access-Control-Request-Headers"))
+	for _, header := range requestedHeaders {
+		if !p.allowedHeaders[strings.ToLower(header)] {
+			response.WriteError(c, response.NewError(http.StatusForbidden, "cors_header_not_allowed", "CORS header not allowed", "A requested header is not allowed by CORS."))
+
+			return
+		}
+	}
+
+	addVary(c, "Access-Control-Request-Method")
+	addVary(c, "Access-Control-Request-Headers")
+	c.Header("Access-Control-Allow-Methods", strings.Join(p.methodList, ", "))
+
+	headers := requestedHeaders
+	if len(headers) == 0 {
+		headers = p.headerList
+	}
+
+	c.Header("Access-Control-Allow-Headers", strings.Join(headers, ", "))
+
+	if p.maxAgeSeconds > 0 {
+		c.Header("Access-Control-Max-Age", strconv.Itoa(p.maxAgeSeconds))
+	}
+
+	c.Status(http.StatusNoContent)
+	c.Abort()
+}
+
+func (p corsPolicy) writeActualHeaders(c *gin.Context) {
+	if len(p.exposedHeaders) > 0 {
+		c.Header("Access-Control-Expose-Headers", strings.Join(p.exposedHeaders, ", "))
+	}
+}
+
+func isPreflight(c *gin.Context) bool {
+	return c.Request.Method == http.MethodOptions && c.GetHeader("Access-Control-Request-Method") != ""
+}
+
+func addVary(c *gin.Context, value string) {
+	if slices.Contains(c.Writer.Header().Values("Vary"), value) {
+		return
+	}
+
+	c.Writer.Header().Add("Vary", value)
+}
+
+func splitHeaderList(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	headers := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			headers = append(headers, part)
+		}
+	}
+
+	return headers
+}
+
+func normalizeOrigin(value string) (string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil {
+		return "", false
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", false
+	}
+
+	if parsed.Path != "" && parsed.Path != "/" {
+		return "", false
+	}
+
+	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), true
+}
+
+// RateLimit limits requests per client IP. A non-positive rate disables
+// limiting.
+func RateLimit(requestsPerSecond float64, burst int) gin.HandlerFunc {
+	if requestsPerSecond <= 0 {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+
+	limiter := newIPLimiter(rate.Limit(requestsPerSecond), burst)
+
+	return func(c *gin.Context) {
+		if !limiter.Allow(c.ClientIP(), time.Now()) {
+			c.Header("Retry-After", "1")
+			response.WriteTooManyRequests(c)
+
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// Timeout adds a request-scoped deadline and returns a error response when a
+// handler outlives it without writing a response.
+func Timeout(timeout time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if timeout <= 0 {
+			c.Next()
+
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
+
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
+			response.WriteError(c, response.NewError(http.StatusGatewayTimeout, "request_timeout", "Request timed out", "The request exceeded the configured timeout."))
+		}
+	}
+}
+
+type limiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+type ipLimiter struct {
+	mu          sync.Mutex
+	limit       rate.Limit
+	burst       int
+	entries     map[string]*limiterEntry
+	lastCleanup time.Time
+}
+
+func newIPLimiter(limit rate.Limit, burst int) *ipLimiter {
+	return &ipLimiter{
+		limit:   limit,
+		burst:   burst,
+		entries: make(map[string]*limiterEntry),
+	}
+}
+
+func (l *ipLimiter) Allow(key string, now time.Time) bool {
+	if key == "" {
+		key = "unknown"
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if now.Sub(l.lastCleanup) >= time.Minute || len(l.entries) >= maxLimiters {
+		l.cleanup(now)
+	}
+
+	entry, ok := l.entries[key]
+	if !ok {
+		entry = &limiterEntry{
+			limiter: rate.NewLimiter(l.limit, l.burst),
+		}
+		l.entries[key] = entry
+	}
+
+	entry.lastSeen = now
+
+	return entry.limiter.AllowN(now, 1)
+}
+
+func (l *ipLimiter) cleanup(now time.Time) {
+	for key, entry := range l.entries {
+		if now.Sub(entry.lastSeen) > limiterTTL {
+			delete(l.entries, key)
+		}
+	}
+
+	l.lastCleanup = now
+}

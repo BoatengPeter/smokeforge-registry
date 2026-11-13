@@ -1,0 +1,228 @@
+// Package totp implements TOTP enrollment and verification.
+package totp
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+
+	"{{.module_path}}/internal/auth"
+	totpdb "{{.module_path}}/internal/auth/totp/db"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/pquerna/otp/totp"
+)
+
+const (
+	issuer          = "Smoke Forge"
+	recoveryCodes   = 10
+	recoveryCodeLen = 5
+)
+
+var (
+	// ErrAlreadyEnabled means TOTP is already active.
+	ErrAlreadyEnabled = errors.New("totp: already enabled")
+	// ErrSetupRequired means enrollment must start before enabling.
+	ErrSetupRequired = errors.New("totp: setup required")
+)
+
+// Service implements TOTP use cases and auth.SecondFactor.
+type Service struct {
+	queries *totpdb.Queries
+}
+
+var _ auth.SecondFactor = (*Service)(nil)
+
+// NewService constructs the TOTP service.
+func NewService(db totpdb.DBTX) *Service {
+	return &Service{queries: totpdb.New(db)}
+}
+
+// Required reports whether the user has TOTP enabled.
+func (s *Service) Required(ctx context.Context, userID uuid.UUID) (bool, error) {
+	state, err := s.queries.GetTOTPState(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("get totp state: %w", err)
+	}
+
+	return state.TotpEnabled, nil
+}
+
+// Verify accepts a current TOTP code or an unused recovery code.
+func (s *Service) Verify(ctx context.Context, userID uuid.UUID, code string) error {
+	state, err := s.queries.GetTOTPState(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get totp state: %w", err)
+	}
+
+	if !state.TotpEnabled || state.TotpSecret == nil {
+		return auth.ErrInvalidCode
+	}
+
+	consumed, err := s.consumeRecoveryCode(ctx, userID, code)
+	if err != nil {
+		return err
+	}
+
+	if consumed {
+		return nil
+	}
+
+	if !totp.Validate(code, *state.TotpSecret) {
+		return auth.ErrInvalidCode
+	}
+
+	return nil
+}
+
+// Begin starts enrollment and returns the secret and otpauth URL.
+func (s *Service) Begin(ctx context.Context, userID uuid.UUID, email string) (string, string, error) {
+	state, err := s.queries.GetTOTPState(ctx, userID)
+	if err != nil {
+		return "", "", fmt.Errorf("get totp state: %w", err)
+	}
+
+	if state.TotpEnabled {
+		return "", "", ErrAlreadyEnabled
+	}
+
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      issuer,
+		AccountName: email,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("generate totp secret: %w", err)
+	}
+
+	secret := key.Secret()
+
+	if err := s.queries.SetTOTPSecret(ctx, totpdb.SetTOTPSecretParams{
+		ID:         userID,
+		TotpSecret: &secret,
+	}); err != nil {
+		return "", "", fmt.Errorf("store totp secret: %w", err)
+	}
+
+	return secret, key.URL(), nil
+}
+
+// Enable confirms enrollment and returns one-time recovery codes.
+func (s *Service) Enable(ctx context.Context, userID uuid.UUID, code string) ([]string, error) {
+	state, err := s.queries.GetTOTPState(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get totp state: %w", err)
+	}
+
+	if state.TotpSecret == nil {
+		return nil, ErrSetupRequired
+	}
+
+	if state.TotpEnabled {
+		return nil, ErrAlreadyEnabled
+	}
+
+	if !totp.Validate(code, *state.TotpSecret) {
+		return nil, auth.ErrInvalidCode
+	}
+
+	if err := s.queries.EnableTOTP(ctx, userID); err != nil {
+		return nil, fmt.Errorf("enable totp: %w", err)
+	}
+
+	if err := s.queries.DeleteRecoveryCodes(ctx, userID); err != nil {
+		return nil, fmt.Errorf("reset recovery codes: %w", err)
+	}
+
+	codes := make([]string, 0, recoveryCodes)
+
+	for range recoveryCodes {
+		recoveryCode, generateErr := newRecoveryCode()
+		if generateErr != nil {
+			return nil, generateErr
+		}
+
+		id, idErr := uuid.NewV7()
+		if idErr != nil {
+			return nil, fmt.Errorf("generate recovery code id: %w", idErr)
+		}
+
+		if err := s.queries.CreateRecoveryCode(ctx, totpdb.CreateRecoveryCodeParams{
+			ID:       id,
+			UserID:   userID,
+			CodeHash: hashRecoveryCode(recoveryCode),
+		}); err != nil {
+			return nil, fmt.Errorf("store recovery code: %w", err)
+		}
+
+		codes = append(codes, recoveryCode)
+	}
+
+	return codes, nil
+}
+
+// Disable verifies a code and turns TOTP off.
+func (s *Service) Disable(ctx context.Context, userID uuid.UUID, code string) error {
+	if err := s.Verify(ctx, userID, code); err != nil {
+		return err
+	}
+
+	if err := s.queries.DisableTOTP(ctx, userID); err != nil {
+		return fmt.Errorf("disable totp: %w", err)
+	}
+
+	if err := s.queries.DeleteRecoveryCodes(ctx, userID); err != nil {
+		return fmt.Errorf("delete recovery codes: %w", err)
+	}
+
+	return nil
+}
+
+// Status reports whether TOTP is enabled for the user.
+func (s *Service) Status(ctx context.Context, userID uuid.UUID) (bool, error) {
+	return s.Required(ctx, userID)
+}
+
+func (s *Service) consumeRecoveryCode(
+	ctx context.Context,
+	userID uuid.UUID,
+	code string,
+) (bool, error) {
+	recoveryID, err := s.queries.GetRecoveryCode(ctx, totpdb.GetRecoveryCodeParams{
+		UserID:   userID,
+		CodeHash: hashRecoveryCode(code),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("get recovery code: %w", err)
+	}
+
+	affected, err := s.queries.ConsumeRecoveryCode(ctx, recoveryID)
+	if err != nil {
+		return false, fmt.Errorf("consume recovery code: %w", err)
+	}
+
+	return affected == 1, nil
+}
+
+func newRecoveryCode() (string, error) {
+	buffer := make([]byte, recoveryCodeLen)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", fmt.Errorf("generate recovery code: %w", err)
+	}
+
+	return hex.EncodeToString(buffer), nil
+}
+
+func hashRecoveryCode(code string) []byte {
+	sum := sha256.Sum256([]byte(code))
+	hash := make([]byte, len(sum))
+	copy(hash, sum[:])
+
+	return hash
+}

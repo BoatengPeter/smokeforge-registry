@@ -1,0 +1,29 @@
+// Package app adapts application ports to the HTTP transport.
+package app
+
+import (
+	"context"
+
+	"{{.module_path}}/internal/port"
+	"{{.module_path}}/internal/service"
+)
+
+// Pinger adapts the ping port to the HTTP transport contract.
+type Pinger struct {
+	ping port.Ping
+}
+
+// NewPinger constructs the application facade.
+func NewPinger() *Pinger {
+	return &Pinger{ping: service.NewPing()}
+}
+
+// Ping executes the ping use case.
+func (p *Pinger) Ping(ctx context.Context) (string, error) {
+	response, err := p.ping.Execute(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return response.Message, nil
+}

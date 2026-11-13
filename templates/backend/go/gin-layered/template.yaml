@@ -1,0 +1,8 @@
+id: go/gin-layered
+variables:
+  - name: module_path
+    prompt: Go module path
+    default: example.com/app
+  - name: http_port
+    prompt: HTTP port
+    default: "8080"

@@ -1,0 +1,142 @@
+// Package server owns the process lifecycle for the HTTP API.
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"go.uber.org/zap"
+)
+
+// Server owns the HTTP listeners and graceful shutdown sequence.
+type Server struct {
+	config  config.Config
+	logger  *zap.Logger
+	handler http.Handler
+	ready   chan struct{}
+}
+
+// New constructs a server around an HTTP handler.
+func New(cfg config.Config, logger *zap.Logger, handler http.Handler) *Server {
+	return &Server{
+		config:  cfg,
+		logger:  logger,
+		handler: handler,
+		ready:   make(chan struct{}),
+	}
+}
+
+// Ready closes when every configured listener is bound.
+func (s *Server) Ready() <-chan struct{} {
+	return s.ready
+}
+
+// Run starts the HTTP server and blocks until the context is canceled or the
+// listener fails. It always attempts a bounded graceful shutdown.
+func (s *Server) Run(ctx context.Context) error {
+	var listenConfig net.ListenConfig
+
+	httpListener, err := listenConfig.Listen(ctx, "tcp", s.config.Address())
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", s.config.Address(), err)
+	}
+
+	httpServer := &http.Server{
+		Handler:           s.handler,
+		ReadHeaderTimeout: s.config.ReadHeaderTimeout,
+		ReadTimeout:       s.config.ReadTimeout,
+		WriteTimeout:      s.config.WriteTimeout,
+		IdleTimeout:       s.config.IdleTimeout,
+		ErrorLog:          zap.NewStdLog(s.logger),
+	}
+
+	var pprofServer *http.Server
+
+	if s.config.PprofAddr != "" {
+		pprofListener, listenErr := listenConfig.Listen(ctx, "tcp", s.config.PprofAddr)
+		if listenErr != nil {
+			_ = httpListener.Close()
+
+			return fmt.Errorf("listen for pprof on %s: %w", s.config.PprofAddr, listenErr)
+		}
+
+		pprofServer = newPprofServer(s.config.PprofAddr, s.logger)
+		s.logger.Info("pprof server listening", zap.String("address", s.config.PprofAddr))
+
+		go func() {
+			if serveErr := pprofServer.Serve(pprofListener); serveErr != nil &&
+				!errors.Is(serveErr, http.ErrServerClosed) {
+				s.logger.Error("pprof server", zap.Error(serveErr))
+			}
+		}()
+	}
+
+	s.logger.Info(
+		"http server listening",
+		zap.String("address", httpListener.Addr().String()),
+		zap.String("environment", s.config.AppEnv),
+		zap.String("gin_mode", s.config.HTTPMode()),
+	)
+
+	close(s.ready)
+
+	serverErrors := make(chan error, 1)
+
+	go func() {
+		if serveErr := httpServer.Serve(httpListener); serveErr != nil &&
+			!errors.Is(serveErr, http.ErrServerClosed) {
+			serverErrors <- serveErr
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		s.logger.Info("shutdown requested")
+	case serveErr := <-serverErrors:
+		shutdownErr := s.shutdown(httpServer, pprofServer)
+
+		return errors.Join(fmt.Errorf("http server: %w", serveErr), shutdownErr)
+	}
+
+	return s.shutdown(httpServer, pprofServer)
+}
+
+func (s *Server) shutdown(httpServer, pprofServer *http.Server) error {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.config.ShutdownTimeout)
+	defer cancel()
+
+	var shutdownError error
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		shutdownError = fmt.Errorf("shutdown http server: %w", err)
+	}
+
+	if pprofServer != nil {
+		if err := pprofServer.Shutdown(shutdownCtx); err != nil {
+			shutdownError = errors.Join(shutdownError, fmt.Errorf("shutdown pprof server: %w", err))
+		}
+	}
+
+	return shutdownError
+}
+
+func newPprofServer(address string, logger *zap.Logger) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprofIndex)
+	mux.HandleFunc("/debug/pprof/cmdline", pprofCmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprofProfile)
+	mux.HandleFunc("/debug/pprof/symbol", pprofSymbol)
+	mux.HandleFunc("/debug/pprof/trace", pprofTrace)
+
+	return &http.Server{
+		Addr:              address,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ErrorLog:          zap.NewStdLog(logger),
+	}
+}

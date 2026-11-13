@@ -1,0 +1,242 @@
+package auth
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+type stubAuthService struct {
+	loginResult   LoginResult
+	tokenPair     TokenPair
+	googleEnabled bool
+	googleTokens  TokenPair
+	googleErr     error
+}
+
+func (s stubAuthService) Register(_ context.Context, _, _ string) (Account, error) {
+	return Account{}, nil
+}
+
+func (s stubAuthService) Login(_ context.Context, _, _ string) (LoginResult, error) {
+	return s.loginResult, nil
+}
+
+func (s stubAuthService) CompleteMFA(_ context.Context, _, _ string) (TokenPair, error) {
+	return s.tokenPair, nil
+}
+
+func (s stubAuthService) Refresh(_ context.Context, _ string) (TokenPair, error) {
+	return s.tokenPair, nil
+}
+
+func (s stubAuthService) Logout(_ context.Context, _ string) {}
+
+func (s stubAuthService) VerifyEmail(_ context.Context, _ string) error { return nil }
+
+func (s stubAuthService) ForgotPassword(_ context.Context, _ string) {}
+
+func (s stubAuthService) ResetPassword(_ context.Context, _, _ string) error { return nil }
+
+func (s stubAuthService) Authenticate(_ context.Context, _ string) (Identity, error) {
+	return Identity{UserID: uuid.Nil, Role: "user"}, nil
+}
+
+func (s stubAuthService) GetUser(_ context.Context, _ uuid.UUID) (Account, error) {
+	return Account{}, nil
+}
+
+func (s stubAuthService) GoogleEnabled() bool { return s.googleEnabled }
+
+func (s stubAuthService) BeginGoogle(writer http.ResponseWriter, _ *http.Request) error {
+	writer.Header().Set("Location", "https://accounts.google.com/o/oauth2/auth")
+	writer.WriteHeader(http.StatusTemporaryRedirect)
+
+	return nil
+}
+
+func (s stubAuthService) LoginWithGoogle(_ context.Context, _ http.ResponseWriter, _ *http.Request) (TokenPair, error) {
+	return s.googleTokens, s.googleErr
+}
+
+func (s stubAuthService) GoogleSuccessRedirect() string { return "http://localhost:8080" }
+
+func newAuthRouter(t *testing.T, service ServiceContract) *gin.Engine {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+
+	cfg := config.Config{
+		RefreshTokenTTL:          time.Hour,
+		CookieSecure:             false,
+		PublicBaseURL:            "http://localhost:8080",
+		RequireEmailVerification: "false",
+	}
+
+	router := gin.New()
+	NewHandler(service, cfg, zap.NewNop()).RegisterRoutes(router)
+
+	return router
+}
+
+func TestHandlerLoginCookieTransport(t *testing.T) {
+	t.Parallel()
+
+	service := stubAuthService{
+		loginResult: LoginResult{Tokens: &TokenPair{
+			AccessToken:  "access",
+			RefreshToken: "refresh",
+			ExpiresIn:    900,
+		}},
+	}
+	router := newAuthRouter(t, service)
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{"email":"user@example.com","password":"correct horse battery"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+
+	var body TokenResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+
+	if body.RefreshToken != nil {
+		t.Fatal("cookie transport returned refresh token in body")
+	}
+
+	if cookie := response.Header().Get("Set-Cookie"); !strings.Contains(cookie, refreshCookieName) {
+		t.Fatalf("set-cookie = %q", cookie)
+	}
+}
+
+func TestHandlerLoginNativeTransport(t *testing.T) {
+	t.Parallel()
+
+	service := stubAuthService{
+		loginResult: LoginResult{Tokens: &TokenPair{
+			AccessToken:  "access",
+			RefreshToken: "refresh",
+			ExpiresIn:    900,
+		}},
+	}
+	router := newAuthRouter(t, service)
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{"email":"user@example.com","password":"correct horse battery"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(refreshBodyHeader, "body")
+
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	var body TokenResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode token response: %v", err)
+	}
+
+	if body.RefreshToken == nil || *body.RefreshToken != "refresh" {
+		t.Fatalf("refresh token = %v", body.RefreshToken)
+	}
+}
+
+func TestHandlerRefreshCookieRequiresCSRFHeader(t *testing.T) {
+	t.Parallel()
+
+	router := newAuthRouter(t, stubAuthService{})
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/auth/refresh", nil)
+	request.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "refresh"})
+
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", response.Code)
+	}
+}
+
+func TestHandlerStartGoogleOAuthDisabled(t *testing.T) {
+	t.Parallel()
+
+	router := newAuthRouter(t, stubAuthService{})
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/auth/oauth/google", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", response.Code)
+	}
+}
+
+func TestHandlerStartGoogleOAuth(t *testing.T) {
+	t.Parallel()
+
+	router := newAuthRouter(t, stubAuthService{googleEnabled: true})
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/auth/oauth/google", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("status = %d, want 307", response.Code)
+	}
+
+	if location := response.Header().Get("Location"); !strings.Contains(location, "accounts.google.com") {
+		t.Fatalf("location = %q", location)
+	}
+}
+
+func TestHandlerGoogleOAuthCallback(t *testing.T) {
+	t.Parallel()
+
+	router := newAuthRouter(t, stubAuthService{
+		googleEnabled: true,
+		googleTokens:  TokenPair{AccessToken: "access", RefreshToken: "refresh", ExpiresIn: 900},
+	})
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/api/v1/auth/oauth/google/callback?code=code&state=state",
+		nil,
+	)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("status = %d, want 307", response.Code)
+	}
+
+	if cookie := response.Header().Get("Set-Cookie"); !strings.Contains(cookie, refreshCookieName) {
+		t.Fatalf("set-cookie = %q", cookie)
+	}
+
+	if location := response.Header().Get("Location"); location != "http://localhost:8080" {
+		t.Fatalf("location = %q", location)
+	}
+}

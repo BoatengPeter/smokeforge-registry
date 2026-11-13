@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info:
+  title: '{{.project_name}} API'
+  version: 0.1.0
+  description: HTTP API generated with smokeforge.
+servers:
+  - url: 'http://localhost:{{.http_port}}'
+tags:
+  - name: system
+    description: Liveness and readiness probes.
+  - name: demo
+    description: Minimal endpoint for verifying the HTTP stack.
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [system]
+      summary: Report process liveness
+      responses:
+        '200':
+          description: The process is running.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /readyz:
+    get:
+      operationId: getReady
+      tags: [system]
+      summary: Report dependency readiness
+      responses:
+        '200':
+          description: All configured dependencies are ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ready'
+        '503':
+          description: A dependency is unavailable.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/ping:
+    get:
+      operationId: getPing
+      tags: [demo]
+      summary: Verify request wiring
+      responses:
+        '200':
+          description: The API is reachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ping'
+        '500':
+          description: The application service failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, service, version]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: '{{.project_slug}}'
+        version:
+          type: string
+          example: dev
+    Ready:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ready
+    Ping:
+      type: object
+      required: [message, request_id]
+      properties:
+        message:
+          type: string
+          example: pong
+        request_id:
+          type: string
+          example: 01934f5a-7d0f-7a61-9e0b-7b2f4b4b6a1e
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      description: RFC 9457 error response.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          example: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+          description: Stable machine-readable error code.
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'

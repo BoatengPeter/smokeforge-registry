@@ -1,0 +1,31 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package registry
+        run: |
+          set -euo pipefail
+          mkdir -p dist/registry
+          rsync -a --exclude .git --exclude dist ./ dist/registry/
+          tar -czf dist/registry.tar.gz -C dist registry
+          cd dist
+          sha256sum registry.tar.gz > registry.sha256
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/registry.tar.gz \
+            dist/registry.sha256 \
+            --title "smokeforge-registry $GITHUB_REF_NAME" \
+            --notes "Go/Gin backend templates, auth/users base, Google OAuth, TOTP, embedded migrations, seeds, Docker/CI, and 19 project skills."

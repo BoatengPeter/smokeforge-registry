@@ -1,0 +1,36 @@
+// Package logging builds the process-wide structured logger.
+package logging
+
+import (
+	"fmt"
+	"strings"
+
+	"{{.module_path}}/internal/config"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+)
+
+// New returns a JSON logger in production and a console logger in development.
+func New(cfg config.Config) (*zap.Logger, error) {
+	level, err := zapcore.ParseLevel(strings.ToLower(cfg.LogLevel))
+	if err != nil {
+		return nil, fmt.Errorf("parse log level %q: %w", cfg.LogLevel, err)
+	}
+
+	zapConfig := zap.NewProductionConfig()
+	if cfg.AppEnv == "development" {
+		zapConfig = zap.NewDevelopmentConfig()
+	}
+
+	zapConfig.Level = zap.NewAtomicLevelAt(level)
+	zapConfig.EncoderConfig.TimeKey = "time"
+	zapConfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	zapConfig.DisableStacktrace = false
+
+	logger, err := zapConfig.Build()
+	if err != nil {
+		return nil, fmt.Errorf("build logger: %w", err)
+	}
+
+	return logger, nil
+}

@@ -1,0 +1,93 @@
+// Package httpapi exposes the generated HTTP transport.
+package httpapi
+
+import (
+	"context"
+	"net/http"
+
+	"{{.module_path}}/internal/response"
+	"{{.module_path}}/internal/version"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+)
+
+// Pinger is the application behavior demonstrated by the ping endpoint.
+type Pinger interface {
+	Ping(ctx context.Context) (string, error)
+}
+
+// Readiness reports whether a dependency is ready to serve traffic.
+type Readiness interface {
+	Ready(ctx context.Context) error
+}
+
+type handler struct {
+	pinger      Pinger
+	readiness   Readiness
+	logger      *zap.Logger
+	serviceName string
+}
+
+func newHandler(
+	pinger Pinger,
+	readiness Readiness,
+	logger *zap.Logger,
+	serviceName string,
+) *handler {
+	return &handler{
+		pinger:      pinger,
+		readiness:   readiness,
+		logger:      logger,
+		serviceName: serviceName,
+	}
+}
+
+// GetHealth returns process liveness without checking dependencies.
+func (h *handler) GetHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, Health{
+		Status:  "ok",
+		Service: h.serviceName,
+		Version: version.String(),
+	})
+}
+
+// GetReady checks configured dependencies and returns 503 when they are not
+// ready.
+func (h *handler) GetReady(c *gin.Context) {
+	if h.readiness != nil {
+		if err := h.readiness.Ready(c.Request.Context()); err != nil {
+			h.logger.Warn(
+				"readiness check failed",
+				zap.Error(err),
+				zap.String("request_id", response.RequestID(c)),
+			)
+
+			response.WriteError(c, response.NewError(http.StatusServiceUnavailable, "not_ready", "Not ready", "A required dependency is unavailable."))
+
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, Ready{Status: "ready"})
+}
+
+// GetPing calls the application service and returns the request identifier.
+func (h *handler) GetPing(c *gin.Context) {
+	if h.pinger == nil {
+		response.WriteError(c, response.NewError(http.StatusServiceUnavailable, "not_configured", "Not configured", "The application service is not configured."))
+
+		return
+	}
+
+	message, err := h.pinger.Ping(c.Request.Context())
+	if err != nil {
+		response.WriteInternalError(c, h.logger, err)
+
+		return
+	}
+
+	c.JSON(http.StatusOK, Ping{
+		Message:   message,
+		RequestId: response.RequestID(c),
+	})
+}

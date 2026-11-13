@@ -1,0 +1,105 @@
+// Package database owns the PostgreSQL connection pool.
+package database
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const readyTimeout = 2 * time.Second
+
+// DB wraps the PostgreSQL connection pool.
+type DB struct {
+	pool *pgxpool.Pool
+}
+
+// New opens a bounded pool, waits for the database, and fails after configured
+// retries. The pool stays healthy with pgx's background health checks.
+func New(ctx context.Context, cfg config.Config) (*DB, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database config: %w", err)
+	}
+
+	poolConfig.MaxConns = cfg.DatabaseMaxConns
+	poolConfig.MinConns = cfg.DatabaseMinConns
+	poolConfig.MaxConnLifetime = cfg.DatabaseMaxConnLifetime
+	poolConfig.MaxConnIdleTime = cfg.DatabaseMaxConnIdleTime
+	poolConfig.HealthCheckPeriod = cfg.DatabaseHealthCheckPeriod
+	poolConfig.ConnConfig.ConnectTimeout = cfg.DatabaseConnectTimeout
+	poolConfig.ConnConfig.RuntimeParams["application_name"] = cfg.ServiceName
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create database pool: %w", err)
+	}
+
+	if err := waitForDatabase(ctx, pool, cfg); err != nil {
+		pool.Close()
+
+		return nil, err
+	}
+
+	return &DB{pool: pool}, nil
+}
+
+func waitForDatabase(ctx context.Context, pool *pgxpool.Pool, cfg config.Config) error {
+	attempts := cfg.DatabaseConnectRetries + 1
+
+	var lastErr error
+
+	for attempt := 1; attempt <= attempts; attempt++ {
+		pingCtx, cancel := context.WithTimeout(ctx, cfg.DatabaseConnectTimeout)
+
+		lastErr = pool.Ping(pingCtx)
+
+		cancel()
+
+		if lastErr == nil {
+			return nil
+		}
+
+		if attempt == attempts {
+			break
+		}
+
+		timer := time.NewTimer(cfg.DatabaseConnectBackoff)
+
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+
+			return fmt.Errorf("wait for database: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+
+	return fmt.Errorf("ping database after %d attempts: %w", attempts, lastErr)
+}
+
+// Pool returns the underlying pgx pool.
+func (d *DB) Pool() *pgxpool.Pool {
+	return d.pool
+}
+
+// Ready reports whether the database accepts queries within a bounded timeout.
+func (d *DB) Ready(ctx context.Context) error {
+	pingCtx, cancel := context.WithTimeout(ctx, readyTimeout)
+	defer cancel()
+
+	return d.pool.Ping(pingCtx)
+}
+
+// Stats exposes pool counters for logging and metrics.
+func (d *DB) Stats() *pgxpool.Stat {
+	return d.pool.Stat()
+}
+
+// Close releases every pooled connection.
+func (d *DB) Close() {
+	d.pool.Close()
+}

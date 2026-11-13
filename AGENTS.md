@@ -6,9 +6,9 @@ This repository is the versioned template registry used by
 
 ## Status
 
-M3 is in progress. The first slice is the Next.js frontend template and its
-project-scoped agent skills. The manifest, base files, overlays, and tests are
-being added incrementally.
+M3 has Next.js and the Go/Gin backend implemented. The manifest, base files,
+overlays, and project-scoped skills exist; contract/build-matrix automation is
+the remaining work.
 
 ## Non-negotiables
 

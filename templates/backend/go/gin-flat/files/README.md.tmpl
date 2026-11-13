@@ -1,0 +1,144 @@
+# {{.project_name}}
+
+Production-shaped Go HTTP API generated with [smokeforge](https://github.com/BoatengPeter/smokeforge).
+
+## Stack
+
+- Go 1.26 with Gin
+- Layered architecture: transport, application service, and infrastructure seams
+- Spec-first OpenAPI with `oapi-codegen`
+- Swagger UI at `/docs` and the merged contract at `/openapi.json`
+- RFC 9457 error responses
+- `caarlos0/env` configuration with local `godotenv`
+- Zap structured logging
+- `go-playground/validator` request validation
+- Per-IP token-bucket rate limiting
+- UUIDv7 identifiers
+- Optional PostgreSQL with pgx, sqlc, and goose
+- Optional JWT auth with rotating refresh sessions and TOTP
+- Optional Docker and GitHub Actions overlays
+- Project-scoped Go agent skills
+
+## Quick start
+
+The generator writes `.env` from `.env.example`. If you are running from a
+checkout without that file, copy it manually.
+
+```bash
+make install
+make run
+```
+
+The API listens on <http://localhost:{{.http_port}}>. Useful endpoints:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /healthz` | Process liveness |
+| `GET /readyz` | Dependency readiness |
+| `GET /api/v1/ping` | Application wiring check |
+| `GET /docs` | Swagger UI |
+| `GET /openapi.json` | Merged OpenAPI contract |
+
+Swagger UI is enabled in development. Set `API_DOCS_ENABLED=true` to expose it
+in production, or `false` to remove it everywhere.
+
+## Architecture
+
+This is the **flat** variant. Application behavior stays in one small package
+until there is a real reason to split it.
+
+```text
+cmd/api/              process startup and shutdown
+internal/httpapi/     Gin transport, middleware, OpenAPI, and Swagger
+internal/response/    Success responses and RFC 9457 error responses
+internal/app/         application behavior
+internal/config/      typed environment configuration
+internal/logging/     Zap logger construction
+internal/server/      HTTP and pprof lifecycle, graceful shutdown
+internal/version/     build metadata
+```
+
+Feature overlays add self-contained packages such as `internal/database`,
+`internal/auth`. Features register routes through
+`httpapi.Registrar` and contribute their own OpenAPI documents; the base merges
+them at startup.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `make install` | Download Go modules |
+| `make run` | Run the API |
+| `make dev` | Run with live reload through Air |
+| `make build` | Build `bin/api` |
+| `make test` | Run unit tests |
+| `make test-race` | Run the race detector |
+| `make test-integration` | Run integration-tagged tests |
+| `make lint` | Run golangci-lint |
+| `make fmt` | Format Go code |
+| `make fmt-check` | Check formatting |
+| `make vet` | Run `go vet` |
+| `make vulncheck` | Run `govulncheck` |
+| `make generate` | Regenerate OpenAPI and sqlc code |
+| `make ci` | Run the full local quality gate |
+| `make clean` | Remove build output |
+
+## Configuration
+
+Configuration is validated at startup and fails fast on invalid values.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `APP_ENV` | `development` | `development`, `staging`, or `production` |
+| `SERVICE_NAME` | `{{.project_slug}}` | Service identifier |
+| `API_TITLE` | `{{.project_name}} API` | Swagger UI title |
+| `HTTP_PORT` | `{{.http_port}}` | HTTP listen port |
+| `PUBLIC_BASE_URL` | `http://localhost:{{.http_port}}` | Public origin used in links |
+| `LOG_LEVEL` | `info` | Zap level |
+| `GIN_MODE` | `auto` | `auto`, `debug`, `release`, or `test` |
+| `API_DOCS_ENABLED` | `auto` | Docs on in development, off in production |
+| `RATE_LIMIT_RPS` | `20` | Per-IP requests per second; `0` disables |
+| `RATE_LIMIT_BURST` | `40` | Token-bucket burst |
+| `CORS_ALLOWED_ORIGINS` | empty | Comma-separated browser origins |
+| `CORS_ALLOWED_METHODS` | standard methods | Allowed preflight methods |
+| `CORS_ALLOWED_HEADERS` | auth/content headers | Allowed preflight headers |
+| `CORS_EXPOSED_HEADERS` | `X-Request-ID` | Response headers exposed to browsers |
+| `CORS_ALLOW_CREDENTIALS` | `true` | Send credentials; wildcard origins require `false` |
+| `CORS_MAX_AGE` | `12h` | Preflight cache duration |
+| `GOOGLE_CLIENT_ID` | empty | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | empty | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URL` | derived | Google OAuth callback URL |
+| `OAUTH_SUCCESS_REDIRECT` | `PUBLIC_BASE_URL` | Post-login redirect |
+| `TRUSTED_PROXIES` | empty | Proxy IPs or CIDRs trusted for client IPs |
+| `PPROF_ADDR` | empty | Optional separate pprof listener |
+
+Never commit `.env`. Generated projects receive a local `.env`; production
+values must come from the deployment platform.
+
+## Errors and validation
+
+Errors use `application/problem+json` with RFC 9457 fields plus stable `code`
+and `request_id` extensions. Validation failures return `422` with field-level
+`errors`. The shared response helpers live in `internal/httpapi`.
+
+## Security
+
+- Request IDs, panic recovery, body limits, security headers, timeouts, and
+  rate limiting are enabled in the base.
+- pprof runs on a separate, opt-in listener.
+- CORS rejects wildcard origins because credentials are supported.
+- Secrets stay in environment variables and `.env`; never commit them.
+- Auth adds Argon2id password hashes, HS256 access tokens, hashed rotating
+  refresh sessions, and TOTP. Refresh cookies are Secure/HttpOnly and
+  SameSite=Lax; native clients can request body tokens explicitly.
+
+## Customize this API
+
+1. Change the contract in `internal/httpapi/openapi.yaml`.
+2. Run `make generate`.
+3. Implement handlers in `internal/httpapi`.
+4. Add request/response tests with `httptest`.
+5. Run `make ci` before shipping.
+
+Read [CONTEXT.md](CONTEXT.md) for coding rules and the skill routing table.
+Read [AGENTS.md](AGENTS.md) for the full agent guide.

@@ -1,0 +1,25 @@
+// Package application orchestrates the ping use case.
+package application
+
+import (
+	"context"
+
+	"{{.module_path}}/internal/ping/domain"
+)
+
+// Handler is the application handler for ping.
+type Handler struct{}
+
+// NewHandler constructs the ping application handler.
+func NewHandler() *Handler {
+	return &Handler{}
+}
+
+// Ping executes the ping use case.
+func (h *Handler) Ping(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	return domain.NewPing().Message(), nil
+}

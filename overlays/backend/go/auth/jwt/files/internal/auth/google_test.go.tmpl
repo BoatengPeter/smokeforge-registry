@@ -1,0 +1,58 @@
+package auth
+
+import (
+	"testing"
+
+	"{{.module_path}}/internal/config"
+)
+
+//nolint:paralleltest // gothic.Store is process-global and this test configures it.
+func TestNewGoogleProvider(t *testing.T) {
+	tests := []struct {
+		name      string
+		clientID  string
+		secret    string
+		wantError bool
+		wantNil   bool
+	}{
+		{name: "disabled", wantNil: true},
+		{name: "missing secret", clientID: "id", wantError: true},
+		{name: "configured", clientID: "id", secret: "secret"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.Config{
+				JWTSecret:          "0123456789abcdef0123456789abcdef",
+				PublicBaseURL:      "http://localhost:8080",
+				GoogleClientID:     test.clientID,
+				GoogleClientSecret: test.secret,
+			}
+
+			provider, err := newGoogleProvider(cfg)
+			if test.wantError {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("new provider: %v", err)
+			}
+
+			if test.wantNil && provider != nil {
+				t.Fatal("provider should be nil")
+			}
+
+			if !test.wantNil && provider == nil {
+				t.Fatal("provider should be configured")
+			}
+
+			if provider != nil && provider.SuccessRedirect() != cfg.PublicBaseURL {
+				t.Fatalf("redirect = %q", provider.SuccessRedirect())
+			}
+		})
+	}
+}

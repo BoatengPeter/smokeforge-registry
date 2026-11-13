@@ -1,0 +1,92 @@
+package auth
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/gorilla/sessions"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/google"
+)
+
+const googleProvider = "google"
+
+// GoogleProvider wraps Gothic's Google provider and its cookie session store.
+type GoogleProvider struct {
+	successRedirect string
+}
+
+func newGoogleProvider(cfg config.Config) (*GoogleProvider, error) {
+	if cfg.GoogleClientID == "" && cfg.GoogleClientSecret == "" {
+		return nil, nil
+	}
+
+	if cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" {
+		return nil, errors.New("auth: google client id and secret must be set together")
+	}
+
+	redirectURL := cfg.GoogleRedirectURL
+	if redirectURL == "" {
+		redirectURL = strings.TrimRight(cfg.PublicBaseURL, "/") + "/api/v1/auth/oauth/google/callback"
+	}
+
+	store := sessions.NewCookieStore([]byte(cfg.JWTSecret))
+	store.Options = &sessions.Options{
+		Path:     "/api/v1/auth/oauth/google",
+		MaxAge:   int((10 * time.Minute).Seconds()),
+		HttpOnly: true,
+		Secure:   cfg.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	gothic.Store = store
+
+	goth.UseProviders(google.New(
+		cfg.GoogleClientID,
+		cfg.GoogleClientSecret,
+		redirectURL,
+		"email",
+		"profile",
+	))
+
+	successRedirect := cfg.OAuthSuccessRedirect
+	if successRedirect == "" {
+		successRedirect = cfg.PublicBaseURL
+	}
+
+	return &GoogleProvider{successRedirect: successRedirect}, nil
+}
+
+// SuccessRedirect returns the URL to use after a successful callback.
+func (p *GoogleProvider) SuccessRedirect() string {
+	return p.successRedirect
+}
+
+// Begin redirects the browser to Google and stores the OAuth state.
+func (p *GoogleProvider) Begin(w http.ResponseWriter, r *http.Request) error {
+	request := gothic.GetContextWithProvider(r, googleProvider)
+
+	authURL, err := gothic.GetAuthURL(w, request)
+	if err != nil {
+		return fmt.Errorf("begin google oauth: %w", err)
+	}
+
+	http.Redirect(w, request, authURL, http.StatusTemporaryRedirect)
+
+	return nil
+}
+
+// Complete validates the callback and returns the Google profile.
+func (p *GoogleProvider) Complete(w http.ResponseWriter, r *http.Request) (goth.User, error) {
+	user, err := gothic.CompleteUserAuth(w, gothic.GetContextWithProvider(r, googleProvider))
+	if err != nil {
+		return goth.User{}, fmt.Errorf("complete google oauth: %w", err)
+	}
+
+	return user, nil
+}

@@ -1,0 +1,13 @@
+// Package port defines the application contracts used by adapters.
+package port
+
+import (
+	"context"
+
+	"{{.module_path}}/internal/domain"
+)
+
+// Ping is the inbound port for the ping use case.
+type Ping interface {
+	Execute(ctx context.Context) (domain.Response, error)
+}

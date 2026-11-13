@@ -1,0 +1,20 @@
+# build output
+/bin/
+/tmp/
+/dist/
+*.test
+coverage.out
+
+# local configuration
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# editor and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# smokeforge
+.smokeforge/

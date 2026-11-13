@@ -1,0 +1,181 @@
+// Package totp implements TOTP HTTP transport.
+package totp
+
+import (
+	"context"
+	"errors"
+	"net/http"
+
+	"{{.module_path}}/internal/auth"
+	"{{.module_path}}/internal/response"
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+// AuthService is the auth surface needed by TOTP routes.
+type AuthService interface {
+	auth.TokenVerifier
+	GetUser(ctx context.Context, id uuid.UUID) (auth.Account, error)
+}
+
+// ServiceContract is the TOTP behavior consumed by HTTP.
+type ServiceContract interface {
+	Begin(ctx context.Context, userID uuid.UUID, email string) (string, string, error)
+	Enable(ctx context.Context, userID uuid.UUID, code string) ([]string, error)
+	Disable(ctx context.Context, userID uuid.UUID, code string) error
+	Status(ctx context.Context, userID uuid.UUID) (bool, error)
+}
+
+// Handler implements the TOTP HTTP contract.
+type Handler struct {
+	service  ServiceContract
+	auth     AuthService
+	logger   *zap.Logger
+	validate *validator.Validate
+}
+
+// NewHandler constructs the TOTP handler.
+func NewHandler(service ServiceContract, authService AuthService, logger *zap.Logger) *Handler {
+	return &Handler{
+		service:  service,
+		auth:     authService,
+		logger:   logger,
+		validate: validator.New(),
+	}
+}
+
+// RegisterRoutes adds authenticated TOTP routes.
+func (h *Handler) RegisterRoutes(router gin.IRouter) {
+	RegisterHandlersWithOptions(router, h, GinServerOptions{
+		Middlewares: []MiddlewareFunc{MiddlewareFunc(auth.RequireAuth(h.auth))},
+		ErrorHandler: func(c *gin.Context, _ error, statusCode int) {
+			response.WriteError(c, response.NewError(statusCode, "invalid_request", "Invalid request", "The request is invalid."))
+		},
+	})
+}
+
+// GetTOTPStatus returns whether TOTP is enabled.
+func (h *Handler) GetTOTPStatus(c *gin.Context) {
+	identity, ok := auth.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+
+		return
+	}
+
+	enabled, err := h.service.Status(c.Request.Context(), identity.UserID)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	c.JSON(http.StatusOK, TOTPStatus{Enabled: enabled})
+}
+
+// SetupTOTP begins enrollment.
+func (h *Handler) SetupTOTP(c *gin.Context) {
+	identity, ok := auth.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+
+		return
+	}
+
+	account, err := h.auth.GetUser(c.Request.Context(), identity.UserID)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	secret, url, err := h.service.Begin(c.Request.Context(), identity.UserID, account.Email)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	c.JSON(http.StatusOK, TOTPSetup{
+		Secret:     secret,
+		OtpauthUrl: url,
+	})
+}
+
+// EnableTOTP confirms enrollment and returns recovery codes.
+func (h *Handler) EnableTOTP(c *gin.Context) {
+	identity, ok := auth.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+
+		return
+	}
+
+	var request TOTPCodeRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		response.WriteValidationError(c, err)
+
+		return
+	}
+
+	if err := h.validate.Struct(request); err != nil {
+		response.WriteValidationError(c, err)
+
+		return
+	}
+
+	codes, err := h.service.Enable(c.Request.Context(), identity.UserID, request.Code)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	c.JSON(http.StatusOK, TOTPRecoveryCodes{Codes: codes})
+}
+
+// DisableTOTP verifies a code and disables TOTP.
+func (h *Handler) DisableTOTP(c *gin.Context) {
+	identity, ok := auth.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+
+		return
+	}
+
+	var request TOTPCodeRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		response.WriteValidationError(c, err)
+
+		return
+	}
+
+	if err := h.validate.Struct(request); err != nil {
+		response.WriteValidationError(c, err)
+
+		return
+	}
+
+	if err := h.service.Disable(c.Request.Context(), identity.UserID, request.Code); err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) writeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, auth.ErrInvalidCode):
+		response.WriteError(c, response.NewError(http.StatusUnprocessableEntity, "invalid_code", "Invalid code", "The verification code is invalid."))
+	case errors.Is(err, ErrSetupRequired):
+		response.WriteError(c, response.NewError(http.StatusUnprocessableEntity, "setup_required", "Setup required", "Start TOTP enrollment first."))
+	case errors.Is(err, ErrAlreadyEnabled):
+		response.WriteConflict(c, "totp_enabled", "TOTP is already enabled.")
+	default:
+		response.WriteInternalError(c, h.logger, err)
+	}
+}

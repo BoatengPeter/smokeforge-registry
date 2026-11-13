@@ -1,0 +1,23 @@
+// Package app adapts the ping bounded context to the HTTP transport.
+package app
+
+import (
+	"context"
+
+	"{{.module_path}}/internal/ping/application"
+)
+
+// Pinger adapts the ping application handler to HTTP.
+type Pinger struct {
+	handler *application.Handler
+}
+
+// NewPinger constructs the application facade.
+func NewPinger() *Pinger {
+	return &Pinger{handler: application.NewHandler()}
+}
+
+// Ping executes the ping use case.
+func (p *Pinger) Ping(ctx context.Context) (string, error) {
+	return p.handler.Ping(ctx)
+}

@@ -1,9 +1,31 @@
 schemaVersion: 1
 name: smokeforge-registry
 kinds:
+  backend:
+    max: 1
   frontend:
     max: 1
 stacks:
+  - id: go/gin-flat
+    kind: backend
+    name: Go (Gin, flat)
+    template: templates/backend/go/gin-flat
+    variables: [module_path, http_port]
+  - id: go/gin-layered
+    kind: backend
+    name: Go (Gin, layered)
+    template: templates/backend/go/gin-layered
+    variables: [module_path, http_port]
+  - id: go/gin-hexagonal
+    kind: backend
+    name: Go (Gin, hexagonal)
+    template: templates/backend/go/gin-hexagonal
+    variables: [module_path, http_port]
+  - id: go/gin-ddd
+    kind: backend
+    name: Go (Gin, DDD)
+    template: templates/backend/go/gin-ddd
+    variables: [module_path, http_port]
   - id: next
     kind: frontend
     name: Next.js
@@ -13,40 +35,70 @@ presets:
   - id: fullstack
     name: Fullstack SaaS
     description: Postgres, Better Auth, and Zustand
+    kinds: [frontend]
     default: true
     features: [database:postgres, auth:session, state:zustand]
   - id: frontend
     name: Frontend only
     description: The base app without backend or client state
+    kinds: [frontend]
     features: []
   - id: production
     name: Production
     description: Fullstack plus Docker, CI, E2E, and PostHog
+    kinds: [frontend]
     features: [database:postgres, auth:session, state:zustand, testing:e2e, docker, ci:github, analytics:posthog]
+  - id: api
+    name: Go API
+    description: Postgres and JWT authentication
+    kinds: [backend]
+    default: true
+    features: [database:postgres, auth:jwt]
+  - id: api-minimal
+    name: Go API only
+    description: The base Go API without database or authentication
+    kinds: [backend]
+    features: []
+  - id: api-production
+    name: Production Go API
+    description: Postgres, JWT authentication, TOTP, Docker, and CI
+    kinds: [backend]
+    features: [database:postgres, auth:jwt, totp, docker, ci:github]
 features:
   - id: docker
     name: Docker
-    kinds: [frontend]
+    kinds: [backend, frontend]
     overlays:
+      go/gin-flat: overlays/backend/go/docker
+      go/gin-layered: overlays/backend/go/docker
+      go/gin-hexagonal: overlays/backend/go/docker
+      go/gin-ddd: overlays/backend/go/docker
       next: overlays/next/docker
   - id: ci
     name: CI
-    kinds: [frontend]
-    requires: [testing:e2e]
+    kinds: [backend, frontend]
     variants:
       - id: github
         name: GitHub Actions
         default: true
         overlays:
+          go/gin-flat: overlays/backend/go/ci/github
+          go/gin-layered: overlays/backend/go/ci/github
+          go/gin-hexagonal: overlays/backend/go/ci/github
+          go/gin-ddd: overlays/backend/go/ci/github
           next: overlays/next/ci/github
   - id: database
     name: Database
-    kinds: [frontend]
+    kinds: [backend, frontend]
     variants:
       - id: postgres
         name: PostgreSQL
         default: true
         overlays:
+          go/gin-flat: overlays/backend/go/database/postgres
+          go/gin-layered: overlays/backend/go/database/postgres
+          go/gin-hexagonal: overlays/backend/go/database/postgres
+          go/gin-ddd: overlays/backend/go/database/postgres
           next: overlays/next/database/postgres
   - id: state
     name: Client state
@@ -79,7 +131,7 @@ features:
           next: overlays/next/analytics/posthog
   - id: auth
     name: Authentication
-    kinds: [frontend]
+    kinds: [backend, frontend]
     variants:
       - id: session
         name: Email + OTP sessions
@@ -88,3 +140,25 @@ features:
         requires: [database:postgres]
         overlays:
           next: overlays/next/auth/session
+      - id: jwt
+        name: JWT access + rotating refresh
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        requires: [database:postgres]
+        overlays:
+          go/gin-flat: overlays/backend/go/auth/jwt
+          go/gin-layered: overlays/backend/go/auth/jwt
+          go/gin-hexagonal: overlays/backend/go/auth/jwt
+          go/gin-ddd: overlays/backend/go/auth/jwt
+  - id: totp
+    name: TOTP two-factor authentication
+    kinds: [backend]
+    requires: [auth:jwt]
+    overlays:
+      go/gin-flat: overlays/backend/go/totp
+      go/gin-layered: overlays/backend/go/totp
+      go/gin-hexagonal: overlays/backend/go/totp
+      go/gin-ddd: overlays/backend/go/totp

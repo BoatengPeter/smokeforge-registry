@@ -1,0 +1,93 @@
+BINARY := bin/api
+VERSION ?= dev
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -s -w \
+	-X '{{.module_path}}/internal/version.version=$(VERSION)' \
+	-X '{{.module_path}}/internal/version.commit=$(COMMIT)' \
+	-X '{{.module_path}}/internal/version.date=$(DATE)'
+
+.PHONY: help install run dev build test test-race test-integration lint fmt fmt-check vet vulncheck generate clean ci
+# smokeforge:anchor db-phony
+# smokeforge:anchor docker-phony
+
+help:
+	@echo "make install          Download Go modules"
+	@echo "make run              Run the API"
+	@echo "make dev              Run the API with live reload"
+	@echo "make build            Build bin/api"
+	@echo "make test             Run unit tests"
+	@echo "make test-race        Run tests with the race detector"
+	@echo "make test-integration Run integration tests"
+	@echo "make lint             Run golangci-lint"
+	@echo "make fmt              Format Go code"
+	@echo "make fmt-check        Check formatting without changing files"
+	@echo "make vet              Run go vet"
+	@echo "make vulncheck        Run govulncheck"
+	@echo "make generate         Regenerate OpenAPI and sqlc code"
+	@echo "make ci               Run formatting, vet, lint, tests, race, and build"
+	@echo "make clean            Remove build output"
+	# smokeforge:anchor db-help
+	# smokeforge:anchor docker-help
+
+install:
+	go mod download
+
+run:
+	go run ./cmd/api
+
+dev:
+	go run github.com/air-verse/air@v1.67.4
+
+build:
+	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/api
+
+test:
+	go test ./...
+
+test-race:
+	go test -race ./...
+
+test-integration:
+	go test -tags=integration ./...
+
+lint:
+	golangci-lint run ./...
+
+fmt:
+	golangci-lint fmt ./...
+
+fmt-check:
+	@test -z "$$(gofmt -l .)" || (gofmt -l .; exit 1)
+
+vet:
+	go vet ./...
+
+vulncheck:
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+generate:
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
+		-config internal/httpapi/oapi-codegen.yaml \
+		internal/httpapi/openapi.yaml
+	@if [ -f internal/auth/oapi-codegen.yaml ]; then \
+		go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
+			-config internal/auth/oapi-codegen.yaml \
+			internal/auth/openapi.yaml; \
+	fi
+	@if [ -f internal/auth/totp/oapi-codegen.yaml ]; then \
+		go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
+			-config internal/auth/totp/oapi-codegen.yaml \
+			internal/auth/totp/openapi.yaml; \
+	fi
+	@if [ -f sqlc.yaml ]; then \
+		go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate; \
+	fi
+
+ci: fmt-check vet lint test test-race build
+
+clean:
+	rm -rf bin tmp coverage.out
+
+# smokeforge:anchor db-targets
+# smokeforge:anchor docker-targets

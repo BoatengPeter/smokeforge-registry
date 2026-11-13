@@ -1,0 +1,11 @@
+.git
+.github
+bin
+tmp
+coverage
+coverage.out
+.env
+.env.*
+!.env.example
+.smokeforge
+*.md

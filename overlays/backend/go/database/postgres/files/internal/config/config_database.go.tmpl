@@ -1,0 +1,28 @@
+package config
+
+import "errors"
+
+func (c Config) validateDatabase() error {
+	if c.DatabaseMaxConns < 1 {
+		return errors.New("database max connections must be at least 1")
+	}
+
+	if c.DatabaseMinConns < 0 || c.DatabaseMinConns > c.DatabaseMaxConns {
+		return errors.New("database min connections must be between 0 and max connections")
+	}
+
+	if c.DatabaseMaxConnLifetime <= 0 || c.DatabaseMaxConnIdleTime <= 0 ||
+		c.DatabaseHealthCheckPeriod <= 0 || c.DatabaseConnectTimeout <= 0 {
+		return errors.New("database lifetimes and timeouts must be positive")
+	}
+
+	if c.DatabaseConnectRetries < 0 {
+		return errors.New("database connect retries must not be negative")
+	}
+
+	if c.DatabaseConnectRetries > 0 && c.DatabaseConnectBackoff <= 0 {
+		return errors.New("database connect backoff must be positive")
+	}
+
+	return nil
+}

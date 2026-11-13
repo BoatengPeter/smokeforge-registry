@@ -1,0 +1,114 @@
+id: database:postgres
+name: PostgreSQL
+files: files
+ops:
+  - addFiles:
+      - {path: internal/database/database.go.tmpl, dest: internal/database/database.go}
+      - {path: internal/database/migrator/migrator.go.tmpl, dest: internal/database/migrator/migrator.go}
+      - {path: internal/database/migrator/migrations/00001_init.sql, dest: internal/database/migrator/migrations/00001_init.sql}
+      - {path: internal/config/config_database.go.tmpl, dest: internal/config/config_database.go}
+      - {path: cmd/migrate/main.go.tmpl, dest: cmd/migrate/main.go}
+      - {path: compose.db.yaml, dest: compose.db.yaml}
+      - {path: compose.override.yaml, dest: compose.override.yaml}
+      - {path: docs/DATABASE.md, dest: docs/DATABASE.md}
+  - addDependency: {file: go.mod, module: github.com/jackc/pgx/v5, version: v5.13.0}
+  - addDependency: {file: go.mod, module: github.com/pressly/goose/v3, version: v3.30.1}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: database:postgres-config
+      content: |-
+        DatabaseURL               string        `env:"DATABASE_URL,required"`
+        DatabaseMaxConns          int32         `env:"DATABASE_MAX_CONNS" envDefault:"10"`
+        DatabaseMinConns          int32         `env:"DATABASE_MIN_CONNS" envDefault:"1"`
+        DatabaseMaxConnLifetime   time.Duration `env:"DATABASE_MAX_CONN_LIFETIME" envDefault:"1h"`
+        DatabaseMaxConnIdleTime   time.Duration `env:"DATABASE_MAX_CONN_IDLE_TIME" envDefault:"15m"`
+        DatabaseHealthCheckPeriod time.Duration `env:"DATABASE_HEALTH_CHECK_PERIOD" envDefault:"1m"`
+        DatabaseConnectTimeout    time.Duration `env:"DATABASE_CONNECT_TIMEOUT" envDefault:"5s"`
+        DatabaseConnectRetries    int           `env:"DATABASE_CONNECT_RETRIES" envDefault:"5"`
+        DatabaseConnectBackoff    time.Duration `env:"DATABASE_CONNECT_BACKOFF" envDefault:"1s"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: database:postgres-config-test
+      content: |-
+        DatabaseMaxConns:          10,
+        DatabaseMinConns:          1,
+        DatabaseMaxConnLifetime:   time.Hour,
+        DatabaseMaxConnIdleTime:   15 * time.Minute,
+        DatabaseHealthCheckPeriod: time.Minute,
+        DatabaseConnectTimeout:    5 * time.Second,
+        DatabaseConnectRetries:    3,
+        DatabaseConnectBackoff:    time.Second,
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: database:postgres-validation
+      content: |-
+        if err := c.validateDatabase(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-database
+      marker: database:postgres-import
+      content: '"{{.module_path}}/internal/database"'
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: main-database
+      marker: database:postgres-main
+      content: |-
+        db, err := database.New(ctx, cfg)
+        if err != nil {
+        	return fmt.Errorf("connect database: %w", err)
+        }
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: http-options
+      marker: database:postgres-http
+      content: 'httpapi.WithReadiness(db),'
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: main-shutdown
+      marker: database:postgres-shutdown
+      content: 'db.Close()'
+  - insertAfter:
+      file: Makefile
+      anchor: db-phony
+      marker: database:postgres-make-phony
+      content: '.PHONY: db-up db-down db-migrate db-shell'
+  - insertAfter:
+      file: Makefile
+      anchor: db-help
+      marker: database:postgres-make-help
+      content: |-
+        @echo "make db-up            Start PostgreSQL with Docker"
+        @echo "make db-down          Stop PostgreSQL"
+        @echo "make db-migrate       Apply embedded goose migrations"
+        @echo "make db-shell         Open psql in the database container"
+  - insertAfter:
+      file: Makefile
+      anchor: db-targets
+      marker: database:postgres-make-targets
+      content: |-
+        db-up:
+        	docker compose -f compose.db.yaml up -d
+
+        db-down:
+        	docker compose -f compose.db.yaml down
+
+        db-migrate:
+        	go run ./cmd/migrate up
+
+        db-shell:
+        	docker compose -f compose.db.yaml exec db psql -U postgres -d app
+  - env: {key: DATABASE_URL, example: "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"}
+  - env: {key: TEST_DATABASE_URL, example: "postgres://postgres:postgres@localhost:5432/app_test?sslmode=disable"}
+  - env: {key: DATABASE_MAX_CONNS, example: "10"}
+  - env: {key: DATABASE_MIN_CONNS, example: "1"}
+  - env: {key: DATABASE_MAX_CONN_LIFETIME, example: 1h}
+  - env: {key: DATABASE_MAX_CONN_IDLE_TIME, example: 15m}
+  - env: {key: DATABASE_HEALTH_CHECK_PERIOD, example: 1m}
+  - env: {key: DATABASE_CONNECT_TIMEOUT, example: 5s}
+  - env: {key: DATABASE_CONNECT_RETRIES, example: "5"}
+  - env: {key: DATABASE_CONNECT_BACKOFF, example: 1s}

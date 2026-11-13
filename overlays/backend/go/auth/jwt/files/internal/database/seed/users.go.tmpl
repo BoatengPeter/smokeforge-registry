@@ -1,0 +1,42 @@
+// Package seed inserts optional development data.
+package seed
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"{{.module_path}}/internal/auth"
+	"{{.module_path}}/internal/config"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Run creates an opt-in verified demo user.
+func Run(ctx context.Context, pool *pgxpool.Pool, cfg config.Config) error {
+	if cfg.SeedUserPassword == "" {
+		return errors.New("seed: SEED_USER_PASSWORD is required")
+	}
+
+	passwordHash, err := auth.HashPassword(cfg.SeedUserPassword)
+	if err != nil {
+		return err
+	}
+
+	userID := uuid.NewSHA1(uuid.NameSpaceURL, []byte(cfg.SeedUserEmail))
+
+	_, err = pool.Exec(
+		ctx,
+		`INSERT INTO users (id, email, password_hash, role, email_verified_at)
+		 VALUES ($1, lower($2), $3, 'user', now())
+		 ON CONFLICT DO NOTHING`,
+		userID,
+		cfg.SeedUserEmail,
+		passwordHash,
+	)
+	if err != nil {
+		return fmt.Errorf("seed user: %w", err)
+	}
+
+	return nil
+}

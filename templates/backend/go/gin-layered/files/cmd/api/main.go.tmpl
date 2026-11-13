@@ -1,0 +1,68 @@
+// Package main starts the HTTP API.
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	// smokeforge:anchor import-auth
+	// smokeforge:anchor import-database
+	// smokeforge:anchor import-totp
+	"{{.module_path}}/internal/app"
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/httpapi"
+	"{{.module_path}}/internal/logging"
+	"{{.module_path}}/internal/server"
+)
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	logger, err := logging.New(cfg)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		_ = logger.Sync()
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// smokeforge:anchor main-database
+	// smokeforge:anchor main-auth
+	// smokeforge:anchor main-totp
+
+	options := []httpapi.Option{
+		httpapi.WithPinger(app.NewPinger()),
+		// smokeforge:anchor http-options
+	}
+
+	router, err := httpapi.New(cfg, logger, options...)
+	if err != nil {
+		return fmt.Errorf("build router: %w", err)
+	}
+
+	apiServer := server.New(cfg, logger, router)
+	if err := apiServer.Run(ctx); err != nil {
+		return err
+	}
+
+	// smokeforge:anchor main-shutdown
+
+	return nil
+}

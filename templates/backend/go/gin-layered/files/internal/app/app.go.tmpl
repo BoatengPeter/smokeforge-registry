@@ -1,0 +1,23 @@
+// Package app wires application services for the HTTP transport.
+package app
+
+import (
+	"context"
+
+	"{{.module_path}}/internal/service"
+)
+
+// Pinger adapts the ping use case to the HTTP transport contract.
+type Pinger struct {
+	ping *service.Ping
+}
+
+// NewPinger constructs the application facade used by the HTTP API.
+func NewPinger() *Pinger {
+	return &Pinger{ping: service.NewPing()}
+}
+
+// Ping executes the ping use case.
+func (p *Pinger) Ping(ctx context.Context) (string, error) {
+	return p.ping.Execute(ctx)
+}

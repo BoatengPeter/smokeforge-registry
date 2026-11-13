@@ -1,0 +1,39 @@
+id: docker
+name: Docker
+files: files
+ops:
+  - addFiles:
+      - {path: Dockerfile, dest: Dockerfile}
+      - {path: .dockerignore, dest: .dockerignore}
+      - {path: compose.yaml, dest: compose.yaml}
+      - {path: docs/DOCKER.md, dest: docs/DOCKER.md}
+  - insertAfter:
+      file: Makefile
+      anchor: docker-phony
+      marker: docker-make-phony
+      content: '.PHONY: docker-build docker-up docker-down'
+  - insertAfter:
+      file: Makefile
+      anchor: docker-help
+      marker: docker-make-help
+      content: |-
+        @echo "make docker-build     Build the API image"
+        @echo "make docker-up        Start the API with Docker Compose"
+        @echo "make docker-down      Stop the Docker Compose stack"
+  - insertAfter:
+      file: Makefile
+      anchor: docker-targets
+      marker: docker-make-targets
+      content: |-
+        docker-build:
+        	docker build -t $(BINARY:bin/%=%) .
+
+        docker-up:
+        	@if [ -f compose.override.yaml ]; then \
+        		docker compose -f compose.yaml -f compose.override.yaml up -d --build; \
+        	else \
+        		docker compose up -d --build; \
+        	fi
+
+        docker-down:
+        	docker compose down

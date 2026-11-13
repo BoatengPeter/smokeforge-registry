@@ -1,0 +1,153 @@
+package httpapi
+
+import (
+	"net/http"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/response"
+	"github.com/gin-gonic/gin"
+	"github.com/swaggest/swgui/v5emb"
+	"go.uber.org/zap"
+)
+
+// Registrar adds a feature's routes and OpenAPI document to the API.
+type Registrar interface {
+	RegisterRoutes(router gin.IRouter)
+}
+
+// DocumentedRegistrar contributes an OpenAPI document to Swagger UI.
+type DocumentedRegistrar interface {
+	Registrar
+	OpenAPISpec() []byte
+}
+
+type options struct {
+	pinger     Pinger
+	readiness  Readiness
+	registrars []Registrar
+}
+
+// Option customizes the HTTP server.
+type Option func(*options)
+
+// WithPinger configures the application service used by the ping endpoint.
+func WithPinger(pinger Pinger) Option {
+	return func(options *options) {
+		options.pinger = pinger
+	}
+}
+
+// WithReadiness configures the readiness dependency.
+func WithReadiness(readiness Readiness) Option {
+	return func(options *options) {
+		options.readiness = readiness
+	}
+}
+
+// WithRegistrar adds a feature route registrar.
+func WithRegistrar(registrar Registrar) Option {
+	return func(options *options) {
+		options.registrars = append(options.registrars, registrar)
+	}
+}
+
+// New builds the Gin engine with middleware, generated routes, feature routes,
+// and Swagger UI.
+func New(cfg config.Config, logger *zap.Logger, opts ...Option) (*gin.Engine, error) {
+	gin.SetMode(cfg.HTTPMode())
+
+	serverOptions := options{}
+	for _, option := range opts {
+		option(&serverOptions)
+	}
+
+	engine := gin.New()
+	if err := engine.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		return nil, err
+	}
+
+	engine.HandleMethodNotAllowed = true
+	engine.Use(
+		RequestIDMiddleware(),
+		RequestLogger(logger),
+		Recovery(logger),
+		SecurityHeaders(cfg.IsProduction()),
+		BodyLimit(cfg.MaxBodyBytes),
+		CORS(CORSOptions{
+			AllowedOrigins:   cfg.CORSAllowedOrigins,
+			AllowedMethods:   cfg.CORSAllowedMethods,
+			AllowedHeaders:   cfg.CORSAllowedHeaders,
+			ExposedHeaders:   cfg.CORSExposedHeaders,
+			AllowCredentials: cfg.CORSAllowCredentials,
+			MaxAge:           cfg.CORSMaxAge,
+		}),
+		RateLimit(cfg.RateLimitRPS, cfg.RateLimitBurst),
+		Timeout(cfg.RequestTimeout),
+	)
+
+	requestHandler := newHandler(
+		serverOptions.pinger,
+		serverOptions.readiness,
+		logger,
+		cfg.ServiceName,
+	)
+
+	RegisterHandlersWithOptions(engine, requestHandler, GinServerOptions{
+		ErrorHandler: func(c *gin.Context, _ error, statusCode int) {
+			response.WriteError(c, response.NewError(statusCode, "invalid_request", "Invalid request", "The request is invalid."))
+		},
+	})
+
+	for _, registrar := range serverOptions.registrars {
+		registrar.RegisterRoutes(engine)
+	}
+
+	if cfg.DocsEnabled() {
+		if err := registerDocs(engine, cfg, serverOptions.registrars); err != nil {
+			return nil, err
+		}
+	}
+
+	engine.NoRoute(func(c *gin.Context) {
+		response.WriteNotFound(c, "The requested resource does not exist.")
+	})
+	engine.NoMethod(func(c *gin.Context) {
+		response.WriteError(c, response.NewError(http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed", "The method is not supported for this resource."))
+	})
+
+	return engine, nil
+}
+
+func registerDocs(engine *gin.Engine, cfg config.Config, registrars []Registrar) error {
+	documents := make([][]byte, 0, len(registrars)+1)
+	documents = append(documents, baseOpenAPISpec)
+
+	for _, registrar := range registrars {
+		documented, ok := registrar.(DocumentedRegistrar)
+		if !ok {
+			continue
+		}
+
+		documents = append(documents, documented.OpenAPISpec())
+	}
+
+	spec, err := mergeOpenAPISpecs(documents)
+	if err != nil {
+		return err
+	}
+
+	ui := v5emb.New(cfg.APITitle, "/openapi.json", "/docs/")
+
+	engine.GET("/openapi.json", func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/json; charset=utf-8", spec)
+	})
+	engine.GET("/docs", func(c *gin.Context) {
+		c.Redirect(http.StatusTemporaryRedirect, "/docs/")
+	})
+	engine.GET("/docs/*any", gin.WrapH(ui))
+	engine.GET("/swagger", func(c *gin.Context) {
+		c.Redirect(http.StatusTemporaryRedirect, "/docs/")
+	})
+
+	return nil
+}

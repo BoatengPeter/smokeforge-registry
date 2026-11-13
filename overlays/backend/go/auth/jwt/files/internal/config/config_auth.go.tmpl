@@ -1,0 +1,64 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+)
+
+func (c Config) validateAuth() error {
+	if err := c.validateAuthTokens(); err != nil {
+		return err
+	}
+
+	if err := c.validateAuthEmail(); err != nil {
+		return err
+	}
+
+	return c.validateAuthOAuth()
+}
+
+func (c Config) validateAuthTokens() error {
+	if len(c.JWTSecret) < 32 {
+		return errors.New("jwt secret must be at least 32 characters")
+	}
+
+	if c.AccessTokenTTL <= 0 || c.RefreshTokenTTL <= 0 {
+		return errors.New("token lifetimes must be positive")
+	}
+
+	return nil
+}
+
+func (c Config) validateAuthEmail() error {
+	if !slices.Contains([]string{"auto", "true", "false"}, c.RequireEmailVerification) {
+		return fmt.Errorf("require email verification %q must be auto, true, or false", c.RequireEmailVerification)
+	}
+
+	if c.SMTPHost != "" && (c.SMTPPort < 1 || c.SMTPPort > 65535) {
+		return fmt.Errorf("smtp port %d must be between 1 and 65535", c.SMTPPort)
+	}
+
+	if c.IsProduction() && !c.CookieSecure {
+		return errors.New("cookie secure must be true in production")
+	}
+
+	if c.IsProduction() && strings.TrimSpace(c.SMTPHost) == "" {
+		return errors.New("smtp host is required in production")
+	}
+
+	return nil
+}
+
+func (c Config) validateAuthOAuth() error {
+	if (c.GoogleClientID == "") != (c.GoogleClientSecret == "") {
+		return errors.New("google client id and secret must be set together")
+	}
+
+	if c.IsProduction() && c.GoogleClientID == "" {
+		return errors.New("google oauth credentials are required in production")
+	}
+
+	return nil
+}

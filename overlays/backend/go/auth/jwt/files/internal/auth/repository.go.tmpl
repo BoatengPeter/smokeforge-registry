@@ -1,0 +1,228 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	authdb "{{.module_path}}/internal/auth/db"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Store is the persistence contract consumed by the auth service.
+type Store interface {
+	CreateUser(ctx context.Context, id uuid.UUID, email, passwordHash, role string) (UserRecord, error)
+	GetUserByEmail(ctx context.Context, email string) (UserRecord, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (UserRecord, error)
+	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
+	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
+	CreateToken(ctx context.Context, params CreateTokenParams) error
+	GetTokenByHash(ctx context.Context, hash []byte) (TokenRecord, error)
+	ConsumeToken(ctx context.Context, id uuid.UUID) (int64, error)
+	RevokeToken(ctx context.Context, id uuid.UUID) error
+	RevokeUserTokens(ctx context.Context, userID uuid.UUID, kind string) error
+	GetOAuthAccount(ctx context.Context, provider, providerAccountID string) (uuid.UUID, error)
+	CreateOAuthAccount(ctx context.Context, id, userID uuid.UUID, provider, providerAccountID, email string) error
+}
+
+// Repository implements Store with PostgreSQL queries.
+type Repository struct {
+	queries *authdb.Queries
+}
+
+var _ Store = (*Repository)(nil)
+
+// NewRepository constructs the auth repository.
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{queries: authdb.New(pool)}
+}
+
+// CreateUser inserts a new account.
+func (r *Repository) CreateUser(
+	ctx context.Context,
+	id uuid.UUID,
+	email, passwordHash, role string,
+) (UserRecord, error) {
+	row, err := r.queries.CreateUser(ctx, authdb.CreateUserParams{
+		ID:           id,
+		Lower:        email,
+		PasswordHash: passwordHash,
+		Role:         role,
+	})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return UserRecord{}, ErrEmailTaken
+		}
+
+		return UserRecord{}, fmt.Errorf("create user: %w", err)
+	}
+
+	return userFromDB(row), nil
+}
+
+// GetUserByEmail returns one account by email.
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (UserRecord, error) {
+	row, err := r.queries.GetUserByEmail(ctx, email)
+	if err != nil {
+		return UserRecord{}, fmt.Errorf("get user by email: %w", err)
+	}
+
+	return userFromDB(row), nil
+}
+
+// GetUserByID returns one account by ID.
+func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (UserRecord, error) {
+	row, err := r.queries.GetUserByID(ctx, id)
+	if err != nil {
+		return UserRecord{}, fmt.Errorf("get user by id: %w", err)
+	}
+
+	return userFromDB(row), nil
+}
+
+// MarkEmailVerified marks an account's email as verified.
+func (r *Repository) MarkEmailVerified(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.MarkEmailVerified(ctx, id); err != nil {
+		return fmt.Errorf("mark email verified: %w", err)
+	}
+
+	return nil
+}
+
+// UpdatePassword replaces the password hash for an account.
+func (r *Repository) UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	if err := r.queries.UpdatePassword(ctx, authdb.UpdatePasswordParams{
+		ID:           id,
+		PasswordHash: passwordHash,
+	}); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+
+	return nil
+}
+
+// CreateToken stores an opaque token hash.
+func (r *Repository) CreateToken(ctx context.Context, params CreateTokenParams) error {
+	if err := r.queries.CreateAuthToken(ctx, authdb.CreateAuthTokenParams{
+		ID:        params.ID,
+		UserID:    params.UserID,
+		Kind:      params.Kind,
+		TokenHash: params.TokenHash,
+		ExpiresAt: params.ExpiresAt,
+	}); err != nil {
+		return fmt.Errorf("create auth token: %w", err)
+	}
+
+	return nil
+}
+
+// GetTokenByHash returns one token regardless of use state.
+func (r *Repository) GetTokenByHash(ctx context.Context, hash []byte) (TokenRecord, error) {
+	row, err := r.queries.GetAuthTokenByHash(ctx, hash)
+	if err != nil {
+		return TokenRecord{}, fmt.Errorf("get auth token: %w", err)
+	}
+
+	return tokenFromDB(row), nil
+}
+
+// ConsumeToken marks a token used and reports how many rows changed.
+func (r *Repository) ConsumeToken(ctx context.Context, id uuid.UUID) (int64, error) {
+	affected, err := r.queries.ConsumeAuthToken(ctx, id)
+	if err != nil {
+		return 0, fmt.Errorf("consume auth token: %w", err)
+	}
+
+	return affected, nil
+}
+
+// RevokeToken marks one token used.
+func (r *Repository) RevokeToken(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.RevokeAuthToken(ctx, id); err != nil {
+		return fmt.Errorf("revoke auth token: %w", err)
+	}
+
+	return nil
+}
+
+// RevokeUserTokens revokes all active tokens of one kind for a user.
+func (r *Repository) RevokeUserTokens(ctx context.Context, userID uuid.UUID, kind string) error {
+	if err := r.queries.RevokeUserTokens(ctx, authdb.RevokeUserTokensParams{
+		UserID: userID,
+		Kind:   kind,
+	}); err != nil {
+		return fmt.Errorf("revoke user tokens: %w", err)
+	}
+
+	return nil
+}
+
+// GetOAuthAccount returns the user linked to a provider account.
+func (r *Repository) GetOAuthAccount(
+	ctx context.Context,
+	provider, providerAccountID string,
+) (uuid.UUID, error) {
+	userID, err := r.queries.GetOAuthAccount(ctx, authdb.GetOAuthAccountParams{
+		Provider:          provider,
+		ProviderAccountID: providerAccountID,
+	})
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("get oauth account: %w", err)
+	}
+
+	return userID, nil
+}
+
+// CreateOAuthAccount links a provider account to a user.
+func (r *Repository) CreateOAuthAccount(
+	ctx context.Context,
+	id, userID uuid.UUID,
+	provider, providerAccountID, email string,
+) error {
+	if err := r.queries.CreateOAuthAccount(ctx, authdb.CreateOAuthAccountParams{
+		ID:                id,
+		UserID:            userID,
+		Provider:          provider,
+		ProviderAccountID: providerAccountID,
+		Email:             email,
+	}); err != nil {
+		return fmt.Errorf("create oauth account: %w", err)
+	}
+
+	return nil
+}
+
+func userFromDB(row authdb.User) UserRecord {
+	var verifiedAt *time.Time
+	if row.EmailVerifiedAt.Valid {
+		verifiedAt = &row.EmailVerifiedAt.Time
+	}
+
+	return UserRecord{
+		ID:              row.ID,
+		Email:           row.Email,
+		PasswordHash:    row.PasswordHash,
+		Role:            row.Role,
+		EmailVerifiedAt: verifiedAt,
+		CreatedAt:       row.CreatedAt,
+	}
+}
+
+func tokenFromDB(row authdb.AuthToken) TokenRecord {
+	var usedAt *time.Time
+	if row.UsedAt.Valid {
+		usedAt = &row.UsedAt.Time
+	}
+
+	return TokenRecord{
+		ID:        row.ID,
+		UserID:    row.UserID,
+		Kind:      row.Kind,
+		ExpiresAt: row.ExpiresAt,
+		UsedAt:    usedAt,
+	}
+}

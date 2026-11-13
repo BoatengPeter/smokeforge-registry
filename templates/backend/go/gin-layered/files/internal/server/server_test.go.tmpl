@@ -1,0 +1,56 @@
+package server
+
+import (
+	"context"
+	"net/http"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"go.uber.org/zap"
+)
+
+func TestServerGracefulShutdown(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		AppEnv:            "test",
+		HTTPPort:          0,
+		ShutdownTimeout:   2 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		GinMode:           "test",
+		APIDocsEnabled:    "false",
+	}
+
+	server := New(cfg, zap.NewNop(), http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusOK)
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+
+	go func() {
+		result <- server.Run(ctx)
+	}()
+
+	select {
+	case <-server.Ready():
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("server did not become ready")
+	}
+
+	cancel()
+
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not shut down")
+	}
+}

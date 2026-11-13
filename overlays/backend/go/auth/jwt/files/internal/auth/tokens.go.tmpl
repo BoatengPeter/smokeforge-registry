@@ -1,0 +1,194 @@
+package auth
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+)
+
+const (
+	tokenTypeAccess = "access"
+	tokenTypeMFA    = "mfa"
+	refreshBytes    = 32
+	mfaTTL          = 5 * time.Minute
+)
+
+// Claims are the access and MFA challenge JWT claims.
+type Claims struct {
+	Role      string `json:"role,omitempty"`
+	TokenType string `json:"typ"`
+	jwt.RegisteredClaims
+}
+
+// TokenService issues and verifies JWTs and opaque refresh tokens.
+type TokenService struct {
+	secret    []byte
+	issuer    string
+	audience  string
+	accessTTL time.Duration
+}
+
+// NewTokenService constructs a token service from validated configuration.
+func NewTokenService(cfg config.Config) *TokenService {
+	return &TokenService{
+		secret:    []byte(cfg.JWTSecret),
+		issuer:    cfg.JWTIssuer,
+		audience:  cfg.JWTAudience,
+		accessTTL: cfg.AccessTokenTTL,
+	}
+}
+
+// IssueAccess creates a short-lived access token.
+func (s *TokenService) IssueAccess(account Account) (string, int64, error) {
+	now := time.Now().UTC()
+	expiresAt := now.Add(s.accessTTL)
+
+	tokenID, err := uuid.NewV7()
+	if err != nil {
+		return "", 0, fmt.Errorf("generate access token id: %w", err)
+	}
+
+	claims := Claims{
+		Role:      account.Role,
+		TokenType: tokenTypeAccess,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    s.issuer,
+			Subject:   account.ID.String(),
+			Audience:  jwt.ClaimStrings{s.audience},
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ID:        tokenID.String(),
+		},
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
+	if err != nil {
+		return "", 0, fmt.Errorf("sign access token: %w", err)
+	}
+
+	return signed, int64(time.Until(expiresAt).Seconds()), nil
+}
+
+// IssueMFA creates a short-lived challenge token after password verification.
+func (s *TokenService) IssueMFA(userID uuid.UUID) (string, int64, error) {
+	now := time.Now().UTC()
+	expiresAt := now.Add(mfaTTL)
+
+	tokenID, err := uuid.NewV7()
+	if err != nil {
+		return "", 0, fmt.Errorf("generate mfa token id: %w", err)
+	}
+
+	claims := Claims{
+		TokenType: tokenTypeMFA,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    s.issuer,
+			Subject:   userID.String(),
+			Audience:  jwt.ClaimStrings{s.audience},
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ID:        tokenID.String(),
+		},
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
+	if err != nil {
+		return "", 0, fmt.Errorf("sign mfa token: %w", err)
+	}
+
+	return signed, int64(time.Until(expiresAt).Seconds()), nil
+}
+
+// ParseAccess verifies an access token and returns the authenticated identity.
+func (s *TokenService) ParseAccess(raw string) (Identity, error) {
+	claims, err := s.parse(raw)
+	if err != nil {
+		return Identity{}, err
+	}
+
+	if claims.TokenType != tokenTypeAccess {
+		return Identity{}, ErrInvalidToken
+	}
+
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return Identity{}, ErrInvalidToken
+	}
+
+	return Identity{UserID: userID, Role: claims.Role}, nil
+}
+
+// ParseMFA verifies a second-factor challenge token.
+func (s *TokenService) ParseMFA(raw string) (uuid.UUID, error) {
+	claims, err := s.parse(raw)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	if claims.TokenType != tokenTypeMFA {
+		return uuid.Nil, ErrInvalidToken
+	}
+
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return uuid.Nil, ErrInvalidToken
+	}
+
+	return userID, nil
+}
+
+func (s *TokenService) parse(raw string) (*Claims, error) {
+	if raw == "" {
+		return nil, ErrInvalidToken
+	}
+
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(
+		raw,
+		claims,
+		func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, ErrInvalidToken
+			}
+
+			return s.secret, nil
+		},
+		jwt.WithIssuer(s.issuer),
+		jwt.WithAudience(s.audience),
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	)
+	if err != nil || !token.Valid {
+		return nil, ErrInvalidToken
+	}
+
+	return claims, nil
+}
+
+// NewOpaqueToken creates a random refresh or email token and its storage hash.
+func NewOpaqueToken() (string, []byte, error) {
+	buffer := make([]byte, refreshBytes)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", nil, fmt.Errorf("generate opaque token: %w", err)
+	}
+
+	raw := base64.RawURLEncoding.EncodeToString(buffer)
+	hash := HashToken(raw)
+
+	return raw, hash, nil
+}
+
+// HashToken returns the SHA-256 hash stored for an opaque token.
+func HashToken(raw string) []byte {
+	sum := sha256.Sum256([]byte(raw))
+	hash := make([]byte, len(sum))
+	copy(hash, sum[:])
+
+	return hash
+}

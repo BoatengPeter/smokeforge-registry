@@ -1,0 +1,25 @@
+// Package service implements the application ports.
+package service
+
+import (
+	"context"
+
+	"{{.module_path}}/internal/domain"
+)
+
+// Ping implements the inbound ping port.
+type Ping struct{}
+
+// NewPing constructs the ping service.
+func NewPing() *Ping {
+	return &Ping{}
+}
+
+// Execute returns the canonical ping response.
+func (p *Ping) Execute(ctx context.Context) (domain.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Response{}, err
+	}
+
+	return domain.NewResponse(), nil
+}

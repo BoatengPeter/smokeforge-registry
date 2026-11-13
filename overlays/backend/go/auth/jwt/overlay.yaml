@@ -1,0 +1,148 @@
+id: auth:jwt
+name: JWT access + rotating refresh
+files: files
+ops:
+  - addFiles:
+      - {path: internal/database/migrator/migrations/00002_auth.sql, dest: internal/database/migrator/migrations/00002_auth.sql}
+      - {path: internal/database/migrator/migrations/00004_oauth.sql, dest: internal/database/migrator/migrations/00004_oauth.sql}
+      - {path: internal/auth/openapi.yaml, dest: internal/auth/openapi.yaml}
+      - {path: internal/auth/oapi-codegen.yaml, dest: internal/auth/oapi-codegen.yaml}
+      - {path: internal/auth/api.gen.go, dest: internal/auth/api.gen.go}
+      - {path: internal/auth/models.go, dest: internal/auth/models.go}
+      - {path: internal/auth/password.go, dest: internal/auth/password.go}
+      - {path: internal/auth/tokens.go.tmpl, dest: internal/auth/tokens.go}
+      - {path: internal/auth/email.go.tmpl, dest: internal/auth/email.go}
+      - {path: internal/auth/repository.go.tmpl, dest: internal/auth/repository.go}
+      - {path: internal/auth/service.go.tmpl, dest: internal/auth/service.go}
+      - {path: internal/auth/middleware.go.tmpl, dest: internal/auth/middleware.go}
+      - {path: internal/auth/handler.go.tmpl, dest: internal/auth/handler.go}
+      - {path: internal/auth/spec.go, dest: internal/auth/spec.go}
+      - {path: internal/auth/google.go.tmpl, dest: internal/auth/google.go}
+      - {path: internal/auth/password_test.go, dest: internal/auth/password_test.go}
+      - {path: internal/auth/tokens_test.go.tmpl, dest: internal/auth/tokens_test.go}
+      - {path: internal/auth/handler_test.go.tmpl, dest: internal/auth/handler_test.go}
+      - {path: internal/auth/google_test.go.tmpl, dest: internal/auth/google_test.go}
+      - {path: sqlc.yaml, dest: sqlc.yaml}
+      - {path: internal/database/seed/users.go.tmpl, dest: internal/database/seed/users.go}
+      - {path: cmd/seed/main.go.tmpl, dest: cmd/seed/main.go}
+      - {path: internal/config/config_auth.go.tmpl, dest: internal/config/config_auth.go}
+      - {path: internal/auth/queries.sql, dest: internal/auth/queries.sql}
+      - {path: internal/auth/schema.sql, dest: internal/auth/schema.sql}
+      - {path: internal/auth/db/db.go, dest: internal/auth/db/db.go}
+      - {path: internal/auth/db/models.go, dest: internal/auth/db/models.go}
+      - {path: internal/auth/db/queries.sql.go, dest: internal/auth/db/queries.sql.go}
+      - {path: docs/AUTH.md, dest: docs/AUTH.md}
+  - addDependency: {file: go.mod, module: github.com/golang-jwt/jwt/v5, version: v5.3.1}
+  - addDependency: {file: go.mod, module: golang.org/x/crypto, version: v0.59.0}
+  - addDependency: {file: go.mod, module: github.com/markbates/goth, version: v1.82.0}
+  - addDependency: {file: go.mod, module: github.com/gorilla/sessions, version: v1.4.0}
+  - addDependency: {file: go.mod, module: github.com/oapi-codegen/runtime, version: v1.9.0}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: auth:jwt-config
+      content: |-
+        JWTSecret                string        `env:"JWT_SECRET,required"`
+        JWTIssuer                string        `env:"JWT_ISSUER" envDefault:"smokeforge-api"`
+        JWTAudience              string        `env:"JWT_AUDIENCE" envDefault:"smokeforge-clients"`
+        AccessTokenTTL           time.Duration `env:"ACCESS_TOKEN_TTL" envDefault:"15m"`
+        RefreshTokenTTL          time.Duration `env:"REFRESH_TOKEN_TTL" envDefault:"720h"`
+        CookieSecure             bool          `env:"COOKIE_SECURE" envDefault:"true"`
+        RequireEmailVerification string        `env:"REQUIRE_EMAIL_VERIFICATION" envDefault:"auto"`
+        GoogleClientID           string        `env:"GOOGLE_CLIENT_ID" envDefault:""`
+        GoogleClientSecret       string        `env:"GOOGLE_CLIENT_SECRET" envDefault:""`
+        GoogleRedirectURL        string        `env:"GOOGLE_REDIRECT_URL" envDefault:""`
+        OAuthSuccessRedirect     string        `env:"OAUTH_SUCCESS_REDIRECT" envDefault:""`
+        SeedUserEmail            string        `env:"SEED_USER_EMAIL" envDefault:"demo@example.com"`
+        SeedUserPassword         string        `env:"SEED_USER_PASSWORD" envDefault:""`
+        SMTPHost                 string        `env:"SMTP_HOST" envDefault:""`
+        SMTPPort                 int           `env:"SMTP_PORT" envDefault:"587"`
+        SMTPUsername             string        `env:"SMTP_USERNAME" envDefault:""`
+        SMTPPassword             string        `env:"SMTP_PASSWORD" envDefault:""`
+        EmailFrom                string        `env:"EMAIL_FROM" envDefault:"no-reply@example.com"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: auth:jwt-config-test
+      content: |-
+        JWTSecret:                "0123456789abcdef0123456789abcdef",
+        GoogleClientID:           "test-client-id",
+        GoogleClientSecret:       "test-client-secret",
+        JWTIssuer:                "smokeforge-api",
+        JWTAudience:              "smokeforge-clients",
+        AccessTokenTTL:           15 * time.Minute,
+        RefreshTokenTTL:          720 * time.Hour,
+        CookieSecure:             true,
+        RequireEmailVerification: "auto",
+        SMTPHost:                 "smtp.example.com",
+        SMTPPort:                 587,
+        EmailFrom:                "no-reply@example.com",
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: auth:jwt-validation
+      content: |-
+        if err := c.validateAuth(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-auth
+      marker: auth:jwt-import
+      content: '"{{.module_path}}/internal/auth"'
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: main-auth
+      marker: auth:jwt-main
+      content: |-
+        emailSender, err := auth.NewEmailSender(cfg, logger)
+        if err != nil {
+        	return fmt.Errorf("configure auth email: %w", err)
+        }
+
+        authService, err := auth.NewService(auth.NewRepository(db.Pool()), cfg, logger, emailSender)
+        if err != nil {
+        	return fmt.Errorf("create auth service: %w", err)
+        }
+
+        authHandler := auth.NewHandler(authService, cfg, logger)
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: http-options
+      marker: auth:jwt-http
+      content: 'httpapi.WithRegistrar(authHandler),'
+  - insertAfter:
+      file: Makefile
+      anchor: db-phony
+      marker: auth:seed-phony
+      content: '.PHONY: db-seed'
+  - insertAfter:
+      file: Makefile
+      anchor: db-help
+      marker: auth:seed-help
+      content: '@echo "make db-seed          Create an opt-in demo user"'
+  - insertAfter:
+      file: Makefile
+      anchor: db-targets
+      marker: auth:seed-targets
+      content: |-
+        db-seed:
+        	go run ./cmd/seed
+  - env: {key: SEED_USER_EMAIL, example: demo@example.com}
+  - env: {key: SEED_USER_PASSWORD, example: ""}
+  - env: {key: JWT_SECRET, example: replace-with-a-generated-32-byte-secret, secret: true}
+  - env: {key: GOOGLE_CLIENT_ID, example: ""}
+  - env: {key: GOOGLE_CLIENT_SECRET, example: ""}
+  - env: {key: GOOGLE_REDIRECT_URL, example: ""}
+  - env: {key: OAUTH_SUCCESS_REDIRECT, example: ""}
+  - env: {key: JWT_ISSUER, example: smokeforge-api}
+  - env: {key: JWT_AUDIENCE, example: smokeforge-clients}
+  - env: {key: ACCESS_TOKEN_TTL, example: 15m}
+  - env: {key: REFRESH_TOKEN_TTL, example: 720h}
+  - env: {key: COOKIE_SECURE, example: "false"}
+  - env: {key: REQUIRE_EMAIL_VERIFICATION, example: auto}
+  - env: {key: SMTP_HOST, example: ""}
+  - env: {key: SMTP_PORT, example: "587"}
+  - env: {key: SMTP_USERNAME, example: ""}
+  - env: {key: SMTP_PASSWORD, example: ""}
+  - env: {key: EMAIL_FROM, example: no-reply@example.com}
