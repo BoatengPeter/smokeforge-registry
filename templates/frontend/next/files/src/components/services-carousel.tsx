@@ -34,7 +34,7 @@ export function ServicesCarousel({ services }: ServicesCarouselProps) {
 
   return (
     <section
-      className="mx-auto w-full max-w-[90rem] px-5 pb-[clamp(5rem,10vw,8rem)] sm:px-8 lg:px-12"
+      className="mx-auto w-full max-w-[80rem] px-5 pb-[clamp(5rem,10vw,8rem)] pt-[clamp(5rem,10vw,8rem)] sm:px-8 lg:px-12"
       id="services"
     >
       <Reveal className="flex flex-wrap items-end justify-between gap-6">
@@ -62,12 +62,12 @@ export function ServicesCarousel({ services }: ServicesCarouselProps) {
       </Reveal>
 
       <div
-        className="carousel-scroll mt-12 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2"
+        className="carousel-scroll mt-16 flex snap-x snap-mandatory gap-5 overflow-x-auto pb-2"
         ref={trackRef}
       >
         {services.map((service) => (
           <Reveal
-            className="w-[82%] shrink-0 snap-start sm:w-[48%] lg:w-[31.8%]"
+            className="w-[82%] shrink-0 snap-start sm:w-[48%] lg:w-[31.9%]"
             key={service.title}
           >
             <Link className="group block" href="#contact">

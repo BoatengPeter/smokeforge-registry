@@ -12,6 +12,7 @@ import { site } from "@/lib/site";
 const ways = [
   {
     title: "Product engineering",
+    detail: "Full-stack applications / APIs and data",
     description:
       "Full-stack applications, APIs, authentication, databases, and the details that make them dependable.",
     image: "/images/product.jpeg",
@@ -20,6 +21,7 @@ const ways = [
   },
   {
     title: "Developer tools",
+    detail: "CLIs and registries / Developer experience",
     description:
       "CLIs, templates, registries, and the systems that help other developers move with more confidence.",
     image: "/images/brand.jpeg",
@@ -60,7 +62,7 @@ export default function Home() {
     <main className="min-h-dvh overflow-x-clip bg-background">
       <StickyBlock className="relative z-0">
       <section className="bg-ink text-cream">
-        <div className="mx-auto flex w-full max-w-[90rem] flex-col px-5 pt-5 sm:px-8 lg:px-12">
+        <div className="mx-auto flex w-full max-w-[80rem] flex-col px-5 pt-5 sm:px-8 lg:px-12">
           <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="flex items-center gap-5 justify-self-start">
               <SiteMenu />
@@ -140,7 +142,7 @@ export default function Home() {
       </section>
 
       <section className="bg-background">
-        <div className="mx-auto w-full max-w-[90rem] px-5 py-[clamp(5rem,10vw,9rem)] sm:px-8 lg:px-12">
+        <div className="mx-auto w-full max-w-[80rem] px-5 py-[clamp(5rem,10vw,9rem)] sm:px-8 lg:px-12">
           <div className="grid gap-10 border-t border-charcoal/15 pt-8 lg:grid-cols-[1.25fr_0.75fr] lg:gap-20">
             <Reveal>
               <h2 className="max-w-[15ch] font-display text-[clamp(2.8rem,5.5vw,5.5rem)] font-bold uppercase leading-[0.88] tracking-[-0.055em]">
@@ -171,37 +173,51 @@ export default function Home() {
           className="z-0 -mt-10 rounded-t-[50px] bg-ink text-cream"
           id="studio"
         >
-        <div className="mx-auto w-full max-w-[90rem] px-5 py-[clamp(5rem,10vw,8rem)] sm:px-8 lg:px-12">
+        <div className="mx-auto w-full max-w-[75rem] px-5 py-[clamp(5rem,10vw,8rem)] sm:px-8 lg:px-12">
           <Reveal className="text-center">
-            <h2 className="font-display text-[clamp(2.8rem,5.5vw,5.5rem)] font-bold uppercase leading-[0.88] tracking-[-0.055em]">
+            <h2 className="font-display text-[clamp(2.4rem,4.5vw,4.25rem)] font-bold uppercase leading-[0.9] tracking-[-0.055em]">
               One developer
               <br />
               two modes
             </h2>
           </Reveal>
 
-          <div className="mt-16 grid gap-12 md:grid-cols-2 md:gap-8">
-            {ways.map((way) => (
+          <div className="mt-24 flex flex-col gap-20">
+            {ways.map((way, index) => (
               <Reveal key={way.title}>
-                <article>
-                  <div className="relative aspect-[4/3] overflow-hidden rounded-[28px] bg-charcoal">
+                <article className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:gap-20">
+                  <div
+                    className={
+                      index % 2 === 0
+                        ? "relative aspect-[3/2] w-full max-w-[34rem] overflow-hidden rounded-[20px] bg-charcoal lg:order-1"
+                        : "relative aspect-[3/2] w-full max-w-[34rem] overflow-hidden rounded-[20px] bg-charcoal lg:order-2 lg:justify-self-end"
+                    }
+                  >
                     <Image
                       alt={way.alt}
                       className="object-cover transition-transform duration-700 ease-out hover:scale-[1.03]"
                       fill
-                      sizes="(max-width: 768px) 100vw, 50vw"
+                      sizes="(max-width: 1024px) 100vw, 42vw"
                       src={way.image}
                     />
                   </div>
-                  <div className="mt-6 border-t border-cream/20 pt-5">
-                    <h3 className="font-display text-3xl font-bold uppercase tracking-[-0.04em]">
+                  <div className={index % 2 === 0 ? "lg:order-2" : "lg:order-1"}>
+                    <ArrowRight
+                      aria-hidden="true"
+                      className="size-14 text-cream"
+                      strokeWidth={1}
+                    />
+                    <h3 className="mt-6 font-display text-4xl font-bold uppercase tracking-[-0.045em]">
                       {way.title}
                     </h3>
-                    <p className="mt-3 max-w-md text-sm leading-6 text-cream/65">
+                    <p className="mt-4 text-sm font-semibold uppercase leading-6 tracking-[0.08em] text-cream/80">
+                      {way.detail}
+                    </p>
+                    <p className="mt-4 max-w-md text-sm leading-6 text-cream/65">
                       {way.description}
                     </p>
                     <Link
-                      className="mt-5 inline-block border-b border-cream/40 pb-1 text-sm font-semibold transition-colors hover:border-tide hover:text-tide"
+                      className="mt-6 inline-block border-b border-cream/40 pb-1 text-sm font-semibold transition-colors hover:border-tide hover:text-tide"
                       href={way.href}
                     >
                       Learn more
@@ -212,7 +228,7 @@ export default function Home() {
             ))}
           </div>
 
-          <Reveal className="mt-24 grid gap-10 border-t border-cream/20 pt-10 lg:grid-cols-[1fr_0.95fr] lg:items-center lg:gap-20">
+          <Reveal className="mt-28 grid gap-10 border-t border-cream/20 pt-10 lg:grid-cols-[1fr_0.95fr] lg:items-center lg:gap-20">
             <div>
               <ArrowRight
                 aria-hidden="true"
@@ -248,7 +264,7 @@ export default function Home() {
         </StickySection>
 
         <section className="relative z-10 -mt-10 rounded-t-[50px] bg-background">
-        <div className="mx-auto w-full max-w-[90rem] px-5 py-[clamp(5rem,10vw,8rem)] sm:px-8 lg:px-12">
+        <div className="mx-auto w-full max-w-[80rem] px-5 py-[clamp(5rem,10vw,8rem)] sm:px-8 lg:px-12">
           <Reveal className="flex flex-col items-center text-center">
             <h2 className="font-display text-[clamp(2.8rem,5.5vw,5.5rem)] font-bold uppercase leading-[0.88] tracking-[-0.055em]">
               Watch the featured
@@ -295,7 +311,7 @@ export default function Home() {
         </section>
 
         <footer className="sticky bottom-0 z-0 bg-ink text-cream" id="contact">
-          <div className="mx-auto grid w-full max-w-[90rem] gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1.4fr_1fr_1fr_1fr] lg:gap-10 lg:px-12 lg:py-20">
+          <div className="mx-auto grid w-full max-w-[80rem] gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1.4fr_1fr_1fr_1fr] lg:gap-10 lg:px-12 lg:py-20">
             <div>
               <Link
                 aria-label={`${site.name} home`}
@@ -345,7 +361,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mx-auto flex w-full max-w-[90rem] flex-wrap items-center justify-between gap-3 border-t border-cream/15 px-5 py-6 text-xs text-cream/40 sm:px-8 lg:px-12">
+          <div className="mx-auto flex w-full max-w-[80rem] flex-wrap items-center justify-between gap-3 border-t border-cream/15 px-5 py-6 text-xs text-cream/40 sm:px-8 lg:px-12">
             <div className="flex flex-wrap gap-4">
               <span>© {site.name}</span>
               <span>Software engineer</span>
