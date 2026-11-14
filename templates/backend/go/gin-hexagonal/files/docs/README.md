@@ -13,6 +13,7 @@ Feature overlays add their own documents when selected:
 - `TOTP.md` — two-factor enrollment, recovery codes, and login flow.
 - `DATABASE.md` — PostgreSQL setup, migrations, pool settings, and readiness.
 - `CACHE.md` — Redis cache API, TTLs, fail-open behavior, and local/full Docker usage.
+- `QUEUE.md` — RabbitMQ worker pool, retries, DLQ, and scheduler flow.
 - `DOCKER.md` — full-stack Compose and the local-API/Docker-database workflow.
 - `CI.md` — GitHub Actions checks and integration-test notes.
 

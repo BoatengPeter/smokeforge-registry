@@ -1,0 +1,231 @@
+// Package rabbitmq implements the queue port with RabbitMQ.
+package rabbitmq
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
+)
+
+// ErrNotConnected means the AMQP connection is currently unavailable.
+var ErrNotConnected = errors.New("rabbitmq: not connected")
+
+// ConnectionManager owns one supervised AMQP connection.
+type ConnectionManager struct {
+	config config.Config
+	logger *zap.Logger
+	cancel context.CancelFunc
+	done   chan struct{}
+
+	mu   sync.RWMutex
+	conn *amqp.Connection
+
+	closeOnce sync.Once
+}
+
+// NewConnectionManager dials RabbitMQ and starts the reconnect supervisor.
+func NewConnectionManager(
+	ctx context.Context,
+	cfg config.Config,
+	logger *zap.Logger,
+) (*ConnectionManager, error) {
+	runCtx, cancel := context.WithCancel(ctx)
+
+	conn, err := dial(runCtx, cfg, logger, cfg.RabbitMQConnectRetries+1)
+	if err != nil {
+		cancel()
+
+		return nil, err
+	}
+
+	manager := &ConnectionManager{
+		config: cfg,
+		logger: logger,
+		cancel: cancel,
+		done:   make(chan struct{}),
+		conn:   conn,
+	}
+
+	go manager.run(runCtx)
+
+	return manager, nil
+}
+
+// Connection returns the current connection.
+func (m *ConnectionManager) Connection() (*amqp.Connection, error) {
+	m.mu.RLock()
+	conn := m.conn
+	m.mu.RUnlock()
+
+	if conn == nil || conn.IsClosed() {
+		return nil, ErrNotConnected
+	}
+
+	return conn, nil
+}
+
+// Close stops reconnecting and closes the current connection.
+func (m *ConnectionManager) Close() error {
+	m.closeOnce.Do(func() {
+		m.cancel()
+
+		m.mu.Lock()
+		conn := m.conn
+		m.conn = nil
+		m.mu.Unlock()
+
+		if conn != nil {
+			_ = conn.Close()
+		}
+
+		<-m.done
+	})
+
+	return nil
+}
+
+func (m *ConnectionManager) run(ctx context.Context) {
+	defer close(m.done)
+
+	for {
+		conn := m.current()
+
+		if conn == nil {
+			next, ok := m.reconnect(ctx)
+			if !ok {
+				return
+			}
+
+			conn = next
+		}
+
+		if !m.watch(ctx, conn) {
+			return
+		}
+	}
+}
+
+func (m *ConnectionManager) reconnect(ctx context.Context) (*amqp.Connection, bool) {
+	for {
+		conn, err := dial(ctx, m.config, m.logger, m.config.RabbitMQConnectRetries+1)
+		if err == nil {
+			m.set(conn)
+
+			return conn, true
+		}
+
+		if ctx.Err() != nil {
+			return nil, false
+		}
+
+		m.logger.Warn("rabbitmq reconnect failed", zap.Error(err))
+
+		if wait(ctx, m.config.RabbitMQConnectBackoff) != nil {
+			return nil, false
+		}
+	}
+}
+
+func (m *ConnectionManager) watch(ctx context.Context, conn *amqp.Connection) bool {
+	closed := conn.NotifyClose(make(chan *amqp.Error, 1))
+
+	select {
+	case <-ctx.Done():
+		m.clear(conn)
+		_ = conn.Close()
+
+		return false
+	case err := <-closed:
+		m.clear(conn)
+
+		if err != nil {
+			m.logger.Warn("rabbitmq connection closed", zap.Error(err))
+		}
+
+		return wait(ctx, m.config.RabbitMQConnectBackoff) == nil
+	}
+}
+
+func (m *ConnectionManager) current() *amqp.Connection {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.conn == nil || m.conn.IsClosed() {
+		return nil
+	}
+
+	return m.conn
+}
+
+func (m *ConnectionManager) set(conn *amqp.Connection) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.conn = conn
+}
+
+func (m *ConnectionManager) clear(conn *amqp.Connection) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.conn == conn {
+		m.conn = nil
+	}
+}
+
+func dial(
+	ctx context.Context,
+	cfg config.Config,
+	logger *zap.Logger,
+	attempts int,
+) (*amqp.Connection, error) {
+	var lastErr error
+
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("connect rabbitmq: %w", err)
+		}
+
+		conn, err := amqp.DialConfig(cfg.RabbitMQURL, amqp.Config{
+			Heartbeat: cfg.RabbitMQHeartbeat,
+			Dial:      amqp.DefaultDial(cfg.RabbitMQConnectTimeout),
+		})
+		if err == nil {
+			return conn, nil
+		}
+
+		lastErr = err
+
+		logger.Warn(
+			"rabbitmq connection attempt failed",
+			zap.Int("attempt", attempt),
+			zap.Error(err),
+		)
+
+		if attempt < attempts {
+			if wait(ctx, cfg.RabbitMQConnectBackoff) != nil {
+				return nil, fmt.Errorf("connect rabbitmq: %w", ctx.Err())
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("connect rabbitmq after %d attempts: %w", attempts, lastErr)
+}
+
+func wait(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}

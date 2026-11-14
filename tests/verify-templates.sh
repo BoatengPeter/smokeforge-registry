@@ -105,6 +105,7 @@ for stack in "${stacks[@]}"; do
     --preset api \
     --feature totp \
     --feature cache:redis \
+    --feature queue:rabbitmq \
     --feature docker \
     --feature ci:github \
     --var "module_path=example.com/verify/$slug/full" \
@@ -122,7 +123,7 @@ for stack in "${stacks[@]}"; do
       fi
     done
     services="$(cd "$target" && docker compose "${compose_files[@]}" config --services)"
-    for service in api db migrate redis; do
+    for service in api db migrate redis rabbitmq worker scheduler; do
       if ! grep -qx "$service" <<<"$services"; then
         echo "  compose stack is missing service: $service" >&2
         exit 1
@@ -181,6 +182,27 @@ if [[ ! -f "$target/docs/CACHE.md" ]]; then
 fi
 if command -v docker >/dev/null 2>&1; then
   (cd "$target" && docker compose -f compose.cache.yaml config >/dev/null)
+fi
+
+echo "== queue-only overlay"
+target="$TMP/go-gin-layered-queue"
+"$CLI_BIN" new "$target" \
+  --registry "$ROOT" \
+  --kind backend \
+  --stack go/gin-layered \
+  --name "Verify queue only" \
+  --preset api-custom \
+  --feature queue:rabbitmq \
+  --var module_path=example.com/verify/queue \
+  --var http_port=8080 \
+  --no-input --no-git
+run_generated_checks "$target"
+if [[ ! -f "$target/docs/QUEUE.md" || ! -f "$target/cmd/worker/main.go" || ! -f "$target/cmd/scheduler/main.go" ]]; then
+  echo "  queue worker/scheduler files are missing" >&2
+  exit 1
+fi
+if command -v docker >/dev/null 2>&1; then
+  (cd "$target" && docker compose -f compose.queue.yaml config >/dev/null)
 fi
 
 echo "== generated code drift check"

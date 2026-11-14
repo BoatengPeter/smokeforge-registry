@@ -1,0 +1,142 @@
+id: queue:rabbitmq
+name: RabbitMQ worker and scheduler
+files: files
+ops:
+  - addFiles:
+      - {path: internal/queue/job.go, dest: internal/queue/job.go}
+      - {path: internal/queue/job_test.go, dest: internal/queue/job_test.go}
+      - {path: internal/queue/retry.go, dest: internal/queue/retry.go}
+      - {path: internal/queue/retry_test.go, dest: internal/queue/retry_test.go}
+      - {path: internal/queue/rabbitmq/connection.go.tmpl, dest: internal/queue/rabbitmq/connection.go}
+      - {path: internal/queue/rabbitmq/topology.go.tmpl, dest: internal/queue/rabbitmq/topology.go}
+      - {path: internal/queue/rabbitmq/topology_test.go.tmpl, dest: internal/queue/rabbitmq/topology_test.go}
+      - {path: internal/queue/rabbitmq/worker_test.go.tmpl, dest: internal/queue/rabbitmq/worker_test.go}
+      - {path: internal/queue/rabbitmq/publisher.go.tmpl, dest: internal/queue/rabbitmq/publisher.go}
+      - {path: internal/queue/rabbitmq/worker.go.tmpl, dest: internal/queue/rabbitmq/worker.go}
+      - {path: internal/jobs/heartbeat/heartbeat.go.tmpl, dest: internal/jobs/heartbeat/heartbeat.go}
+      - {path: internal/jobs/heartbeat/heartbeat_test.go.tmpl, dest: internal/jobs/heartbeat/heartbeat_test.go}
+      - {path: internal/scheduler/leader.go, dest: internal/scheduler/leader.go}
+      - {path: internal/scheduler/scheduler.go.tmpl, dest: internal/scheduler/scheduler.go}
+      - {path: internal/scheduler/scheduler_test.go.tmpl, dest: internal/scheduler/scheduler_test.go}
+      - {path: internal/config/config_queue.go, dest: internal/config/config_queue.go}
+      - {path: internal/config/config_queue_test.go, dest: internal/config/config_queue_test.go}
+      - {path: cmd/worker/main.go.tmpl, dest: cmd/worker/main.go}
+      - {path: cmd/scheduler/main.go.tmpl, dest: cmd/scheduler/main.go}
+      - {path: compose.queue.yaml, dest: compose.queue.yaml}
+      - {path: compose.override.queue.yaml, dest: compose.override.queue.yaml}
+      - {path: docs/QUEUE.md, dest: docs/QUEUE.md}
+      - {path: .agents/skills/rabbitmq-development/SKILL.md, dest: .agents/skills/rabbitmq-development/SKILL.md}
+      - {path: .claude/skills/rabbitmq-development/SKILL.md, dest: .claude/skills/rabbitmq-development/SKILL.md}
+  - addDependency: {file: go.mod, module: github.com/rabbitmq/amqp091-go, version: v1.16.0}
+  - addDependency: {file: go.mod, module: github.com/robfig/cron/v3, version: v3.0.1}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: queue:rabbitmq-config
+      content: |-
+        RabbitMQURL             string        `env:"RABBITMQ_URL" envDefault:"amqp://smokeforge:smokeforge@localhost:5672/"`
+        RabbitMQExchange        string        `env:"RABBITMQ_EXCHANGE" envDefault:"smokeforge.jobs"`
+        RabbitMQQueue           string        `env:"RABBITMQ_QUEUE" envDefault:"smokeforge.jobs"`
+        RabbitMQDLQ             string        `env:"RABBITMQ_DLQ" envDefault:"smokeforge.jobs.dlq"`
+        RabbitMQPrefetch        int           `env:"RABBITMQ_PREFETCH" envDefault:"10"`
+        RabbitMQMaxRetries      int           `env:"RABBITMQ_MAX_RETRIES" envDefault:"3"`
+        RabbitMQMaxMessageBytes int           `env:"RABBITMQ_MAX_MESSAGE_BYTES" envDefault:"262144"`
+        RabbitMQConnectTimeout  time.Duration `env:"RABBITMQ_CONNECT_TIMEOUT" envDefault:"5s"`
+        RabbitMQConnectRetries  int           `env:"RABBITMQ_CONNECT_RETRIES" envDefault:"5"`
+        RabbitMQConnectBackoff  time.Duration `env:"RABBITMQ_CONNECT_BACKOFF" envDefault:"1s"`
+        RabbitMQHeartbeat       time.Duration `env:"RABBITMQ_HEARTBEAT" envDefault:"30s"`
+        RabbitMQPublishTimeout  time.Duration `env:"RABBITMQ_PUBLISH_TIMEOUT" envDefault:"5s"`
+        WorkerConcurrency       int           `env:"WORKER_CONCURRENCY" envDefault:"4"`
+        SchedulerHeartbeat      string        `env:"SCHEDULER_HEARTBEAT" envDefault:"@every 1m"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: queue:rabbitmq-config-test
+      content: |-
+        RabbitMQURL:             "amqp://localhost:5672/",
+        RabbitMQExchange:        "smokeforge.jobs",
+        RabbitMQQueue:           "smokeforge.jobs",
+        RabbitMQDLQ:             "smokeforge.jobs.dlq",
+        RabbitMQPrefetch:        10,
+        RabbitMQMaxRetries:      3,
+        RabbitMQMaxMessageBytes: 262144,
+        RabbitMQConnectTimeout:  time.Second,
+        RabbitMQConnectRetries:  2,
+        RabbitMQConnectBackoff:  time.Second,
+        RabbitMQHeartbeat:       30 * time.Second,
+        RabbitMQPublishTimeout:  5 * time.Second,
+        WorkerConcurrency:       4,
+        SchedulerHeartbeat:      "@every 1m",
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: queue:rabbitmq-validation
+      content: |-
+        if err := c.validateQueue(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: Makefile
+      anchor: queue-phony
+      marker: queue:rabbitmq-make-phony
+      content: '.PHONY: queue-up queue-down queue-shell worker scheduler'
+  - insertAfter:
+      file: Makefile
+      anchor: queue-help
+      marker: queue:rabbitmq-make-help
+      content: |-
+        @echo "make queue-up          Start RabbitMQ with Docker"
+        @echo "make queue-down        Stop RabbitMQ"
+        @echo "make queue-shell       Open a shell in the RabbitMQ container"
+        @echo "make worker            Run the queue worker"
+        @echo "make scheduler         Run the queue scheduler"
+  - insertAfter:
+      file: Makefile
+      anchor: queue-targets
+      marker: queue:rabbitmq-make-targets
+      content: |-
+        queue-up:
+        	docker compose -f compose.queue.yaml up -d
+
+        queue-down:
+        	docker compose -f compose.queue.yaml down
+
+        queue-shell:
+        	docker compose -f compose.queue.yaml exec rabbitmq sh
+
+        worker:
+        	go run ./cmd/worker
+
+        scheduler:
+        	go run ./cmd/scheduler
+  - insertAfter:
+      file: AGENTS.md
+      anchor: feature-skills
+      marker: queue:rabbitmq-skill
+      content: '- `rabbitmq-development` — RabbitMQ topology, acknowledgments, retries, and operations.'
+  - patchJSON:
+      file: skills-lock.json
+      op: set
+      path: skills.rabbitmq-development
+      value:
+        source: Mindrally/skills
+        sourceType: github
+        skillPath: rabbitmq-development/SKILL.md
+        computedHash: e344ab2fd4d757d711653d53d03e5a8011ee364795fc4aa4ace3a6f69c504d33
+        installMode: copy
+  - env: {key: RABBITMQ_PORT, example: "5672"}
+  - env: {key: RABBITMQ_MANAGEMENT_PORT, example: "15672"}
+  - env: {key: RABBITMQ_URL, example: "amqp://smokeforge:smokeforge@localhost:5672/"}
+  - env: {key: RABBITMQ_EXCHANGE, example: smokeforge.jobs}
+  - env: {key: RABBITMQ_QUEUE, example: smokeforge.jobs}
+  - env: {key: RABBITMQ_DLQ, example: smokeforge.jobs.dlq}
+  - env: {key: RABBITMQ_PREFETCH, example: "10"}
+  - env: {key: RABBITMQ_MAX_RETRIES, example: "3"}
+  - env: {key: RABBITMQ_MAX_MESSAGE_BYTES, example: "262144"}
+  - env: {key: RABBITMQ_CONNECT_TIMEOUT, example: 5s}
+  - env: {key: RABBITMQ_CONNECT_RETRIES, example: "5"}
+  - env: {key: RABBITMQ_CONNECT_BACKOFF, example: 1s}
+  - env: {key: RABBITMQ_HEARTBEAT, example: 30s}
+  - env: {key: RABBITMQ_PUBLISH_TIMEOUT, example: 5s}
+  - env: {key: WORKER_CONCURRENCY, example: "4"}
+  - env: {key: SCHEDULER_HEARTBEAT, example: "@every 1m"}

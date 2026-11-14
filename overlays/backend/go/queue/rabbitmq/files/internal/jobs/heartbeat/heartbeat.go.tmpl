@@ -1,0 +1,61 @@
+// Package heartbeat implements the built-in scheduler heartbeat job.
+package heartbeat
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"{{.module_path}}/internal/queue"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+// Type is the heartbeat job type.
+const Type = "system.heartbeat"
+
+// Handler logs a received heartbeat.
+type Handler struct {
+	logger *zap.Logger
+}
+
+// NewHandler constructs the heartbeat handler.
+func NewHandler(logger *zap.Logger) *Handler {
+	return &Handler{logger: logger}
+}
+
+// Handle logs one heartbeat job.
+func (h *Handler) Handle(_ context.Context, job queue.Job) error {
+	h.logger.Info(
+		"heartbeat received",
+		zap.String("job_id", job.ID.String()),
+		zap.Int("attempt", job.Attempt),
+		zap.Time("created_at", job.CreatedAt),
+	)
+
+	return nil
+}
+
+// NewJob creates one heartbeat job.
+func NewJob(now time.Time) (queue.Job, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return queue.Job{}, fmt.Errorf("generate heartbeat id: %w", err)
+	}
+
+	payload, err := json.Marshal(struct {
+		ScheduledAt time.Time `json:"scheduled_at"`
+	}{ScheduledAt: now.UTC()})
+	if err != nil {
+		return queue.Job{}, fmt.Errorf("encode heartbeat payload: %w", err)
+	}
+
+	return queue.Job{
+		ID:        id,
+		Type:      Type,
+		Payload:   payload,
+		Attempt:   0,
+		CreatedAt: now.UTC(),
+	}, nil
+}

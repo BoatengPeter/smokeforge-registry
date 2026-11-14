@@ -51,7 +51,7 @@ presets:
     features: [database:postgres, auth:jwt]
   - id: api-custom
     name: Custom Go API
-    description: Choose database, cache, authentication, TOTP, Docker, and CI
+    description: Choose database, cache, queue, authentication, TOTP, Docker, and CI
     kinds: [backend]
     features: []
 features:
@@ -137,6 +137,24 @@ features:
         default: true
         overlays:
           next: overlays/next/analytics/posthog
+  - id: queue
+    name: Queue
+    kinds: [backend]
+    variants:
+      - id: rabbitmq
+        name: RabbitMQ
+        default: true
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/queue/rabbitmq
+          go/gin-layered: overlays/backend/go/queue/rabbitmq
+          go/gin-hexagonal: overlays/backend/go/queue/rabbitmq
+          go/gin-ddd: overlays/backend/go/queue/rabbitmq
+
   - id: auth
     name: Authentication
     kinds: [backend, frontend]

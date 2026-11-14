@@ -1,0 +1,75 @@
+package scheduler
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+	"go.uber.org/zap"
+)
+
+type stubPublisher struct{}
+
+func (stubPublisher) Publish(context.Context, queue.Job) error {
+	return nil
+}
+
+func TestAlwaysLeaderRunsScheduler(t *testing.T) {
+	t.Parallel()
+
+	called := false
+
+	err := (AlwaysLeader{}).Run(context.Background(), func(context.Context) error {
+		called = true
+
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if !called {
+		t.Fatal("leader function was not called")
+	}
+}
+
+func TestSchedulerRejectsInvalidSchedule(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{SchedulerHeartbeat: "not a schedule"}
+	scheduler := New(cfg, zap.NewNop(), stubPublisher{}, AlwaysLeader{})
+
+	if err := scheduler.Run(context.Background()); err == nil {
+		t.Fatal("expected schedule error")
+	}
+}
+
+func TestSchedulerStopsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		SchedulerHeartbeat:     "@every 1h",
+		RabbitMQPublishTimeout: time.Second,
+	}
+	scheduler := New(cfg, zap.NewNop(), stubPublisher{}, AlwaysLeader{})
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+
+	go func() {
+		result <- scheduler.Run(ctx)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("scheduler did not stop")
+	}
+}

@@ -1,0 +1,208 @@
+package rabbitmq
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"sync"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
+)
+
+var (
+	// ErrPublishNacked means RabbitMQ rejected a confirmed publish.
+	ErrPublishNacked = errors.New("rabbitmq: publish was not acknowledged")
+	// ErrMessageTooLarge means a job exceeds the configured message limit.
+	ErrMessageTooLarge = errors.New("rabbitmq: message exceeds the configured limit")
+)
+
+// Publisher publishes job envelopes with publisher confirms.
+type Publisher struct {
+	manager *ConnectionManager
+	config  config.Config
+	logger  *zap.Logger
+
+	mu      sync.Mutex
+	channel *amqp.Channel
+}
+
+var _ queue.Publisher = (*Publisher)(nil)
+
+// NewPublisher constructs a publisher. The channel is opened lazily.
+func NewPublisher(
+	manager *ConnectionManager,
+	cfg config.Config,
+	logger *zap.Logger,
+) *Publisher {
+	return &Publisher{
+		manager: manager,
+		config:  cfg,
+		logger:  logger,
+	}
+}
+
+// Publish writes a job to the main exchange.
+func (p *Publisher) Publish(ctx context.Context, job queue.Job) error {
+	return p.publishJob(ctx, p.config.RabbitMQExchange, p.config.RabbitMQQueue, job, "")
+}
+
+// PublishRetry moves a failed job to its jittered retry queue.
+func (p *Publisher) PublishRetry(
+	ctx context.Context,
+	job queue.Job,
+	delay time.Duration,
+) error {
+	if delay <= 0 {
+		return errors.New("rabbitmq: retry delay must be positive")
+	}
+
+	retryIndex := job.Attempt
+	job.Attempt++
+
+	expiration := strconv.FormatInt(delay.Milliseconds(), 10)
+
+	return p.publishJob(ctx, "", retryQueueName(p.config.RabbitMQQueue, retryIndex), job, expiration)
+}
+
+// PublishDLQ moves a job to the dead-letter queue.
+func (p *Publisher) PublishDLQ(ctx context.Context, job queue.Job) error {
+	return p.publishJob(ctx, "", p.config.RabbitMQDLQ, job, "")
+}
+
+// Close releases the publisher channel.
+func (p *Publisher) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.channel == nil {
+		return nil
+	}
+
+	err := p.channel.Close()
+	p.channel = nil
+
+	if err != nil {
+		return fmt.Errorf("close rabbitmq publisher channel: %w", err)
+	}
+
+	return nil
+}
+
+func (p *Publisher) publishJob(
+	ctx context.Context,
+	exchange, routingKey string,
+	job queue.Job,
+	expiration string,
+) error {
+	body, err := job.Encode()
+	if err != nil {
+		return err
+	}
+
+	if len(body) > p.config.RabbitMQMaxMessageBytes {
+		return fmt.Errorf(
+			"%w: %d bytes exceeds %d",
+			ErrMessageTooLarge,
+			len(body),
+			p.config.RabbitMQMaxMessageBytes,
+		)
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	channel, err := p.ensureChannelLocked()
+	if err != nil {
+		return err
+	}
+
+	confirmation, err := channel.PublishWithDeferredConfirmWithContext(
+		ctx,
+		exchange,
+		routingKey,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			DeliveryMode: amqp.Persistent,
+			Body:         body,
+			MessageId:    job.ID.String(),
+			Type:         job.Type,
+			Timestamp:    job.CreatedAt,
+			Expiration:   expiration,
+			Headers: amqp.Table{
+				"x-job-id":      job.ID.String(),
+				"x-job-type":    job.Type,
+				"x-job-attempt": job.Attempt,
+			},
+		},
+	)
+	if err != nil {
+		p.resetChannelLocked()
+
+		return fmt.Errorf("publish job: %w", err)
+	}
+
+	acknowledged, err := confirmation.WaitContext(ctx)
+	if err != nil {
+		p.resetChannelLocked()
+
+		return fmt.Errorf("wait for publish confirmation: %w", err)
+	}
+
+	if !acknowledged {
+		p.resetChannelLocked()
+
+		return ErrPublishNacked
+	}
+
+	p.logger.Debug(
+		"job published",
+		zap.String("job_id", job.ID.String()),
+		zap.String("job_type", job.Type),
+		zap.String("exchange", exchange),
+		zap.String("routing_key", routingKey),
+	)
+
+	return nil
+}
+
+func (p *Publisher) ensureChannelLocked() (*amqp.Channel, error) {
+	if p.channel != nil && !p.channel.IsClosed() {
+		return p.channel, nil
+	}
+
+	conn, err := p.manager.Connection()
+	if err != nil {
+		return nil, err
+	}
+
+	channel, err := conn.Channel()
+	if err != nil {
+		return nil, fmt.Errorf("open rabbitmq publisher channel: %w", err)
+	}
+
+	if err := channel.Confirm(false); err != nil {
+		_ = channel.Close()
+
+		return nil, fmt.Errorf("enable publisher confirms: %w", err)
+	}
+
+	p.channel = channel
+
+	return channel, nil
+}
+
+func (p *Publisher) resetChannelLocked() {
+	if p.channel == nil {
+		return
+	}
+
+	_ = p.channel.Close()
+	p.channel = nil
+}

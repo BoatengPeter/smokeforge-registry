@@ -12,6 +12,8 @@ ops:
       - {path: compose.cache.yaml, dest: compose.cache.yaml}
       - {path: compose.override.cache.yaml, dest: compose.override.cache.yaml}
       - {path: docs/CACHE.md, dest: docs/CACHE.md}
+      - {path: .agents/skills/redis-patterns/SKILL.md, dest: .agents/skills/redis-patterns/SKILL.md}
+      - {path: .claude/skills/redis-patterns/SKILL.md, dest: .claude/skills/redis-patterns/SKILL.md}
   - addDependency: {file: go.mod, module: github.com/redis/go-redis/v9, version: v9.23.0}
   - addDependency: {file: go.mod, module: github.com/alicebob/miniredis/v2, version: v2.40.0}
   - insertAfter:
@@ -98,6 +100,21 @@ ops:
 
         cache-shell:
         	docker compose -f compose.cache.yaml exec redis redis-cli
+  - insertAfter:
+      file: AGENTS.md
+      anchor: feature-skills
+      marker: cache:redis-skill
+      content: '- `redis-patterns` — Redis cache key design, TTLs, and failure patterns.'
+  - patchJSON:
+      file: skills-lock.json
+      op: set
+      path: skills.redis-patterns
+      value:
+        source: affaan-m/ECC
+        sourceType: github
+        skillPath: skills/redis-patterns/SKILL.md
+        computedHash: d1efd2542c3346805d6023cc7aad1013cc5acc94d02cb142cf7672953a769cfc
+        installMode: copy
   - env: {key: REDIS_PORT, example: "6379"}
   - env: {key: REDIS_URL, example: "redis://localhost:6379/0"}
   - env: {key: REDIS_KEY_PREFIX, example: ""}

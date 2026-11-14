@@ -1,0 +1,248 @@
+package rabbitmq
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
+)
+
+// RetryPublisher moves failed jobs to retry queues and the DLQ.
+type RetryPublisher interface {
+	PublishRetry(ctx context.Context, job queue.Job, delay time.Duration) error
+	PublishDLQ(ctx context.Context, job queue.Job) error
+}
+
+// WorkerPool consumes one queue with a bounded set of worker channels.
+type WorkerPool struct {
+	config      config.Config
+	manager     *ConnectionManager
+	publisher   RetryPublisher
+	registry    *queue.Registry
+	logger      *zap.Logger
+	retryPolicy queue.RetryPolicy
+}
+
+// NewWorkerPool constructs a bounded worker pool.
+func NewWorkerPool(
+	cfg config.Config,
+	manager *ConnectionManager,
+	publisher RetryPublisher,
+	registry *queue.Registry,
+	logger *zap.Logger,
+) *WorkerPool {
+	return &WorkerPool{
+		config:      cfg,
+		manager:     manager,
+		publisher:   publisher,
+		registry:    registry,
+		logger:      logger,
+		retryPolicy: queue.DefaultRetryPolicy,
+	}
+}
+
+// Run starts all workers and blocks until the context is canceled.
+func (p *WorkerPool) Run(ctx context.Context) error {
+	var workers sync.WaitGroup
+
+	for workerID := 1; workerID <= p.config.WorkerConcurrency; workerID++ {
+		workers.Add(1)
+
+		go func(id int) {
+			defer workers.Done()
+
+			p.runWorker(ctx, id)
+		}(workerID)
+	}
+
+	<-ctx.Done()
+	workers.Wait()
+
+	return nil
+}
+
+func (p *WorkerPool) runWorker(ctx context.Context, workerID int) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		conn, err := p.manager.Connection()
+		if err != nil {
+			if wait(ctx, p.config.RabbitMQConnectBackoff) != nil {
+				return
+			}
+
+			continue
+		}
+
+		channel, err := conn.Channel()
+		if err != nil {
+			p.logger.Warn("open worker channel", zap.Int("worker", workerID), zap.Error(err))
+
+			if wait(ctx, p.config.RabbitMQConnectBackoff) != nil {
+				return
+			}
+
+			continue
+		}
+
+		if err := channel.Qos(p.config.RabbitMQPrefetch, 0, false); err != nil {
+			p.logger.Warn("set worker qos", zap.Int("worker", workerID), zap.Error(err))
+
+			_ = channel.Close()
+
+			if wait(ctx, p.config.RabbitMQConnectBackoff) != nil {
+				return
+			}
+
+			continue
+		}
+
+		deliveries, err := channel.Consume(
+			p.config.RabbitMQQueue,
+			fmt.Sprintf("worker-%d", workerID),
+			false,
+			false,
+			false,
+			false,
+			nil,
+		)
+		if err != nil {
+			p.logger.Warn("consume jobs", zap.Int("worker", workerID), zap.Error(err))
+
+			_ = channel.Close()
+
+			if wait(ctx, p.config.RabbitMQConnectBackoff) != nil {
+				return
+			}
+
+			continue
+		}
+
+		p.consume(ctx, deliveries)
+
+		_ = channel.Close()
+
+		if wait(ctx, p.config.RabbitMQConnectBackoff) != nil {
+			return
+		}
+	}
+}
+
+func (p *WorkerPool) consume(ctx context.Context, deliveries <-chan amqp.Delivery) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case delivery, ok := <-deliveries:
+			if !ok {
+				return
+			}
+
+			p.handleDelivery(ctx, delivery)
+		}
+	}
+}
+
+func (p *WorkerPool) handleDelivery(ctx context.Context, delivery amqp.Delivery) {
+	if len(delivery.Body) > p.config.RabbitMQMaxMessageBytes {
+		p.logger.Warn("rejected oversized job", zap.Int("bytes", len(delivery.Body)))
+		p.nack(delivery, false)
+
+		return
+	}
+
+	job, err := queue.Decode(delivery.Body)
+	if err != nil {
+		p.logger.Warn("rejected invalid job", zap.Error(err))
+		p.nack(delivery, false)
+
+		return
+	}
+
+	handler, ok := p.registry.Lookup(job.Type)
+	if !ok {
+		p.logger.Warn("no handler for job type", zap.String("job_type", job.Type))
+		p.nack(delivery, false)
+
+		return
+	}
+
+	if err := handler.Handle(ctx, job); err != nil {
+		p.logger.Error(
+			"job failed",
+			zap.String("job_id", job.ID.String()),
+			zap.String("job_type", job.Type),
+			zap.Int("attempt", job.Attempt),
+			zap.Error(err),
+		)
+
+		p.retryOrDeadLetter(ctx, delivery, job)
+
+		return
+	}
+
+	if err := delivery.Ack(false); err != nil {
+		p.logger.Error("ack job", zap.String("job_id", job.ID.String()), zap.Error(err))
+	}
+}
+
+func (p *WorkerPool) retryOrDeadLetter(
+	ctx context.Context,
+	delivery amqp.Delivery,
+	job queue.Job,
+) {
+	if ctx.Err() != nil {
+		p.nack(delivery, true)
+
+		return
+	}
+
+	if job.Attempt >= p.config.RabbitMQMaxRetries {
+		if err := p.publisher.PublishDLQ(ctx, job); err != nil {
+			p.logger.Error("publish dead-letter job", zap.String("job_id", job.ID.String()), zap.Error(err))
+			p.nack(delivery, true)
+
+			return
+		}
+
+		p.ack(delivery)
+
+		return
+	}
+
+	delay, err := p.retryPolicy.Delay(job.Attempt)
+	if err != nil {
+		p.logger.Error("compute retry delay", zap.String("job_id", job.ID.String()), zap.Error(err))
+		p.nack(delivery, true)
+
+		return
+	}
+
+	if err := p.publisher.PublishRetry(ctx, job, delay); err != nil {
+		p.logger.Error("publish retry job", zap.String("job_id", job.ID.String()), zap.Error(err))
+		p.nack(delivery, true)
+
+		return
+	}
+
+	p.ack(delivery)
+}
+
+func (p *WorkerPool) ack(delivery amqp.Delivery) {
+	if err := delivery.Ack(false); err != nil {
+		p.logger.Error("ack job", zap.Error(err))
+	}
+}
+
+func (p *WorkerPool) nack(delivery amqp.Delivery, requeue bool) {
+	if err := delivery.Nack(false, requeue); err != nil {
+		p.logger.Error("nack job", zap.Error(err))
+	}
+}

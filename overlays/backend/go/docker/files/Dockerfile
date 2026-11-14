@@ -20,6 +20,12 @@ RUN CGO_ENABLED=0 go build \
     -o /out/api ./cmd/api \
     && if [ -d ./cmd/migrate ]; then \
         CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/migrate ./cmd/migrate; \
+    fi \
+    && if [ -d ./cmd/worker ]; then \
+        CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/worker ./cmd/worker; \
+    fi \
+    && if [ -d ./cmd/scheduler ]; then \
+        CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/scheduler ./cmd/scheduler; \
     fi
 
 FROM alpine:3.22

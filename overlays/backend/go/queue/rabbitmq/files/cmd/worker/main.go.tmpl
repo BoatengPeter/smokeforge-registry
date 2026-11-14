@@ -1,0 +1,77 @@
+// Package main starts the queue worker process.
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/jobs/heartbeat"
+	"{{.module_path}}/internal/logging"
+	"{{.module_path}}/internal/queue"
+	"{{.module_path}}/internal/queue/rabbitmq"
+	"go.uber.org/zap"
+)
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	logger, err := logging.New(cfg)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		_ = logger.Sync()
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	manager, err := rabbitmq.NewConnectionManager(ctx, cfg, logger)
+	if err != nil {
+		return fmt.Errorf("connect rabbitmq: %w", err)
+	}
+
+	defer func() {
+		_ = manager.Close()
+	}()
+
+	if err := rabbitmq.EnsureTopology(ctx, manager, cfg); err != nil {
+		return fmt.Errorf("declare rabbitmq topology: %w", err)
+	}
+
+	publisher := rabbitmq.NewPublisher(manager, cfg, logger)
+
+	defer func() {
+		_ = publisher.Close()
+	}()
+
+	registry := queue.NewRegistry()
+	if err := registry.Register(heartbeat.Type, heartbeat.NewHandler(logger)); err != nil {
+		return fmt.Errorf("register heartbeat handler: %w", err)
+	}
+
+	pool := rabbitmq.NewWorkerPool(cfg, manager, publisher, registry, logger)
+
+	logger.Info("worker started", zap.Int("concurrency", cfg.WorkerConcurrency))
+
+	if err := pool.Run(ctx); err != nil {
+		return fmt.Errorf("run worker pool: %w", err)
+	}
+
+	return nil
+}

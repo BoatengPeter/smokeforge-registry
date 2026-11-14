@@ -1,0 +1,99 @@
+// Package scheduler owns cron scheduling and job publication.
+package scheduler
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/jobs/heartbeat"
+	"{{.module_path}}/internal/queue"
+	"github.com/robfig/cron/v3"
+	"go.uber.org/zap"
+)
+
+// Scheduler publishes scheduled jobs through a queue publisher.
+type Scheduler struct {
+	config    config.Config
+	logger    *zap.Logger
+	publisher queue.Publisher
+	leader    LeaderElector
+}
+
+// New constructs a scheduler.
+func New(
+	cfg config.Config,
+	logger *zap.Logger,
+	publisher queue.Publisher,
+	leader LeaderElector,
+) *Scheduler {
+	return &Scheduler{
+		config:    cfg,
+		logger:    logger,
+		publisher: publisher,
+		leader:    leader,
+	}
+}
+
+// Run starts the scheduler and blocks until the context is canceled.
+func (s *Scheduler) Run(ctx context.Context) error {
+	runner := cron.New(cron.WithChain(
+		cron.SkipIfStillRunning(cronLogger{logger: s.logger}),
+		cron.Recover(cronLogger{logger: s.logger}),
+	))
+
+	if _, err := runner.AddFunc(s.config.SchedulerHeartbeat, func() {
+		s.publishHeartbeat(ctx)
+	}); err != nil {
+		return fmt.Errorf("add heartbeat schedule: %w", err)
+	}
+
+	return s.leader.Run(ctx, func(ctx context.Context) error {
+		runner.Start()
+
+		defer func() {
+			<-runner.Stop().Done()
+		}()
+
+		<-ctx.Done()
+
+		return nil
+	})
+}
+
+func (s *Scheduler) publishHeartbeat(parent context.Context) {
+	if parent.Err() != nil {
+		return
+	}
+
+	job, err := heartbeat.NewJob(time.Now())
+	if err != nil {
+		s.logger.Error("create heartbeat job", zap.Error(err))
+
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.RabbitMQPublishTimeout)
+	defer cancel()
+
+	if err := s.publisher.Publish(ctx, job); err != nil {
+		s.logger.Error("publish heartbeat job", zap.String("job_id", job.ID.String()), zap.Error(err))
+
+		return
+	}
+
+	s.logger.Info("heartbeat scheduled", zap.String("job_id", job.ID.String()))
+}
+
+type cronLogger struct {
+	logger *zap.Logger
+}
+
+func (l cronLogger) Info(msg string, keysAndValues ...any) {
+	l.logger.Sugar().Infow(msg, keysAndValues...)
+}
+
+func (l cronLogger) Error(err error, msg string, keysAndValues ...any) {
+	l.logger.Sugar().Errorw(msg, append(keysAndValues, "error", err)...)
+}

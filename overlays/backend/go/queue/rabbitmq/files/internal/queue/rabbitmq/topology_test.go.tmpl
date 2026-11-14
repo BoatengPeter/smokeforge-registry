@@ -1,0 +1,38 @@
+package rabbitmq
+
+import (
+	"testing"
+
+	"{{.module_path}}/internal/config"
+)
+
+func TestRetryQueueName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		attempt  int
+		expected string
+	}{
+		{attempt: 0, expected: "jobs.retry.1s"},
+		{attempt: 1, expected: "jobs.retry.5s"},
+		{attempt: 2, expected: "jobs.retry.30s"},
+		{attempt: 9, expected: "jobs.retry.30s"},
+		{attempt: -1, expected: "jobs.retry.1s"},
+	}
+
+	for _, test := range tests {
+		if actual := retryQueueName("jobs", test.attempt); actual != test.expected {
+			t.Fatalf("attempt %d name = %q, want %q", test.attempt, actual, test.expected)
+		}
+	}
+}
+
+func TestDeadLetterExchange(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{RabbitMQExchange: "smokeforge.jobs"}
+
+	if actual := deadLetterExchange(cfg); actual != "smokeforge.jobs.dlx" {
+		t.Fatalf("dead letter exchange = %q", actual)
+	}
+}

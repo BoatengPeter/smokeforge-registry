@@ -12,6 +12,7 @@ LDFLAGS := -s -w \
 .PHONY: help install run dev build test test-race test-integration lint fmt fmt-check vet vulncheck generate clean ci
 # smokeforge:anchor db-phony
 # smokeforge:anchor cache-phony
+# smokeforge:anchor queue-phony
 # smokeforge:anchor docker-phony
 
 help:
@@ -32,6 +33,7 @@ help:
 	@echo "make clean            Remove build output"
 	# smokeforge:anchor db-help
 	# smokeforge:anchor cache-help
+	# smokeforge:anchor queue-help
 	# smokeforge:anchor docker-help
 
 install:
@@ -98,4 +100,5 @@ clean:
 
 # smokeforge:anchor db-targets
 # smokeforge:anchor cache-targets
+# smokeforge:anchor queue-targets
 # smokeforge:anchor docker-targets

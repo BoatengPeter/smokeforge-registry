@@ -1,0 +1,157 @@
+package rabbitmq
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+	"github.com/google/uuid"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
+)
+
+type fakeAcknowledger struct {
+	acked   bool
+	nacked  bool
+	requeue bool
+}
+
+func (f *fakeAcknowledger) Ack(uint64, bool) error {
+	f.acked = true
+
+	return nil
+}
+
+func (f *fakeAcknowledger) Nack(_ uint64, _, requeue bool) error {
+	f.nacked = true
+	f.requeue = requeue
+
+	return nil
+}
+
+func (f *fakeAcknowledger) Reject(uint64, bool) error {
+	return nil
+}
+
+type fakeRetryPublisher struct {
+	retried    bool
+	deadLetter bool
+	delay      time.Duration
+	publishErr error
+}
+
+func (f *fakeRetryPublisher) PublishRetry(
+	_ context.Context,
+	_ queue.Job,
+	delay time.Duration,
+) error {
+	f.retried = true
+	f.delay = delay
+
+	return f.publishErr
+}
+
+func (f *fakeRetryPublisher) PublishDLQ(context.Context, queue.Job) error {
+	f.deadLetter = true
+
+	return f.publishErr
+}
+
+type failingHandler struct{}
+
+func (failingHandler) Handle(context.Context, queue.Job) error {
+	return errors.New("boom")
+}
+
+func testWorker(publisher RetryPublisher, handler queue.Handler) *WorkerPool {
+	registry := queue.NewRegistry()
+	_ = registry.Register("test.job", handler)
+
+	return &WorkerPool{
+		config: config.Config{
+			RabbitMQMaxRetries:      3,
+			RabbitMQMaxMessageBytes: 1024,
+		},
+		publisher:   publisher,
+		registry:    registry,
+		logger:      zap.NewNop(),
+		retryPolicy: queue.DefaultRetryPolicy,
+	}
+}
+
+func testDelivery(t *testing.T, attempt int, acknowledger *fakeAcknowledger) amqp.Delivery {
+	t.Helper()
+
+	job := queue.Job{
+		ID:        uuid.New(),
+		Type:      "test.job",
+		Payload:   json.RawMessage(`{}`),
+		Attempt:   attempt,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	body, err := job.Encode()
+	if err != nil {
+		t.Fatalf("encode job: %v", err)
+	}
+
+	return amqp.Delivery{
+		Acknowledger: acknowledger,
+		DeliveryTag:  1,
+		Body:         body,
+	}
+}
+
+func TestWorkerRetriesFailedJob(t *testing.T) {
+	t.Parallel()
+
+	acknowledger := &fakeAcknowledger{}
+	publisher := &fakeRetryPublisher{}
+	worker := testWorker(publisher, failingHandler{})
+
+	worker.handleDelivery(context.Background(), testDelivery(t, 0, acknowledger))
+
+	if !publisher.retried || publisher.deadLetter {
+		t.Fatalf("retried=%t deadLetter=%t", publisher.retried, publisher.deadLetter)
+	}
+
+	if !acknowledger.acked || acknowledger.nacked {
+		t.Fatalf("acked=%t nacked=%t", acknowledger.acked, acknowledger.nacked)
+	}
+}
+
+func TestWorkerDeadLettersAfterMaxRetries(t *testing.T) {
+	t.Parallel()
+
+	acknowledger := &fakeAcknowledger{}
+	publisher := &fakeRetryPublisher{}
+	worker := testWorker(publisher, failingHandler{})
+
+	worker.handleDelivery(context.Background(), testDelivery(t, 3, acknowledger))
+
+	if publisher.retried || !publisher.deadLetter {
+		t.Fatalf("retried=%t deadLetter=%t", publisher.retried, publisher.deadLetter)
+	}
+
+	if !acknowledger.acked || acknowledger.nacked {
+		t.Fatalf("acked=%t nacked=%t", acknowledger.acked, acknowledger.nacked)
+	}
+}
+
+func TestWorkerRequeuesWhenRetryPublishFails(t *testing.T) {
+	t.Parallel()
+
+	acknowledger := &fakeAcknowledger{}
+	publisher := &fakeRetryPublisher{publishErr: errors.New("down")}
+	worker := testWorker(publisher, failingHandler{})
+
+	worker.handleDelivery(context.Background(), testDelivery(t, 0, acknowledger))
+
+	if !acknowledger.nacked || !acknowledger.requeue {
+		t.Fatalf("nacked=%t requeue=%t", acknowledger.nacked, acknowledger.requeue)
+	}
+}

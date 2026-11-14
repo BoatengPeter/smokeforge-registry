@@ -1,0 +1,131 @@
+package rabbitmq
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"{{.module_path}}/internal/config"
+	amqp "github.com/rabbitmq/amqp091-go"
+)
+
+var retryQueueSuffixes = []string{".retry.1s", ".retry.5s", ".retry.30s"}
+
+// EnsureTopology declares the exchange, main queue, DLQ, and retry queues.
+func EnsureTopology(
+	ctx context.Context,
+	manager *ConnectionManager,
+	cfg config.Config,
+) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("declare rabbitmq topology: %w", err)
+	}
+
+	conn, err := manager.Connection()
+	if err != nil {
+		return err
+	}
+
+	channel, err := conn.Channel()
+	if err != nil {
+		return fmt.Errorf("open rabbitmq topology channel: %w", err)
+	}
+
+	defer func() {
+		_ = channel.Close()
+	}()
+
+	if err := declareTopology(channel, cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func declareTopology(channel *amqp.Channel, cfg config.Config) error {
+	if err := channel.ExchangeDeclare(
+		cfg.RabbitMQExchange,
+		amqp.ExchangeDirect,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("declare jobs exchange: %w", err)
+	}
+
+	dlx := deadLetterExchange(cfg)
+
+	if err := channel.ExchangeDeclare(dlx, amqp.ExchangeDirect, true, false, false, false, nil); err != nil {
+		return fmt.Errorf("declare dead-letter exchange: %w", err)
+	}
+
+	if _, err := channel.QueueDeclare(
+		cfg.RabbitMQQueue,
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{
+			"x-queue-type":              "quorum",
+			"x-dead-letter-exchange":    dlx,
+			"x-dead-letter-routing-key": cfg.RabbitMQQueue,
+		},
+	); err != nil {
+		return fmt.Errorf("declare jobs queue: %w", err)
+	}
+
+	if err := channel.QueueBind(cfg.RabbitMQQueue, cfg.RabbitMQQueue, cfg.RabbitMQExchange, false, nil); err != nil {
+		return fmt.Errorf("bind jobs queue: %w", err)
+	}
+
+	if _, err := channel.QueueDeclare(
+		cfg.RabbitMQDLQ,
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{"x-queue-type": "quorum"},
+	); err != nil {
+		return fmt.Errorf("declare dead-letter queue: %w", err)
+	}
+
+	if err := channel.QueueBind(cfg.RabbitMQDLQ, cfg.RabbitMQQueue, dlx, false, nil); err != nil {
+		return fmt.Errorf("bind dead-letter queue: %w", err)
+	}
+
+	for attempt := range retryQueueSuffixes {
+		name := retryQueueName(cfg.RabbitMQQueue, attempt)
+
+		if _, err := channel.QueueDeclare(
+			name,
+			true,
+			false,
+			false,
+			false,
+			amqp.Table{
+				"x-dead-letter-exchange":    cfg.RabbitMQExchange,
+				"x-dead-letter-routing-key": cfg.RabbitMQQueue,
+			},
+		); err != nil {
+			return fmt.Errorf("declare retry queue %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+func deadLetterExchange(cfg config.Config) string {
+	return strings.TrimRight(cfg.RabbitMQExchange, ".") + ".dlx"
+}
+
+func retryQueueName(queue string, attempt int) string {
+	index := max(attempt, 0)
+
+	if index >= len(retryQueueSuffixes) {
+		index = len(retryQueueSuffixes) - 1
+	}
+
+	return queue + retryQueueSuffixes[index]
+}

@@ -94,7 +94,7 @@ document into the Swagger UI contract.
 Read the matching `SKILL.md` under `.agents/skills` and `.claude/skills` before
 changing an area. The full routing table is in `CONTEXT.md`.
 
-All 17 Go skills plus the two SQL skills are installed:
+Base skills installed:
 `golang-code-style`, `golang-testing`, `golang-error-handling`,
 `golang-security`, `golang-safety`, `golang-context`, `golang-naming`,
 `golang-documentation`, `golang-design-patterns`,
@@ -102,6 +102,8 @@ All 17 Go skills plus the two SQL skills are installed:
 `golang-lint`, `golang-benchmark`, `golang-troubleshooting`,
 `golang-spf13-viper`, `golang-swagger`, `sql-optimization-patterns`, and
 `postgresql-optimization`.
+
+<!-- smokeforge:anchor feature-skills -->
 
 `skills-lock.json` records sources and hashes. Update it with the skills CLI when
 changing installed skills; do not edit skill copies by hand.

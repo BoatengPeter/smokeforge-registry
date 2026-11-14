@@ -16,6 +16,7 @@ Production-shaped Go HTTP API generated with [smokeforge](https://github.com/Boa
 - UUIDv7 identifiers
 - Optional PostgreSQL with pgx, sqlc, and goose
 - Optional Redis cache with fail-open JSON helpers
+- Optional RabbitMQ worker pool and scheduler
 - Optional JWT auth with rotating refresh sessions and TOTP
 - Optional Docker and GitHub Actions overlays
 - Project-scoped Go agent skills
@@ -143,7 +144,7 @@ and `request_id` extensions. Validation failures return `422` with field-level
 Start with [docs/README.md](docs/README.md). The base documents are
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 [docs/API.md](docs/API.md); selected feature overlays add their own docs for
-auth, TOTP, PostgreSQL, Redis cache, Docker, and CI.
+auth, TOTP, PostgreSQL, Redis cache, RabbitMQ, Docker, and CI.
 
 ## Customize this API
 
