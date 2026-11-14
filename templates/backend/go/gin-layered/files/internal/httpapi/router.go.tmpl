@@ -72,7 +72,6 @@ func New(cfg config.Config, logger *zap.Logger, opts ...Option) (*gin.Engine, er
 		RequestLogger(logger),
 		Recovery(logger),
 		SecurityHeaders(cfg.IsProduction()),
-		BodyLimit(cfg.MaxBodyBytes),
 		CORS(CORSOptions{
 			AllowedOrigins:   cfg.CORSAllowedOrigins,
 			AllowedMethods:   cfg.CORSAllowedMethods,
@@ -81,6 +80,7 @@ func New(cfg config.Config, logger *zap.Logger, opts ...Option) (*gin.Engine, er
 			AllowCredentials: cfg.CORSAllowCredentials,
 			MaxAge:           cfg.CORSMaxAge,
 		}),
+		BodyLimit(cfg.MaxBodyBytes),
 		RateLimit(cfg.RateLimitRPS, cfg.RateLimitBurst),
 		Timeout(cfg.RequestTimeout),
 	)

@@ -71,7 +71,7 @@ and contribute their own OpenAPI documents; the base merges them at startup.
 
 | Command | Purpose |
 | --- | --- |
-| `make install` | Download Go modules |
+| `make install` | Download and tidy Go modules |
 | `make run` | Run the API |
 | `make dev` | Run with live reload through Air |
 | `make build` | Build `bin/api` |
@@ -99,7 +99,7 @@ Configuration is validated at startup and fails fast on invalid values.
 | `HTTP_PORT` | `{{.http_port}}` | HTTP listen port |
 | `PUBLIC_BASE_URL` | `http://localhost:{{.http_port}}` | Public origin used in links |
 | `LOG_LEVEL` | `info` | Zap level |
-| `GIN_MODE` | `auto` | `auto`, `debug`, `release`, or `test` |
+| `APP_GIN_MODE` | `auto` | `auto`, `debug`, `release`, or `test`; `GIN_MODE` is owned by Gin |
 | `API_DOCS_ENABLED` | `auto` | Docs on in development, off in production |
 | `RATE_LIMIT_RPS` | `20` | Per-IP requests per second; `0` disables |
 | `RATE_LIMIT_BURST` | `40` | Token-bucket burst |

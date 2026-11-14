@@ -20,8 +20,16 @@ stacks=(
 
 run_generated_checks() {
   local project="$1"
-  echo "  tidy/test/vet/build"
-  (cd "$project" && GOWORK=off go mod tidy && GOWORK=off go test ./... && GOWORK=off go vet ./... && GOWORK=off go build ./...)
+  echo "  install/test/vet/build"
+  if ! grep -qx 'APP_GIN_MODE=auto' "$project/.env"; then
+    echo "  generated .env must set APP_GIN_MODE, not GIN_MODE" >&2
+    return 1
+  fi
+  if grep -q '^GIN_MODE=' "$project/.env"; then
+    echo "  generated .env must not export GIN_MODE to Gin" >&2
+    return 1
+  fi
+  (cd "$project" && GOWORK=off make install && GOWORK=off go test ./... && GOWORK=off go vet ./... && GOWORK=off go build ./...)
   assert_auth_boundaries "$project"
 }
 
@@ -75,6 +83,13 @@ for stack in "${stacks[@]}"; do
     --no-input --no-git
   run_generated_checks "$target"
   if command -v docker >/dev/null 2>&1; then
+    services="$(cd "$target" && docker compose -f compose.yaml -f compose.override.yaml config --services)"
+    for service in api db migrate; do
+      if ! grep -qx "$service" <<<"$services"; then
+        echo "  compose stack is missing service: $service" >&2
+        exit 1
+      fi
+    done
     (cd "$target" && docker compose -f compose.yaml -f compose.override.yaml config >/dev/null)
   fi
 done

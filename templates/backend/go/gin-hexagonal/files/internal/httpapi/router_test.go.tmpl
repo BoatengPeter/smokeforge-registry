@@ -23,12 +23,8 @@ func (s stubPinger) Ping(_ context.Context) (string, error) {
 	return s.message, s.err
 }
 
-func newTestRouter(t *testing.T, opts ...Option) *gin.Engine {
-	t.Helper()
-
-	gin.SetMode(gin.TestMode)
-
-	cfg := config.Config{
+func testConfig() config.Config {
+	return config.Config{
 		AppEnv:               "development",
 		ServiceName:          "test-service",
 		APITitle:             "Test API",
@@ -54,6 +50,18 @@ func newTestRouter(t *testing.T, opts ...Option) *gin.Engine {
 		CORSMaxAge:           12 * time.Hour,
 		TrustedProxies:       nil,
 	}
+}
+
+func newTestRouter(t *testing.T, opts ...Option) *gin.Engine {
+	t.Helper()
+
+	return newTestRouterWithConfig(t, testConfig(), opts...)
+}
+
+func newTestRouterWithConfig(t *testing.T, cfg config.Config, opts ...Option) *gin.Engine {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
 
 	router, err := New(cfg, zap.NewNop(), opts...)
 	if err != nil {
@@ -207,6 +215,119 @@ func TestRouterRecovery(t *testing.T) {
 	if contentType := response.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "application/problem+json") {
 		t.Fatalf("content type = %q", contentType)
 	}
+
+	if response.Header().Get("X-Request-ID") == "" {
+		t.Fatal("request id header is empty")
+	}
+
+	if response.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatal("security headers missing from recovery response")
+	}
+}
+
+func TestRouterSecurityHeaders(t *testing.T) {
+	t.Parallel()
+
+	router := newTestRouter(t, WithPinger(stubPinger{message: "pong"}))
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	expected := map[string]string{
+		"X-Content-Type-Options": "nosniff",
+		"X-Frame-Options":        "DENY",
+		"Referrer-Policy":        "no-referrer",
+		"Permissions-Policy":     "camera=(), microphone=(), geolocation=()",
+	}
+	for header, want := range expected {
+		if got := response.Header().Get(header); got != want {
+			t.Fatalf("%s = %q, want %q", header, got, want)
+		}
+	}
+
+	if response.Header().Get("Strict-Transport-Security") != "" {
+		t.Fatal("development response included HSTS")
+	}
+}
+
+func TestRouterBodyLimitPreservesCORS(t *testing.T) {
+	t.Parallel()
+
+	router := newTestRouter(t, WithPinger(stubPinger{message: "pong"}))
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/ping",
+		strings.NewReader(strings.Repeat("x", 2048)),
+	)
+	request.Header.Set("Origin", "https://app.example.com")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", response.Code)
+	}
+
+	if got := response.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("allow origin = %q", got)
+	}
+}
+
+func TestRouterRateLimitIncludesCORS(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.RateLimitRPS = 1
+	cfg.RateLimitBurst = 1
+	router := newTestRouterWithConfig(t, cfg, WithPinger(stubPinger{message: "pong"}))
+
+	var response *httptest.ResponseRecorder
+	for attempt := 1; attempt <= 2; attempt++ {
+		request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/ping", nil)
+		request.Header.Set("Origin", "https://app.example.com")
+		response = httptest.NewRecorder()
+
+		router.ServeHTTP(response, request)
+
+		expected := http.StatusOK
+		if attempt == 2 {
+			expected = http.StatusTooManyRequests
+		}
+
+		if response.Code != expected {
+			t.Fatalf("attempt %d status = %d, want %d", attempt, response.Code, expected)
+		}
+	}
+
+	if got := response.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
+		t.Fatalf("rate-limit response allow origin = %q", got)
+	}
+}
+
+func TestRouterTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.RequestTimeout = 10 * time.Millisecond
+	router := newTestRouterWithConfig(t, cfg, WithPinger(stubPinger{message: "pong"}), WithRegistrar(slowRegistrar{}))
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/slow", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status = %d, want 504", response.Code)
+	}
+}
+
+type slowRegistrar struct{}
+
+func (slowRegistrar) RegisterRoutes(router gin.IRouter) {
+	router.GET("/slow", func(c *gin.Context) {
+		<-c.Request.Context().Done()
+	})
 }
 
 type panicRegistrar struct{}

@@ -25,7 +25,7 @@ type Config struct {
 	HTTPPort             int           `env:"HTTP_PORT" envDefault:"{{.http_port}}"`
 	PublicBaseURL        string        `env:"PUBLIC_BASE_URL" envDefault:"http://localhost:{{.http_port}}"`
 	LogLevel             string        `env:"LOG_LEVEL" envDefault:"info"`
-	GinMode              string        `env:"GIN_MODE" envDefault:"auto"`
+	GinMode              string        `env:"APP_GIN_MODE" envDefault:"auto"`
 	RequestTimeout       time.Duration `env:"REQUEST_TIMEOUT" envDefault:"30s"`
 	ShutdownTimeout      time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 	ReadHeaderTimeout    time.Duration `env:"READ_HEADER_TIMEOUT" envDefault:"5s"`

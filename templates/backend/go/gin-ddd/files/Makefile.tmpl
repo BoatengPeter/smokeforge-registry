@@ -12,7 +12,7 @@ LDFLAGS := -s -w \
 # smokeforge:anchor docker-phony
 
 help:
-	@echo "make install          Download Go modules"
+	@echo "make install          Download and tidy Go modules"
 	@echo "make run              Run the API"
 	@echo "make dev              Run the API with live reload"
 	@echo "make build            Build bin/api"
@@ -31,7 +31,7 @@ help:
 	# smokeforge:anchor docker-help
 
 install:
-	go mod download
+	go mod tidy
 
 run:
 	go run ./cmd/api

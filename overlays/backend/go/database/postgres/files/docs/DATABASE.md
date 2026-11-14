@@ -26,7 +26,12 @@ postgres://postgres:postgres@localhost:5432/app?sslmode=disable
 ```
 
 Change `DATABASE_URL` and the compose credentials together when using another
-database.
+database. The Compose host port is controlled by `POSTGRES_PORT`; when you
+change it, update `DATABASE_URL` too.
+
+The Docker overlay runs `migrate up` automatically in the full Compose stack.
+For the local-API workflow above, run `make db-migrate` yourself before
+starting the API.
 
 ## Schema changes
 
