@@ -75,6 +75,9 @@ Rules:
 - Application handlers orchestrate domain behavior; HTTP handlers translate.
 - Feature packages are self-contained and register through
   `httpapi.Registrar`.
+- `internal/auth` is the application core. Keep HTTP in `internal/auth/http`,
+  persistence in `internal/auth/postgres`, email in `internal/auth/email`, and
+  Google OAuth in `internal/auth/google`; the core must not import them.
 - Pass `context.Context` first and propagate it through every call.
 
 ## Go standards

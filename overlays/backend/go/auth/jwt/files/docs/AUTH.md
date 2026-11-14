@@ -3,6 +3,17 @@
 The JWT overlay provides email/password accounts, HS256 access tokens, rotating
 refresh sessions, email verification, password reset, and optional TOTP.
 
+## Package layout
+
+- `internal/auth` contains application behavior, domain types, and ports.
+- `internal/auth/http` contains Gin handlers, middleware, and OpenAPI transport.
+- `internal/auth/postgres` contains the SQLC/pgx adapter.
+- `internal/auth/email` sends SMTP mail or logs messages in development.
+- `internal/auth/google` adapts Gothic to the auth application core.
+
+The core package must not import Gin, Gothic, pgx, SMTP, or `net/http`. Keep new
+transport and infrastructure behavior in an adapter package.
+
 ## Transport
 
 - Access tokens are returned in `TokenResponse.access_token` and sent as

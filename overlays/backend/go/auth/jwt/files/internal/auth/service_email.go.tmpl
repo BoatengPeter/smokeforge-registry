@@ -1,0 +1,123 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"net/url"
+	"strings"
+	"time"
+
+	"go.uber.org/zap"
+)
+
+// VerifyEmail consumes an email verification token.
+func (s *Service) VerifyEmail(ctx context.Context, raw string) error {
+	token, err := s.validToken(ctx, raw, tokenKindEmailVerify)
+	if err != nil {
+		return err
+	}
+
+	affected, err := s.store.ConsumeToken(ctx, token.ID)
+	if err != nil {
+		return err
+	}
+
+	if affected == 0 {
+		return ErrInvalidToken
+	}
+
+	return s.store.MarkEmailVerified(ctx, token.UserID)
+}
+
+// ForgotPassword sends a reset email without revealing whether an account exists.
+func (s *Service) ForgotPassword(ctx context.Context, email string) {
+	email, err := normalizeEmail(email)
+	if err != nil {
+		return
+	}
+
+	user, err := s.store.GetUserByEmail(ctx, email)
+	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			s.logger.Error("look up password reset user", zap.Error(err))
+		}
+
+		return
+	}
+
+	if err := s.sendPasswordReset(ctx, user); err != nil {
+		s.logger.Error("send password reset email", zap.Error(err), zap.String("user_id", user.ID.String()))
+	}
+}
+
+// ResetPassword consumes a reset token and changes the password.
+func (s *Service) ResetPassword(ctx context.Context, raw, password string) error {
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+
+	token, err := s.validToken(ctx, raw, tokenKindPasswordReset)
+	if err != nil {
+		return err
+	}
+
+	affected, err := s.store.ConsumeToken(ctx, token.ID)
+	if err != nil {
+		return err
+	}
+
+	if affected == 0 {
+		return ErrInvalidToken
+	}
+
+	passwordHash, err := HashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	if err := s.store.UpdatePassword(ctx, token.UserID, passwordHash); err != nil {
+		return err
+	}
+
+	if err := s.store.RevokeUserTokens(ctx, token.UserID, tokenKindRefresh); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) sendVerification(ctx context.Context, user UserRecord) error {
+	raw, err := s.createToken(ctx, user.ID, tokenKindEmailVerify, 24*time.Hour)
+	if err != nil {
+		return err
+	}
+
+	link := s.link("/verify-email", raw)
+	body := "Verify your email address by opening this link:\n\n" + link + "\n\nIf you did not create this account, ignore this email."
+
+	return s.send(ctx, user.Email, "Verify your email address", body)
+}
+
+func (s *Service) sendPasswordReset(ctx context.Context, user UserRecord) error {
+	raw, err := s.createToken(ctx, user.ID, tokenKindPasswordReset, time.Hour)
+	if err != nil {
+		return err
+	}
+
+	link := s.link("/reset-password", raw)
+	body := "Reset your password by opening this link:\n\n" + link + "\n\nIf you did not request this, ignore this email."
+
+	return s.send(ctx, user.Email, "Reset your password", body)
+}
+
+func (s *Service) send(ctx context.Context, to, subject, body string) error {
+	if s.email == nil {
+		return nil
+	}
+
+	return s.email.Send(ctx, to, subject, body)
+}
+
+func (s *Service) link(path, token string) string {
+	return strings.TrimRight(s.config.PublicBaseURL, "/") + path + "?token=" + url.QueryEscape(token)
+}

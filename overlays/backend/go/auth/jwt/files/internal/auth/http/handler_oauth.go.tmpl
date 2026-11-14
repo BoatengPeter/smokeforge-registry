@@ -1,0 +1,81 @@
+package authhttp
+
+import (
+	"net/http"
+	"net/url"
+
+	"{{.module_path}}/internal/auth"
+	"{{.module_path}}/internal/response"
+	"github.com/gin-gonic/gin"
+)
+
+// GoogleOAuth starts and completes the browser OAuth flow.
+type GoogleOAuth interface {
+	Begin(w http.ResponseWriter, r *http.Request) error
+	Complete(w http.ResponseWriter, r *http.Request) (auth.ExternalIdentity, error)
+	SuccessRedirect() string
+}
+
+// StartGoogleOAuth redirects the browser to Google.
+func (h *Handler) StartGoogleOAuth(c *gin.Context) {
+	if h.google == nil {
+		response.WriteError(c, response.NewError(http.StatusServiceUnavailable, "oauth_unavailable", "OAuth unavailable", "Google OAuth is not configured."))
+
+		return
+	}
+
+	if err := h.google.Begin(c.Writer, c.Request); err != nil {
+		response.WriteError(c, response.NewError(http.StatusBadGateway, "oauth_start_failed", "OAuth start failed", "Google OAuth could not be started."))
+
+		return
+	}
+}
+
+// GoogleOAuthCallback completes Google OAuth and redirects the browser.
+func (h *Handler) GoogleOAuthCallback(c *gin.Context, _ GoogleOAuthCallbackParams) {
+	if h.google == nil {
+		h.redirectOAuthError(c)
+
+		return
+	}
+
+	identity, err := h.google.Complete(c.Writer, c.Request)
+	if err != nil {
+		h.redirectOAuthError(c)
+
+		return
+	}
+
+	tokens, err := h.service.LoginExternal(c.Request.Context(), identity)
+	if err != nil {
+		h.redirectOAuthError(c)
+
+		return
+	}
+
+	h.setRefreshCookie(c, tokens.RefreshToken)
+	c.Redirect(http.StatusTemporaryRedirect, h.google.SuccessRedirect())
+}
+
+func (h *Handler) redirectOAuthError(c *gin.Context) {
+	successURL, err := url.Parse(h.oauthSuccessRedirect())
+	if err != nil {
+		response.WriteError(c, response.NewError(http.StatusInternalServerError, "oauth_redirect_failed", "OAuth redirect failed", "The post-login redirect URL is invalid."))
+
+		return
+	}
+
+	query := successURL.Query()
+	query.Set("error", "oauth_failed")
+	successURL.RawQuery = query.Encode()
+
+	c.Redirect(http.StatusTemporaryRedirect, successURL.String())
+}
+
+func (h *Handler) oauthSuccessRedirect() string {
+	if h.google == nil {
+		return h.config.PublicBaseURL
+	}
+
+	return h.google.SuccessRedirect()
+}

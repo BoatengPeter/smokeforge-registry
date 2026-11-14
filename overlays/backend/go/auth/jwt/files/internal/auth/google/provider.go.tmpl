@@ -1,4 +1,5 @@
-package auth
+// Package googleauth adapts Gothic's Google provider to auth identities.
+package googleauth
 
 import (
 	"errors"
@@ -7,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"{{.module_path}}/internal/auth"
 	"{{.module_path}}/internal/config"
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
@@ -14,14 +16,15 @@ import (
 	"github.com/markbates/goth/providers/google"
 )
 
-const googleProvider = "google"
+const providerName = "google"
 
-// GoogleProvider wraps Gothic's Google provider and its cookie session store.
-type GoogleProvider struct {
+// Provider wraps Gothic's Google provider and its cookie session store.
+type Provider struct {
 	successRedirect string
 }
 
-func newGoogleProvider(cfg config.Config) (*GoogleProvider, error) {
+// New constructs the Google provider or returns nil when it is disabled.
+func New(cfg config.Config) (*Provider, error) {
 	if cfg.GoogleClientID == "" && cfg.GoogleClientSecret == "" {
 		return nil, nil
 	}
@@ -59,17 +62,17 @@ func newGoogleProvider(cfg config.Config) (*GoogleProvider, error) {
 		successRedirect = cfg.PublicBaseURL
 	}
 
-	return &GoogleProvider{successRedirect: successRedirect}, nil
+	return &Provider{successRedirect: successRedirect}, nil
 }
 
 // SuccessRedirect returns the URL to use after a successful callback.
-func (p *GoogleProvider) SuccessRedirect() string {
+func (p *Provider) SuccessRedirect() string {
 	return p.successRedirect
 }
 
 // Begin redirects the browser to Google and stores the OAuth state.
-func (p *GoogleProvider) Begin(w http.ResponseWriter, r *http.Request) error {
-	request := gothic.GetContextWithProvider(r, googleProvider)
+func (p *Provider) Begin(w http.ResponseWriter, r *http.Request) error {
+	request := gothic.GetContextWithProvider(r, providerName)
 
 	authURL, err := gothic.GetAuthURL(w, request)
 	if err != nil {
@@ -81,12 +84,31 @@ func (p *GoogleProvider) Begin(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// Complete validates the callback and returns the Google profile.
-func (p *GoogleProvider) Complete(w http.ResponseWriter, r *http.Request) (goth.User, error) {
-	user, err := gothic.CompleteUserAuth(w, gothic.GetContextWithProvider(r, googleProvider))
+// Complete validates the callback and returns the Google identity.
+func (p *Provider) Complete(
+	w http.ResponseWriter,
+	r *http.Request,
+) (auth.ExternalIdentity, error) {
+	profile, err := gothic.CompleteUserAuth(w, gothic.GetContextWithProvider(r, providerName))
 	if err != nil {
-		return goth.User{}, fmt.Errorf("complete google oauth: %w", err)
+		return auth.ExternalIdentity{}, fmt.Errorf("complete google oauth: %w", err)
 	}
 
-	return user, nil
+	return externalIdentity(profile)
+}
+
+func externalIdentity(profile goth.User) (auth.ExternalIdentity, error) {
+	if profile.UserID == "" {
+		return auth.ExternalIdentity{}, auth.ErrInvalidExternalIdentity
+	}
+
+	if verified, ok := profile.RawData["verified_email"].(bool); ok && !verified {
+		return auth.ExternalIdentity{}, auth.ErrEmailNotVerified
+	}
+
+	return auth.ExternalIdentity{
+		Provider:   providerName,
+		ProviderID: profile.UserID,
+		Email:      profile.Email,
+	}, nil
 }

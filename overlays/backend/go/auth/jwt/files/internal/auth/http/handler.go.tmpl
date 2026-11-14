@@ -1,13 +1,12 @@
-// Package auth implements JWT authentication, refresh sessions, and account flows.
-package auth
+// Package authhttp implements the auth HTTP contract.
+package authhttp
 
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
-	"net/url"
 
+	"{{.module_path}}/internal/auth"
 	"{{.module_path}}/internal/config"
 	"{{.module_path}}/internal/response"
 	"github.com/gin-gonic/gin"
@@ -17,49 +16,40 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	refreshCookieName = "refresh_token"
-	refreshCookiePath = "/api/v1/auth"
-	refreshBodyHeader = "X-Refresh-Token-Transport"
-	csrfHeader        = "X-Requested-With"
-	csrfValue         = "XMLHttpRequest"
-)
-
-var (
-	errMissingRefreshToken = errors.New("auth: missing refresh token")
-	errCSRF                = errors.New("auth: missing csrf header")
-)
-
 // ServiceContract is the auth behavior consumed by the HTTP handler.
 type ServiceContract interface {
-	Register(ctx context.Context, email, password string) (Account, error)
-	Login(ctx context.Context, email, password string) (LoginResult, error)
-	CompleteMFA(ctx context.Context, challenge, code string) (TokenPair, error)
-	Refresh(ctx context.Context, raw string) (TokenPair, error)
+	auth.TokenVerifier
+	Register(ctx context.Context, email, password string) (auth.Account, error)
+	Login(ctx context.Context, email, password string) (auth.LoginResult, error)
+	CompleteMFA(ctx context.Context, challenge, code string) (auth.TokenPair, error)
+	Refresh(ctx context.Context, raw string) (auth.TokenPair, error)
 	Logout(ctx context.Context, raw string)
 	VerifyEmail(ctx context.Context, raw string) error
 	ForgotPassword(ctx context.Context, email string)
 	ResetPassword(ctx context.Context, raw, password string) error
-	Authenticate(ctx context.Context, raw string) (Identity, error)
-	GetUser(ctx context.Context, id uuid.UUID) (Account, error)
-	GoogleEnabled() bool
-	BeginGoogle(w http.ResponseWriter, r *http.Request) error
-	LoginWithGoogle(ctx context.Context, w http.ResponseWriter, r *http.Request) (TokenPair, error)
-	GoogleSuccessRedirect() string
+	GetUser(ctx context.Context, id uuid.UUID) (auth.Account, error)
+	LoginExternal(ctx context.Context, identity auth.ExternalIdentity) (auth.TokenPair, error)
 }
 
 // Handler implements the auth HTTP contract.
 type Handler struct {
 	service  ServiceContract
+	google   GoogleOAuth
 	config   config.Config
 	logger   *zap.Logger
 	validate *validator.Validate
 }
 
 // NewHandler constructs the auth handler.
-func NewHandler(service ServiceContract, cfg config.Config, logger *zap.Logger) *Handler {
+func NewHandler(
+	service ServiceContract,
+	google GoogleOAuth,
+	cfg config.Config,
+	logger *zap.Logger,
+) *Handler {
 	return &Handler{
 		service:  service,
+		google:   google,
 		config:   cfg,
 		logger:   logger,
 		validate: validator.New(),
@@ -159,82 +149,6 @@ func (h *Handler) LoginTOTP(c *gin.Context) {
 	h.writeTokenResponse(c, http.StatusOK, tokens)
 }
 
-// Refresh rotates a refresh session.
-func (h *Handler) Refresh(c *gin.Context) {
-	raw, err := h.refreshToken(c)
-	if err != nil {
-		h.writeRefreshError(c, err)
-
-		return
-	}
-
-	tokens, err := h.service.Refresh(c.Request.Context(), raw)
-	if err != nil {
-		h.writeError(c, err)
-
-		return
-	}
-
-	h.writeTokenResponse(c, http.StatusOK, tokens)
-}
-
-// Logout revokes a refresh session.
-func (h *Handler) Logout(c *gin.Context) {
-	raw, err := h.refreshToken(c)
-	if err != nil && !errors.Is(err, errMissingRefreshToken) {
-		h.writeRefreshError(c, err)
-
-		return
-	}
-
-	h.service.Logout(c.Request.Context(), raw)
-	h.clearRefreshCookie(c)
-	c.Status(http.StatusNoContent)
-}
-
-// StartGoogleOAuth redirects the browser to Google.
-func (h *Handler) StartGoogleOAuth(c *gin.Context) {
-	if !h.service.GoogleEnabled() {
-		response.WriteError(c, response.NewError(http.StatusServiceUnavailable, "oauth_unavailable", "OAuth unavailable", "Google OAuth is not configured."))
-
-		return
-	}
-
-	if err := h.service.BeginGoogle(c.Writer, c.Request); err != nil {
-		response.WriteError(c, response.NewError(http.StatusBadGateway, "oauth_start_failed", "OAuth start failed", "Google OAuth could not be started."))
-
-		return
-	}
-}
-
-// GoogleOAuthCallback completes Google OAuth and redirects the browser.
-func (h *Handler) GoogleOAuthCallback(c *gin.Context, _ GoogleOAuthCallbackParams) {
-	tokens, err := h.service.LoginWithGoogle(c.Request.Context(), c.Writer, c.Request)
-	if err != nil {
-		h.redirectOAuthError(c)
-
-		return
-	}
-
-	h.setRefreshCookie(c, tokens.RefreshToken)
-	c.Redirect(http.StatusTemporaryRedirect, h.service.GoogleSuccessRedirect())
-}
-
-func (h *Handler) redirectOAuthError(c *gin.Context) {
-	successURL, err := url.Parse(h.service.GoogleSuccessRedirect())
-	if err != nil {
-		response.WriteError(c, response.NewError(http.StatusInternalServerError, "oauth_redirect_failed", "OAuth redirect failed", "The post-login redirect URL is invalid."))
-
-		return
-	}
-
-	query := successURL.Query()
-	query.Set("error", "oauth_failed")
-	successURL.RawQuery = query.Encode()
-
-	c.Redirect(http.StatusTemporaryRedirect, successURL.String())
-}
-
 // GetMe returns the current account.
 func (h *Handler) GetMe(c *gin.Context) {
 	identity, err := h.service.Authenticate(c.Request.Context(), bearerToken(c))
@@ -264,7 +178,7 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 	}
 
 	if err := h.service.VerifyEmail(c.Request.Context(), request.Token); err != nil {
-		if errors.Is(err, ErrInvalidToken) {
+		if errors.Is(err, auth.ErrInvalidToken) {
 			response.WriteError(c, response.NewError(http.StatusBadRequest, "invalid_token", "Invalid token", "The verification token is invalid or expired."))
 
 			return
@@ -313,7 +227,7 @@ func (h *Handler) ResetPassword(c *gin.Context) {
 	}
 
 	if err := h.service.ResetPassword(c.Request.Context(), request.Token, request.Password); err != nil {
-		if errors.Is(err, ErrInvalidToken) {
+		if errors.Is(err, auth.ErrInvalidToken) {
 			response.WriteError(c, response.NewError(http.StatusBadRequest, "invalid_token", "Invalid token", "The reset token is invalid or expired."))
 
 			return
@@ -327,110 +241,28 @@ func (h *Handler) ResetPassword(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *Handler) writeTokenResponse(c *gin.Context, status int, tokens TokenPair) {
-	response := TokenResponse{
-		AccessToken: tokens.AccessToken,
-		TokenType:   "Bearer",
-		ExpiresIn:   tokens.ExpiresIn,
-	}
-
-	if h.returnsRefreshInBody(c) {
-		response.RefreshToken = &tokens.RefreshToken
-	} else {
-		h.setRefreshCookie(c, tokens.RefreshToken)
-	}
-
-	c.JSON(status, response)
-}
-
-func (h *Handler) refreshToken(c *gin.Context) (string, error) {
-	var request RefreshRequest
-
-	if c.Request.Body != nil && c.Request.ContentLength != 0 {
-		if err := c.ShouldBindJSON(&request); err != nil && !errors.Is(err, io.EOF) {
-			return "", err
-		}
-	}
-
-	if request.RefreshToken != nil && *request.RefreshToken != "" {
-		return *request.RefreshToken, nil
-	}
-
-	cookie, err := c.Cookie(refreshCookieName)
-	if err != nil {
-		return "", errMissingRefreshToken
-	}
-
-	if c.GetHeader(csrfHeader) != csrfValue {
-		return "", errCSRF
-	}
-
-	return cookie, nil
-}
-
-func (h *Handler) returnsRefreshInBody(c *gin.Context) bool {
-	return c.GetHeader(refreshBodyHeader) == "body"
-}
-
-func (h *Handler) setRefreshCookie(c *gin.Context, token string) {
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(
-		refreshCookieName,
-		token,
-		int(h.config.RefreshTokenTTL.Seconds()),
-		refreshCookiePath,
-		"",
-		h.config.CookieSecure,
-		true,
-	)
-}
-
-func (h *Handler) clearRefreshCookie(c *gin.Context) {
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(
-		refreshCookieName,
-		"",
-		-1,
-		refreshCookiePath,
-		"",
-		h.config.CookieSecure,
-		true,
-	)
-}
-
-func (h *Handler) writeRefreshError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, errCSRF):
-		response.WriteForbidden(c, "The CSRF header is required for cookie-based refresh.")
-	case errors.Is(err, errMissingRefreshToken):
-		response.WriteUnauthorized(c, "A refresh token is required.")
-	default:
-		response.WriteError(c, response.NewError(http.StatusBadRequest, "invalid_request", "Invalid request", "The refresh request is invalid."))
-	}
-}
-
 func (h *Handler) writeError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, ErrEmailTaken):
+	case errors.Is(err, auth.ErrEmailTaken):
 		response.WriteConflict(c, "email_taken", "The email is already registered.")
-	case errors.Is(err, ErrInvalidCredentials):
+	case errors.Is(err, auth.ErrInvalidCredentials):
 		response.WriteUnauthorized(c, "The email or password is incorrect.")
-	case errors.Is(err, ErrEmailNotVerified):
+	case errors.Is(err, auth.ErrEmailNotVerified):
 		response.WriteForbidden(c, "The email address must be verified first.")
-	case errors.Is(err, ErrInvalidToken):
+	case errors.Is(err, auth.ErrInvalidToken):
 		response.WriteUnauthorized(c, "The token is invalid or expired.")
-	case errors.Is(err, ErrMFAUnavailable):
+	case errors.Is(err, auth.ErrMFAUnavailable):
 		response.WriteError(c, response.NewError(http.StatusNotImplemented, "mfa_unavailable", "MFA unavailable", "Second-factor authentication is not configured."))
-	case errors.Is(err, ErrInvalidCode):
+	case errors.Is(err, auth.ErrInvalidCode):
 		response.WriteUnauthorized(c, "The verification code is invalid.")
-	case errors.Is(err, ErrWeakPassword), errors.Is(err, ErrInvalidEmail):
+	case errors.Is(err, auth.ErrWeakPassword), errors.Is(err, auth.ErrInvalidEmail):
 		response.WriteError(c, response.NewError(http.StatusUnprocessableEntity, "validation_failed", "Validation failed", "The credentials are invalid."))
 	default:
 		response.WriteInternalError(c, h.logger, err)
 	}
 }
 
-func toUser(account Account) User {
+func toUser(account auth.Account) User {
 	return User{
 		Id:            account.ID,
 		Email:         openapi_types.Email(account.Email),

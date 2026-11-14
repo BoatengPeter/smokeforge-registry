@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"{{.module_path}}/internal/auth"
+	authhttp "{{.module_path}}/internal/auth/http"
 	"{{.module_path}}/internal/response"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -49,7 +50,7 @@ func NewHandler(service ServiceContract, authService AuthService, logger *zap.Lo
 // RegisterRoutes adds authenticated TOTP routes.
 func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	RegisterHandlersWithOptions(router, h, GinServerOptions{
-		Middlewares: []MiddlewareFunc{MiddlewareFunc(auth.RequireAuth(h.auth))},
+		Middlewares: []MiddlewareFunc{MiddlewareFunc(authhttp.RequireAuth(h.auth))},
 		ErrorHandler: func(c *gin.Context, _ error, statusCode int) {
 			response.WriteError(c, response.NewError(statusCode, "invalid_request", "Invalid request", "The request is invalid."))
 		},
@@ -58,7 +59,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 
 // GetTOTPStatus returns whether TOTP is enabled.
 func (h *Handler) GetTOTPStatus(c *gin.Context) {
-	identity, ok := auth.IdentityFromContext(c)
+	identity, ok := authhttp.IdentityFromContext(c)
 	if !ok {
 		response.WriteUnauthorized(c, "A valid access token is required.")
 
@@ -77,7 +78,7 @@ func (h *Handler) GetTOTPStatus(c *gin.Context) {
 
 // SetupTOTP begins enrollment.
 func (h *Handler) SetupTOTP(c *gin.Context) {
-	identity, ok := auth.IdentityFromContext(c)
+	identity, ok := authhttp.IdentityFromContext(c)
 	if !ok {
 		response.WriteUnauthorized(c, "A valid access token is required.")
 
@@ -106,7 +107,7 @@ func (h *Handler) SetupTOTP(c *gin.Context) {
 
 // EnableTOTP confirms enrollment and returns recovery codes.
 func (h *Handler) EnableTOTP(c *gin.Context) {
-	identity, ok := auth.IdentityFromContext(c)
+	identity, ok := authhttp.IdentityFromContext(c)
 	if !ok {
 		response.WriteUnauthorized(c, "A valid access token is required.")
 
@@ -138,7 +139,7 @@ func (h *Handler) EnableTOTP(c *gin.Context) {
 
 // DisableTOTP verifies a code and disables TOTP.
 func (h *Handler) DisableTOTP(c *gin.Context) {
-	identity, ok := auth.IdentityFromContext(c)
+	identity, ok := authhttp.IdentityFromContext(c)
 	if !ok {
 		response.WriteUnauthorized(c, "A valid access token is required.")
 

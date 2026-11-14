@@ -1,4 +1,5 @@
-package auth
+// Package postgres implements auth persistence with PostgreSQL.
+package postgres
 
 import (
 	"context"
@@ -6,34 +7,20 @@ import (
 	"fmt"
 	"time"
 
-	authdb "{{.module_path}}/internal/auth/db"
+	"{{.module_path}}/internal/auth"
+	authdb "{{.module_path}}/internal/auth/postgres/db"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Store is the persistence contract consumed by the auth service.
-type Store interface {
-	CreateUser(ctx context.Context, id uuid.UUID, email, passwordHash, role string) (UserRecord, error)
-	GetUserByEmail(ctx context.Context, email string) (UserRecord, error)
-	GetUserByID(ctx context.Context, id uuid.UUID) (UserRecord, error)
-	MarkEmailVerified(ctx context.Context, id uuid.UUID) error
-	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
-	CreateToken(ctx context.Context, params CreateTokenParams) error
-	GetTokenByHash(ctx context.Context, hash []byte) (TokenRecord, error)
-	ConsumeToken(ctx context.Context, id uuid.UUID) (int64, error)
-	RevokeToken(ctx context.Context, id uuid.UUID) error
-	RevokeUserTokens(ctx context.Context, userID uuid.UUID, kind string) error
-	GetOAuthAccount(ctx context.Context, provider, providerAccountID string) (uuid.UUID, error)
-	CreateOAuthAccount(ctx context.Context, id, userID uuid.UUID, provider, providerAccountID, email string) error
-}
-
-// Repository implements Store with PostgreSQL queries.
+// Repository implements auth.Store with PostgreSQL queries.
 type Repository struct {
 	queries *authdb.Queries
 }
 
-var _ Store = (*Repository)(nil)
+var _ auth.Store = (*Repository)(nil)
 
 // NewRepository constructs the auth repository.
 func NewRepository(pool *pgxpool.Pool) *Repository {
@@ -45,7 +32,7 @@ func (r *Repository) CreateUser(
 	ctx context.Context,
 	id uuid.UUID,
 	email, passwordHash, role string,
-) (UserRecord, error) {
+) (auth.UserRecord, error) {
 	row, err := r.queries.CreateUser(ctx, authdb.CreateUserParams{
 		ID:           id,
 		Lower:        email,
@@ -55,30 +42,38 @@ func (r *Repository) CreateUser(
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return UserRecord{}, ErrEmailTaken
+			return auth.UserRecord{}, auth.ErrEmailTaken
 		}
 
-		return UserRecord{}, fmt.Errorf("create user: %w", err)
+		return auth.UserRecord{}, fmt.Errorf("create user: %w", err)
 	}
 
 	return userFromDB(row), nil
 }
 
 // GetUserByEmail returns one account by email.
-func (r *Repository) GetUserByEmail(ctx context.Context, email string) (UserRecord, error) {
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (auth.UserRecord, error) {
 	row, err := r.queries.GetUserByEmail(ctx, email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return auth.UserRecord{}, auth.ErrNotFound
+	}
+
 	if err != nil {
-		return UserRecord{}, fmt.Errorf("get user by email: %w", err)
+		return auth.UserRecord{}, fmt.Errorf("get user by email: %w", err)
 	}
 
 	return userFromDB(row), nil
 }
 
 // GetUserByID returns one account by ID.
-func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (UserRecord, error) {
+func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (auth.UserRecord, error) {
 	row, err := r.queries.GetUserByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return auth.UserRecord{}, auth.ErrNotFound
+	}
+
 	if err != nil {
-		return UserRecord{}, fmt.Errorf("get user by id: %w", err)
+		return auth.UserRecord{}, fmt.Errorf("get user by id: %w", err)
 	}
 
 	return userFromDB(row), nil
@@ -106,7 +101,7 @@ func (r *Repository) UpdatePassword(ctx context.Context, id uuid.UUID, passwordH
 }
 
 // CreateToken stores an opaque token hash.
-func (r *Repository) CreateToken(ctx context.Context, params CreateTokenParams) error {
+func (r *Repository) CreateToken(ctx context.Context, params auth.CreateTokenParams) error {
 	if err := r.queries.CreateAuthToken(ctx, authdb.CreateAuthTokenParams{
 		ID:        params.ID,
 		UserID:    params.UserID,
@@ -121,10 +116,14 @@ func (r *Repository) CreateToken(ctx context.Context, params CreateTokenParams) 
 }
 
 // GetTokenByHash returns one token regardless of use state.
-func (r *Repository) GetTokenByHash(ctx context.Context, hash []byte) (TokenRecord, error) {
+func (r *Repository) GetTokenByHash(ctx context.Context, hash []byte) (auth.TokenRecord, error) {
 	row, err := r.queries.GetAuthTokenByHash(ctx, hash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return auth.TokenRecord{}, auth.ErrNotFound
+	}
+
 	if err != nil {
-		return TokenRecord{}, fmt.Errorf("get auth token: %w", err)
+		return auth.TokenRecord{}, fmt.Errorf("get auth token: %w", err)
 	}
 
 	return tokenFromDB(row), nil
@@ -170,6 +169,10 @@ func (r *Repository) GetOAuthAccount(
 		Provider:          provider,
 		ProviderAccountID: providerAccountID,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, auth.ErrNotFound
+	}
+
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("get oauth account: %w", err)
 	}
@@ -196,13 +199,13 @@ func (r *Repository) CreateOAuthAccount(
 	return nil
 }
 
-func userFromDB(row authdb.User) UserRecord {
+func userFromDB(row authdb.User) auth.UserRecord {
 	var verifiedAt *time.Time
 	if row.EmailVerifiedAt.Valid {
 		verifiedAt = &row.EmailVerifiedAt.Time
 	}
 
-	return UserRecord{
+	return auth.UserRecord{
 		ID:              row.ID,
 		Email:           row.Email,
 		PasswordHash:    row.PasswordHash,
@@ -212,13 +215,13 @@ func userFromDB(row authdb.User) UserRecord {
 	}
 }
 
-func tokenFromDB(row authdb.AuthToken) TokenRecord {
+func tokenFromDB(row authdb.AuthToken) auth.TokenRecord {
 	var usedAt *time.Time
 	if row.UsedAt.Valid {
 		usedAt = &row.UsedAt.Time
 	}
 
-	return TokenRecord{
+	return auth.TokenRecord{
 		ID:        row.ID,
 		UserID:    row.UserID,
 		Kind:      row.Kind,

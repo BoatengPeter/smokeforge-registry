@@ -26,10 +26,13 @@ tests/                                 # contract/build matrix
 - Four explicit Gin stacks: flat, layered, hexagonal, and DDD.
 - Shared scaffold contract: `cmd/api`, `internal/httpapi`, configuration and
   main anchors, plus self-contained feature packages.
+- Auth uses a transport-neutral application core with HTTP, PostgreSQL, email,
+  and Google OAuth adapters under `internal/auth/*`.
 - Spec-first OpenAPI with `oapi-codegen`; Swagger UI at `/docs`.
 - Gin, Zap, `caarlos0/env`, validator, RFC 9457, rate limiting, graceful
   shutdown.
-- Presets: `api` (default backend), `api-minimal`, `api-production`.
+- Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
+- Frontend presets: `fullstack` (default) and `frontend`.
 - Overlays: Postgres/pgx/sqlc/goose, users/JWT auth, Google OAuth, TOTP,
   Docker, CI, embedded migrations, and optional demo-user seeding.
 - All 17 Go skills plus `sql-optimization-patterns` and `postgresql-optimization` ship under `.agents/skills` and `.claude/skills`.
@@ -37,7 +40,7 @@ tests/                                 # contract/build matrix
 ## Current Next decisions
 
 - One composable `next` base; fullstack is the default preset.
-- Presets: `fullstack`, `frontend`, `production`.
+- Presets: `fullstack` (default) and `frontend`. Add Docker, CI, E2E, and PostHog with `--feature`.
 - Next 16.4.6, React 19.3.0, TypeScript 5.9.3, Node 24.
 - pnpm default; npm and bun selectable.
 - App Router; `route.ts` Route Handlers are the backend.

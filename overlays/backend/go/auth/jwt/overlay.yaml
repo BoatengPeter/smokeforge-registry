@@ -5,32 +5,40 @@ ops:
   - addFiles:
       - {path: internal/database/migrator/migrations/00002_auth.sql, dest: internal/database/migrator/migrations/00002_auth.sql}
       - {path: internal/database/migrator/migrations/00004_oauth.sql, dest: internal/database/migrator/migrations/00004_oauth.sql}
-      - {path: internal/auth/openapi.yaml, dest: internal/auth/openapi.yaml}
-      - {path: internal/auth/oapi-codegen.yaml, dest: internal/auth/oapi-codegen.yaml}
-      - {path: internal/auth/api.gen.go, dest: internal/auth/api.gen.go}
       - {path: internal/auth/models.go, dest: internal/auth/models.go}
+      - {path: internal/auth/ports.go, dest: internal/auth/ports.go}
       - {path: internal/auth/password.go, dest: internal/auth/password.go}
       - {path: internal/auth/tokens.go.tmpl, dest: internal/auth/tokens.go}
-      - {path: internal/auth/email.go.tmpl, dest: internal/auth/email.go}
-      - {path: internal/auth/repository.go.tmpl, dest: internal/auth/repository.go}
       - {path: internal/auth/service.go.tmpl, dest: internal/auth/service.go}
-      - {path: internal/auth/middleware.go.tmpl, dest: internal/auth/middleware.go}
-      - {path: internal/auth/handler.go.tmpl, dest: internal/auth/handler.go}
-      - {path: internal/auth/spec.go, dest: internal/auth/spec.go}
-      - {path: internal/auth/google.go.tmpl, dest: internal/auth/google.go}
+      - {path: internal/auth/service_tokens.go.tmpl, dest: internal/auth/service_tokens.go}
+      - {path: internal/auth/service_email.go.tmpl, dest: internal/auth/service_email.go}
+      - {path: internal/auth/service_external.go.tmpl, dest: internal/auth/service_external.go}
       - {path: internal/auth/password_test.go, dest: internal/auth/password_test.go}
       - {path: internal/auth/tokens_test.go.tmpl, dest: internal/auth/tokens_test.go}
-      - {path: internal/auth/handler_test.go.tmpl, dest: internal/auth/handler_test.go}
-      - {path: internal/auth/google_test.go.tmpl, dest: internal/auth/google_test.go}
+      - {path: internal/auth/service_test.go.tmpl, dest: internal/auth/service_test.go}
+      - {path: internal/auth/service_external_test.go.tmpl, dest: internal/auth/service_external_test.go}
+      - {path: internal/auth/http/openapi.yaml, dest: internal/auth/http/openapi.yaml}
+      - {path: internal/auth/http/oapi-codegen.yaml, dest: internal/auth/http/oapi-codegen.yaml}
+      - {path: internal/auth/http/api.gen.go, dest: internal/auth/http/api.gen.go}
+      - {path: internal/auth/http/handler.go.tmpl, dest: internal/auth/http/handler.go}
+      - {path: internal/auth/http/handler_oauth.go.tmpl, dest: internal/auth/http/handler_oauth.go}
+      - {path: internal/auth/http/handler_tokens.go.tmpl, dest: internal/auth/http/handler_tokens.go}
+      - {path: internal/auth/http/middleware.go.tmpl, dest: internal/auth/http/middleware.go}
+      - {path: internal/auth/http/spec.go, dest: internal/auth/http/spec.go}
+      - {path: internal/auth/http/handler_test.go.tmpl, dest: internal/auth/http/handler_test.go}
+      - {path: internal/auth/postgres/repository.go.tmpl, dest: internal/auth/postgres/repository.go}
+      - {path: internal/auth/postgres/queries.sql, dest: internal/auth/postgres/queries.sql}
+      - {path: internal/auth/postgres/schema.sql, dest: internal/auth/postgres/schema.sql}
+      - {path: internal/auth/postgres/db/db.go, dest: internal/auth/postgres/db/db.go}
+      - {path: internal/auth/postgres/db/models.go, dest: internal/auth/postgres/db/models.go}
+      - {path: internal/auth/postgres/db/queries.sql.go, dest: internal/auth/postgres/db/queries.sql.go}
+      - {path: internal/auth/email/sender.go.tmpl, dest: internal/auth/email/sender.go}
+      - {path: internal/auth/google/provider.go.tmpl, dest: internal/auth/google/provider.go}
+      - {path: internal/auth/google/provider_test.go.tmpl, dest: internal/auth/google/provider_test.go}
       - {path: sqlc.yaml, dest: sqlc.yaml}
       - {path: internal/database/seed/users.go.tmpl, dest: internal/database/seed/users.go}
       - {path: cmd/seed/main.go.tmpl, dest: cmd/seed/main.go}
       - {path: internal/config/config_auth.go.tmpl, dest: internal/config/config_auth.go}
-      - {path: internal/auth/queries.sql, dest: internal/auth/queries.sql}
-      - {path: internal/auth/schema.sql, dest: internal/auth/schema.sql}
-      - {path: internal/auth/db/db.go, dest: internal/auth/db/db.go}
-      - {path: internal/auth/db/models.go, dest: internal/auth/db/models.go}
-      - {path: internal/auth/db/queries.sql.go, dest: internal/auth/db/queries.sql.go}
       - {path: docs/AUTH.md, dest: docs/AUTH.md}
   - addDependency: {file: go.mod, module: github.com/golang-jwt/jwt/v5, version: v5.3.1}
   - addDependency: {file: go.mod, module: golang.org/x/crypto, version: v0.59.0}
@@ -89,23 +97,38 @@ ops:
       file: cmd/api/main.go
       anchor: import-auth
       marker: auth:jwt-import
-      content: '"{{.module_path}}/internal/auth"'
+      content: |-
+        auth "{{.module_path}}/internal/auth"
+        authemail "{{.module_path}}/internal/auth/email"
+        googleauth "{{.module_path}}/internal/auth/google"
+        authhttp "{{.module_path}}/internal/auth/http"
+        authpostgres "{{.module_path}}/internal/auth/postgres"
   - insertAfter:
       file: cmd/api/main.go
       anchor: main-auth
       marker: auth:jwt-main
       content: |-
-        emailSender, err := auth.NewEmailSender(cfg, logger)
+        emailSender, err := authemail.NewSender(cfg, logger)
         if err != nil {
         	return fmt.Errorf("configure auth email: %w", err)
         }
 
-        authService, err := auth.NewService(auth.NewRepository(db.Pool()), cfg, logger, emailSender)
+        googleProvider, err := googleauth.New(cfg)
+        if err != nil {
+        	return fmt.Errorf("configure google oauth: %w", err)
+        }
+
+        var oauthProvider authhttp.GoogleOAuth
+        if googleProvider != nil {
+        	oauthProvider = googleProvider
+        }
+
+        authService, err := auth.NewService(authpostgres.NewRepository(db.Pool()), cfg, logger, emailSender)
         if err != nil {
         	return fmt.Errorf("create auth service: %w", err)
         }
 
-        authHandler := auth.NewHandler(authService, cfg, logger)
+        authHandler := authhttp.NewHandler(authService, oauthProvider, cfg, logger)
   - insertAfter:
       file: cmd/api/main.go
       anchor: http-options

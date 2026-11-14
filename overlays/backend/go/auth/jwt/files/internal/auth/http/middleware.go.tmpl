@@ -1,9 +1,9 @@
-package auth
+package authhttp
 
 import (
-	"context"
 	"strings"
 
+	"{{.module_path}}/internal/auth"
 	"{{.module_path}}/internal/response"
 	"github.com/gin-gonic/gin"
 )
@@ -12,13 +12,8 @@ type identityContextKey string
 
 const identityKey identityContextKey = "auth.identity"
 
-// TokenVerifier validates access tokens for authenticated routes.
-type TokenVerifier interface {
-	Authenticate(ctx context.Context, raw string) (Identity, error)
-}
-
 // RequireAuth rejects requests without a valid Bearer access token.
-func RequireAuth(verifier TokenVerifier) gin.HandlerFunc {
+func RequireAuth(verifier auth.TokenVerifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		identity, err := verifier.Authenticate(c.Request.Context(), bearerToken(c))
 		if err != nil {
@@ -33,13 +28,13 @@ func RequireAuth(verifier TokenVerifier) gin.HandlerFunc {
 }
 
 // IdentityFromContext returns the authenticated principal.
-func IdentityFromContext(c *gin.Context) (Identity, bool) {
+func IdentityFromContext(c *gin.Context) (auth.Identity, bool) {
 	value, ok := c.Get(string(identityKey))
 	if !ok {
-		return Identity{}, false
+		return auth.Identity{}, false
 	}
 
-	identity, ok := value.(Identity)
+	identity, ok := value.(auth.Identity)
 
 	return identity, ok
 }

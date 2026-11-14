@@ -1,0 +1,108 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/google/uuid"
+)
+
+// LoginExternal resolves an OAuth identity and issues tokens.
+func (s *Service) LoginExternal(ctx context.Context, identity ExternalIdentity) (TokenPair, error) {
+	identity.Provider = strings.TrimSpace(identity.Provider)
+	identity.ProviderID = strings.TrimSpace(identity.ProviderID)
+
+	if identity.Provider == "" || identity.ProviderID == "" {
+		return TokenPair{}, ErrInvalidExternalIdentity
+	}
+
+	email, err := normalizeEmail(identity.Email)
+	if err != nil {
+		return TokenPair{}, err
+	}
+
+	user, err := s.resolveExternalUser(ctx, identity, email)
+	if err != nil {
+		return TokenPair{}, err
+	}
+
+	return s.issueTokenPair(ctx, user.account())
+}
+
+func (s *Service) resolveExternalUser(
+	ctx context.Context,
+	identity ExternalIdentity,
+	email string,
+) (UserRecord, error) {
+	userID, err := s.store.GetOAuthAccount(ctx, identity.Provider, identity.ProviderID)
+	if err == nil {
+		return s.store.GetUserByID(ctx, userID)
+	}
+
+	if !errors.Is(err, ErrNotFound) {
+		return UserRecord{}, err
+	}
+
+	user, err := s.store.GetUserByEmail(ctx, email)
+	if errors.Is(err, ErrNotFound) {
+		user, err = s.createExternalUser(ctx, email)
+	}
+
+	if err != nil {
+		return UserRecord{}, err
+	}
+
+	return s.linkExternalAccount(ctx, user, identity, email)
+}
+
+func (s *Service) createExternalUser(ctx context.Context, email string) (UserRecord, error) {
+	randomPassword, _, err := NewOpaqueToken()
+	if err != nil {
+		return UserRecord{}, err
+	}
+
+	passwordHash, err := HashPassword(randomPassword)
+	if err != nil {
+		return UserRecord{}, err
+	}
+
+	userID, err := uuid.NewV7()
+	if err != nil {
+		return UserRecord{}, fmt.Errorf("generate user id: %w", err)
+	}
+
+	return s.store.CreateUser(ctx, userID, email, passwordHash, "user")
+}
+
+func (s *Service) linkExternalAccount(
+	ctx context.Context,
+	user UserRecord,
+	identity ExternalIdentity,
+	email string,
+) (UserRecord, error) {
+	oauthID, err := uuid.NewV7()
+	if err != nil {
+		return UserRecord{}, fmt.Errorf("generate oauth account id: %w", err)
+	}
+
+	err = s.store.CreateOAuthAccount(
+		ctx,
+		oauthID,
+		user.ID,
+		identity.Provider,
+		identity.ProviderID,
+		email,
+	)
+	if err == nil {
+		return user, nil
+	}
+
+	linkedUserID, lookupErr := s.store.GetOAuthAccount(ctx, identity.Provider, identity.ProviderID)
+	if lookupErr != nil {
+		return UserRecord{}, err
+	}
+
+	return s.store.GetUserByID(ctx, linkedUserID)
+}

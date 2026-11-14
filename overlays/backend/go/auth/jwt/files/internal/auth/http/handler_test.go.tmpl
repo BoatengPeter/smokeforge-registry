@@ -1,4 +1,4 @@
-package auth
+package authhttp
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"{{.module_path}}/internal/auth"
 	"{{.module_path}}/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,26 +17,25 @@ import (
 )
 
 type stubAuthService struct {
-	loginResult   LoginResult
-	tokenPair     TokenPair
-	googleEnabled bool
-	googleTokens  TokenPair
-	googleErr     error
+	loginResult    auth.LoginResult
+	tokenPair      auth.TokenPair
+	externalTokens auth.TokenPair
+	externalErr    error
 }
 
-func (s stubAuthService) Register(_ context.Context, _, _ string) (Account, error) {
-	return Account{}, nil
+func (s stubAuthService) Register(_ context.Context, _, _ string) (auth.Account, error) {
+	return auth.Account{}, nil
 }
 
-func (s stubAuthService) Login(_ context.Context, _, _ string) (LoginResult, error) {
+func (s stubAuthService) Login(_ context.Context, _, _ string) (auth.LoginResult, error) {
 	return s.loginResult, nil
 }
 
-func (s stubAuthService) CompleteMFA(_ context.Context, _, _ string) (TokenPair, error) {
+func (s stubAuthService) CompleteMFA(_ context.Context, _, _ string) (auth.TokenPair, error) {
 	return s.tokenPair, nil
 }
 
-func (s stubAuthService) Refresh(_ context.Context, _ string) (TokenPair, error) {
+func (s stubAuthService) Refresh(_ context.Context, _ string) (auth.TokenPair, error) {
 	return s.tokenPair, nil
 }
 
@@ -47,30 +47,44 @@ func (s stubAuthService) ForgotPassword(_ context.Context, _ string) {}
 
 func (s stubAuthService) ResetPassword(_ context.Context, _, _ string) error { return nil }
 
-func (s stubAuthService) Authenticate(_ context.Context, _ string) (Identity, error) {
-	return Identity{UserID: uuid.Nil, Role: "user"}, nil
+func (s stubAuthService) Authenticate(_ context.Context, _ string) (auth.Identity, error) {
+	return auth.Identity{UserID: uuid.Nil, Role: "user"}, nil
 }
 
-func (s stubAuthService) GetUser(_ context.Context, _ uuid.UUID) (Account, error) {
-	return Account{}, nil
+func (s stubAuthService) GetUser(_ context.Context, _ uuid.UUID) (auth.Account, error) {
+	return auth.Account{}, nil
 }
 
-func (s stubAuthService) GoogleEnabled() bool { return s.googleEnabled }
+func (s stubAuthService) LoginExternal(
+	_ context.Context,
+	_ auth.ExternalIdentity,
+) (auth.TokenPair, error) {
+	return s.externalTokens, s.externalErr
+}
 
-func (s stubAuthService) BeginGoogle(writer http.ResponseWriter, _ *http.Request) error {
+type stubGoogleOAuth struct{}
+
+func (stubGoogleOAuth) Begin(writer http.ResponseWriter, _ *http.Request) error {
 	writer.Header().Set("Location", "https://accounts.google.com/o/oauth2/auth")
 	writer.WriteHeader(http.StatusTemporaryRedirect)
 
 	return nil
 }
 
-func (s stubAuthService) LoginWithGoogle(_ context.Context, _ http.ResponseWriter, _ *http.Request) (TokenPair, error) {
-	return s.googleTokens, s.googleErr
+func (stubGoogleOAuth) Complete(
+	_ http.ResponseWriter,
+	_ *http.Request,
+) (auth.ExternalIdentity, error) {
+	return auth.ExternalIdentity{
+		Provider:   "google",
+		ProviderID: "google-123",
+		Email:      "user@example.com",
+	}, nil
 }
 
-func (s stubAuthService) GoogleSuccessRedirect() string { return "http://localhost:8080" }
+func (stubGoogleOAuth) SuccessRedirect() string { return "http://localhost:8080" }
 
-func newAuthRouter(t *testing.T, service ServiceContract) *gin.Engine {
+func newAuthRouter(t *testing.T, service ServiceContract, google GoogleOAuth) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -83,7 +97,7 @@ func newAuthRouter(t *testing.T, service ServiceContract) *gin.Engine {
 	}
 
 	router := gin.New()
-	NewHandler(service, cfg, zap.NewNop()).RegisterRoutes(router)
+	NewHandler(service, google, cfg, zap.NewNop()).RegisterRoutes(router)
 
 	return router
 }
@@ -92,13 +106,13 @@ func TestHandlerLoginCookieTransport(t *testing.T) {
 	t.Parallel()
 
 	service := stubAuthService{
-		loginResult: LoginResult{Tokens: &TokenPair{
+		loginResult: auth.LoginResult{Tokens: &auth.TokenPair{
 			AccessToken:  "access",
 			RefreshToken: "refresh",
 			ExpiresIn:    900,
 		}},
 	}
-	router := newAuthRouter(t, service)
+	router := newAuthRouter(t, service, nil)
 	request := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodPost,
@@ -133,13 +147,13 @@ func TestHandlerLoginNativeTransport(t *testing.T) {
 	t.Parallel()
 
 	service := stubAuthService{
-		loginResult: LoginResult{Tokens: &TokenPair{
+		loginResult: auth.LoginResult{Tokens: &auth.TokenPair{
 			AccessToken:  "access",
 			RefreshToken: "refresh",
 			ExpiresIn:    900,
 		}},
 	}
-	router := newAuthRouter(t, service)
+	router := newAuthRouter(t, service, nil)
 	request := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodPost,
@@ -166,7 +180,7 @@ func TestHandlerLoginNativeTransport(t *testing.T) {
 func TestHandlerRefreshCookieRequiresCSRFHeader(t *testing.T) {
 	t.Parallel()
 
-	router := newAuthRouter(t, stubAuthService{})
+	router := newAuthRouter(t, stubAuthService{}, nil)
 	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/auth/refresh", nil)
 	request.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "refresh"})
 
@@ -182,7 +196,7 @@ func TestHandlerRefreshCookieRequiresCSRFHeader(t *testing.T) {
 func TestHandlerStartGoogleOAuthDisabled(t *testing.T) {
 	t.Parallel()
 
-	router := newAuthRouter(t, stubAuthService{})
+	router := newAuthRouter(t, stubAuthService{}, nil)
 	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/auth/oauth/google", nil)
 	response := httptest.NewRecorder()
 
@@ -196,7 +210,7 @@ func TestHandlerStartGoogleOAuthDisabled(t *testing.T) {
 func TestHandlerStartGoogleOAuth(t *testing.T) {
 	t.Parallel()
 
-	router := newAuthRouter(t, stubAuthService{googleEnabled: true})
+	router := newAuthRouter(t, stubAuthService{}, stubGoogleOAuth{})
 	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/auth/oauth/google", nil)
 	response := httptest.NewRecorder()
 
@@ -215,9 +229,8 @@ func TestHandlerGoogleOAuthCallback(t *testing.T) {
 	t.Parallel()
 
 	router := newAuthRouter(t, stubAuthService{
-		googleEnabled: true,
-		googleTokens:  TokenPair{AccessToken: "access", RefreshToken: "refresh", ExpiresIn: 900},
-	})
+		externalTokens: auth.TokenPair{AccessToken: "access", RefreshToken: "refresh", ExpiresIn: 900},
+	}, stubGoogleOAuth{})
 	request := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,

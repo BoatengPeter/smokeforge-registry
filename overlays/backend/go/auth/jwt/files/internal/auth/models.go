@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -15,6 +14,10 @@ var (
 	ErrEmailTaken = errors.New("auth: email already registered")
 	// ErrInvalidToken means a token is missing, expired, or already used.
 	ErrInvalidToken = errors.New("auth: invalid token")
+	// ErrNotFound means a requested record does not exist.
+	ErrNotFound = errors.New("auth: not found")
+	// ErrInvalidExternalIdentity means an OAuth provider returned incomplete data.
+	ErrInvalidExternalIdentity = errors.New("auth: invalid external identity")
 	// ErrEmailNotVerified means the account must verify its email first.
 	ErrEmailNotVerified = errors.New("auth: email not verified")
 	// ErrMFAUnavailable means no second factor is configured.
@@ -48,6 +51,13 @@ type Identity struct {
 	Role   string
 }
 
+// ExternalIdentity is an identity returned by an external OAuth provider.
+type ExternalIdentity struct {
+	Provider   string
+	ProviderID string
+	Email      string
+}
+
 // TokenPair is an access token and its rotated refresh token.
 type TokenPair struct {
 	AccessToken  string
@@ -61,12 +71,6 @@ type LoginResult struct {
 	Tokens       *TokenPair
 	MFAChallenge string
 	MFAExpiresIn int64
-}
-
-// SecondFactor verifies a user's configured second factor.
-type SecondFactor interface {
-	Required(ctx context.Context, userID uuid.UUID) (bool, error)
-	Verify(ctx context.Context, userID uuid.UUID, code string) error
 }
 
 // UserRecord is the internal account row returned by the store.

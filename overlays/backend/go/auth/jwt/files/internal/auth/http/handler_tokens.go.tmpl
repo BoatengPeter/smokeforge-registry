@@ -1,0 +1,139 @@
+package authhttp
+
+import (
+	"errors"
+	"io"
+	"net/http"
+
+	"{{.module_path}}/internal/auth"
+	"{{.module_path}}/internal/response"
+	"github.com/gin-gonic/gin"
+)
+
+const (
+	refreshCookieName = "refresh_token"
+	refreshCookiePath = "/api/v1/auth"
+	refreshBodyHeader = "X-Refresh-Token-Transport"
+	csrfHeader        = "X-Requested-With"
+	csrfValue         = "XMLHttpRequest"
+)
+
+var (
+	errMissingRefreshToken = errors.New("auth: missing refresh token")
+	errCSRF                = errors.New("auth: missing csrf header")
+)
+
+// Refresh rotates a refresh session.
+func (h *Handler) Refresh(c *gin.Context) {
+	raw, err := h.refreshToken(c)
+	if err != nil {
+		h.writeRefreshError(c, err)
+
+		return
+	}
+
+	tokens, err := h.service.Refresh(c.Request.Context(), raw)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	h.writeTokenResponse(c, http.StatusOK, tokens)
+}
+
+// Logout revokes a refresh session.
+func (h *Handler) Logout(c *gin.Context) {
+	raw, err := h.refreshToken(c)
+	if err != nil && !errors.Is(err, errMissingRefreshToken) {
+		h.writeRefreshError(c, err)
+
+		return
+	}
+
+	h.service.Logout(c.Request.Context(), raw)
+	h.clearRefreshCookie(c)
+	c.Status(http.StatusNoContent)
+}
+
+func (h *Handler) writeTokenResponse(c *gin.Context, status int, tokens auth.TokenPair) {
+	response := TokenResponse{
+		AccessToken: tokens.AccessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   tokens.ExpiresIn,
+	}
+
+	if h.returnsRefreshInBody(c) {
+		response.RefreshToken = &tokens.RefreshToken
+	} else {
+		h.setRefreshCookie(c, tokens.RefreshToken)
+	}
+
+	c.JSON(status, response)
+}
+
+func (h *Handler) refreshToken(c *gin.Context) (string, error) {
+	var request RefreshRequest
+
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&request); err != nil && !errors.Is(err, io.EOF) {
+			return "", err
+		}
+	}
+
+	if request.RefreshToken != nil && *request.RefreshToken != "" {
+		return *request.RefreshToken, nil
+	}
+
+	cookie, err := c.Cookie(refreshCookieName)
+	if err != nil {
+		return "", errMissingRefreshToken
+	}
+
+	if c.GetHeader(csrfHeader) != csrfValue {
+		return "", errCSRF
+	}
+
+	return cookie, nil
+}
+
+func (h *Handler) returnsRefreshInBody(c *gin.Context) bool {
+	return c.GetHeader(refreshBodyHeader) == "body"
+}
+
+func (h *Handler) setRefreshCookie(c *gin.Context, token string) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		refreshCookieName,
+		token,
+		int(h.config.RefreshTokenTTL.Seconds()),
+		refreshCookiePath,
+		"",
+		h.config.CookieSecure,
+		true,
+	)
+}
+
+func (h *Handler) clearRefreshCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(
+		refreshCookieName,
+		"",
+		-1,
+		refreshCookiePath,
+		"",
+		h.config.CookieSecure,
+		true,
+	)
+}
+
+func (h *Handler) writeRefreshError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, errCSRF):
+		response.WriteForbidden(c, "The CSRF header is required for cookie-based refresh.")
+	case errors.Is(err, errMissingRefreshToken):
+		response.WriteUnauthorized(c, "A refresh token is required.")
+	default:
+		response.WriteError(c, response.NewError(http.StatusBadRequest, "invalid_request", "Invalid request", "The refresh request is invalid."))
+	}
+}

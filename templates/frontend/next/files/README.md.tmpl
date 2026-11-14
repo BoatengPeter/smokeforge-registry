@@ -139,8 +139,8 @@ smokeforge new ./app --kind frontend --stack next --name "App" --preset fullstac
 # Frontend only
 smokeforge new ./app --kind frontend --stack next --name "App" --preset frontend
 
-# Production: fullstack + Docker + CI + E2E + PostHog
-smokeforge new ./app --kind frontend --stack next --name "App" --preset production
+# Fullstack plus Docker, CI, E2E, and PostHog
+smokeforge new ./app --kind frontend --stack next --name "App" --preset fullstack --feature docker --feature ci:github --feature analytics:posthog
 ```
 
 Individual overlays can be added with `--feature` or `smokeforge add`. For

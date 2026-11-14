@@ -71,11 +71,11 @@ generate:
 		-config internal/httpapi/oapi-codegen.yaml \
 		-o internal/httpapi/api.gen.go \
 		internal/swagger/openapi.yaml
-	@if [ -f internal/auth/oapi-codegen.yaml ]; then \
+	@if [ -f internal/auth/http/oapi-codegen.yaml ]; then \
 		go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
-			-config internal/auth/oapi-codegen.yaml \
-			-o internal/auth/api.gen.go \
-			internal/auth/openapi.yaml; \
+			-config internal/auth/http/oapi-codegen.yaml \
+			-o internal/auth/http/api.gen.go \
+			internal/auth/http/openapi.yaml; \
 	fi
 	@if [ -f internal/auth/totp/oapi-codegen.yaml ]; then \
 		go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \

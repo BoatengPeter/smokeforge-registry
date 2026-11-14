@@ -76,6 +76,9 @@ Rules:
 - `service` is transport-neutral. It must not import Gin or `httpapi`.
 - Feature packages (`internal/database` and `internal/auth`) are
   self-contained and register through `httpapi.Registrar`.
+- `internal/auth` is the application core. Keep HTTP in `internal/auth/http`,
+  persistence in `internal/auth/postgres`, email in `internal/auth/email`, and
+  Google OAuth in `internal/auth/google`; the core must not import them.
 - Interfaces belong where consumed. Start concrete; extract interfaces when a
   second consumer or test needs them.
 - Pass `context.Context` first and propagate it through every call.

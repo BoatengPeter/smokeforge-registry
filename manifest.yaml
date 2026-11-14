@@ -43,27 +43,17 @@ presets:
     description: The base app without backend or client state
     kinds: [frontend]
     features: []
-  - id: production
-    name: Production Next.js
-    description: Fullstack Next.js plus Docker, CI, E2E, and PostHog
-    kinds: [frontend]
-    features: [database:postgres, auth:session, state:zustand, testing:e2e, docker, ci:github, analytics:posthog]
   - id: api
     name: Go API
     description: Postgres and JWT authentication
     kinds: [backend]
     default: true
     features: [database:postgres, auth:jwt]
-  - id: api-minimal
-    name: Go API only
-    description: The base Go API without database or authentication
+  - id: api-custom
+    name: Custom Go API
+    description: Choose database, authentication, TOTP, Docker, and CI
     kinds: [backend]
     features: []
-  - id: api-production
-    name: Production Go API
-    description: Postgres, auth/users, Google OAuth, TOTP, Docker, and CI
-    kinds: [backend]
-    features: [database:postgres, auth:jwt, totp, docker, ci:github]
 features:
   - id: docker
     name: Docker

@@ -1,4 +1,5 @@
-package auth
+// Package email delivers transactional authentication email.
+package email
 
 import (
 	"context"
@@ -10,18 +11,14 @@ import (
 	"strconv"
 	"strings"
 
+	"{{.module_path}}/internal/auth"
 	"{{.module_path}}/internal/config"
 	"go.uber.org/zap"
 )
 
-// EmailSender delivers transactional authentication emails.
-type EmailSender interface {
-	Send(ctx context.Context, to, subject, body string) error
-}
-
-// NewEmailSender returns a local logger in development or an SMTP sender when
+// NewSender returns a local logger in development or an SMTP sender when
 // SMTP is configured. Production fails closed without SMTP.
-func NewEmailSender(cfg config.Config, logger *zap.Logger) (EmailSender, error) {
+func NewSender(cfg config.Config, logger *zap.Logger) (auth.EmailSender, error) {
 	if strings.TrimSpace(cfg.SMTPHost) == "" {
 		if cfg.IsProduction() {
 			return nil, errors.New("auth: smtp host is required in production")

@@ -1,0 +1,141 @@
+package googleauth
+
+import (
+	"errors"
+	"testing"
+
+	"{{.module_path}}/internal/auth"
+	"{{.module_path}}/internal/config"
+	"github.com/markbates/goth"
+)
+
+//nolint:paralleltest // gothic.Store is process-global and this test configures it.
+func TestNewProvider(t *testing.T) {
+	tests := []struct {
+		name      string
+		clientID  string
+		secret    string
+		wantError bool
+		wantNil   bool
+	}{
+		{name: "disabled", wantNil: true},
+		{name: "missing secret", clientID: "id", wantError: true},
+		{name: "configured", clientID: "id", secret: "secret"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.Config{
+				JWTSecret:          "0123456789abcdef0123456789abcdef",
+				PublicBaseURL:      "http://localhost:8080",
+				GoogleClientID:     test.clientID,
+				GoogleClientSecret: test.secret,
+			}
+
+			provider, err := New(cfg)
+			if test.wantError {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("new provider: %v", err)
+			}
+
+			if test.wantNil && provider != nil {
+				t.Fatal("provider should be nil")
+			}
+
+			if !test.wantNil && provider == nil {
+				t.Fatal("provider should be configured")
+			}
+
+			if provider != nil && provider.SuccessRedirect() != cfg.PublicBaseURL {
+				t.Fatalf("redirect = %q", provider.SuccessRedirect())
+			}
+		})
+	}
+}
+
+func TestExternalIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		profile   goth.User
+		wantError error
+		expected  auth.ExternalIdentity
+	}{
+		{
+			name: "verified account",
+			profile: goth.User{
+				UserID:  "google-123",
+				Email:   "user@example.com",
+				RawData: map[string]any{"verified_email": true},
+			},
+			expected: auth.ExternalIdentity{
+				Provider:   "google",
+				ProviderID: "google-123",
+				Email:      "user@example.com",
+			},
+		},
+		{
+			name: "verification missing",
+			profile: goth.User{
+				UserID: "google-123",
+				Email:  "user@example.com",
+			},
+			expected: auth.ExternalIdentity{
+				Provider:   "google",
+				ProviderID: "google-123",
+				Email:      "user@example.com",
+			},
+		},
+		{
+			name: "missing subject",
+			profile: goth.User{
+				Email: "user@example.com",
+			},
+			wantError: auth.ErrInvalidExternalIdentity,
+		},
+		{
+			name: "unverified email",
+			profile: goth.User{
+				UserID:  "google-123",
+				Email:   "user@example.com",
+				RawData: map[string]any{"verified_email": false},
+			},
+			wantError: auth.ErrEmailNotVerified,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			identity, err := externalIdentity(test.profile)
+			if test.wantError != nil {
+				if err == nil {
+					t.Fatalf("expected error %v", test.wantError)
+				}
+
+				if !errors.Is(err, test.wantError) {
+					t.Fatalf("error = %v, want %v", err, test.wantError)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("external identity: %v", err)
+			}
+
+			if identity != test.expected {
+				t.Fatalf("identity = %+v, want %+v", identity, test.expected)
+			}
+		})
+	}
+}

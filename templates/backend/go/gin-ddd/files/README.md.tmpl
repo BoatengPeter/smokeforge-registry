@@ -60,10 +60,12 @@ internal/server/              HTTP and pprof lifecycle, graceful shutdown
 internal/version/             build metadata
 ```
 
-Feature overlays add self-contained packages such as `internal/database`,
-`internal/auth`. Features register routes through
-`httpapi.Registrar` and contribute their own OpenAPI documents; the base merges
-them at startup.
+Feature overlays add self-contained packages such as `internal/database` and
+`internal/auth`. Auth keeps its application core free of transport and
+infrastructure imports; HTTP, PostgreSQL, email, and Google OAuth live in
+`internal/auth/http`, `internal/auth/postgres`, `internal/auth/email`, and
+`internal/auth/google`. Features register routes through `httpapi.Registrar`
+and contribute their own OpenAPI documents; the base merges them at startup.
 
 ## Commands
 

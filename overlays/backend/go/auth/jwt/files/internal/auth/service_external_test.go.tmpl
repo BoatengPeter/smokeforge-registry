@@ -1,0 +1,196 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+type externalStore struct {
+	Store
+
+	users          map[uuid.UUID]UserRecord
+	userByEmail    UserRecord
+	emailErr       error
+	oauthUserID    uuid.UUID
+	oauthErr       error
+	createOAuthErr error
+	createdUser    UserRecord
+	created        bool
+	linked         bool
+	linkedProvider string
+}
+
+func (s *externalStore) GetOAuthAccount(context.Context, string, string) (uuid.UUID, error) {
+	if s.oauthErr != nil {
+		return uuid.Nil, s.oauthErr
+	}
+
+	if s.oauthUserID != uuid.Nil {
+		return s.oauthUserID, nil
+	}
+
+	return uuid.Nil, ErrNotFound
+}
+
+func (s *externalStore) GetUserByID(_ context.Context, id uuid.UUID) (UserRecord, error) {
+	user, ok := s.users[id]
+	if !ok {
+		return UserRecord{}, ErrNotFound
+	}
+
+	return user, nil
+}
+
+func (s *externalStore) GetUserByEmail(context.Context, string) (UserRecord, error) {
+	if s.emailErr != nil {
+		return UserRecord{}, s.emailErr
+	}
+
+	return s.userByEmail, nil
+}
+
+func (s *externalStore) CreateUser(
+	context.Context,
+	uuid.UUID,
+	string,
+	string,
+	string,
+) (UserRecord, error) {
+	s.created = true
+
+	return s.createdUser, nil
+}
+
+func (s *externalStore) CreateOAuthAccount(
+	_ context.Context,
+	_, _ uuid.UUID,
+	provider, _, _ string,
+) error {
+	if s.createOAuthErr != nil {
+		return s.createOAuthErr
+	}
+
+	s.linked = true
+	s.linkedProvider = provider
+
+	return nil
+}
+
+func (s *externalStore) CreateToken(context.Context, CreateTokenParams) error {
+	return nil
+}
+
+func TestLoginExternalExistingAccount(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.MustParse("01934f5a-7d0f-7a61-9e0b-7b2f4b4b6a1e")
+	store := &externalStore{
+		users:       map[uuid.UUID]UserRecord{userID: {ID: userID, Email: "user@example.com"}},
+		oauthUserID: userID,
+	}
+
+	service, err := NewService(store, serviceTestConfig(), zap.NewNop(), nil)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	pair, err := service.LoginExternal(context.Background(), ExternalIdentity{
+		Provider:   "google",
+		ProviderID: "google-123",
+		Email:      "user@example.com",
+	})
+	if err != nil {
+		t.Fatalf("login external: %v", err)
+	}
+
+	if pair.AccessToken == "" {
+		t.Fatal("access token is empty")
+	}
+
+	if store.linked || store.created {
+		t.Fatalf("linked=%t created=%t, want false/false", store.linked, store.created)
+	}
+}
+
+func TestLoginExternalLinksEmailAccount(t *testing.T) {
+	t.Parallel()
+
+	user := UserRecord{
+		ID:    uuid.MustParse("01934f5a-7d0f-7a61-9e0b-7b2f4b4b6a1e"),
+		Email: "user@example.com",
+	}
+	store := &externalStore{users: map[uuid.UUID]UserRecord{user.ID: user}, userByEmail: user}
+
+	service, err := NewService(store, serviceTestConfig(), zap.NewNop(), nil)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, err = service.LoginExternal(context.Background(), ExternalIdentity{
+		Provider:   "google",
+		ProviderID: "google-123",
+		Email:      "user@example.com",
+	})
+	if err != nil {
+		t.Fatalf("login external: %v", err)
+	}
+
+	if !store.linked || store.linkedProvider != "google" {
+		t.Fatalf("linked=%t provider=%q", store.linked, store.linkedProvider)
+	}
+
+	if store.created {
+		t.Fatal("existing email account was recreated")
+	}
+}
+
+func TestLoginExternalCreatesAccount(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.MustParse("01934f5a-7d0f-7a61-9e0b-7b2f4b4b6a1e")
+	store := &externalStore{
+		users:       map[uuid.UUID]UserRecord{userID: {ID: userID, Email: "user@example.com"}},
+		emailErr:    ErrNotFound,
+		createdUser: UserRecord{ID: userID, Email: "user@example.com"},
+	}
+
+	service, err := NewService(store, serviceTestConfig(), zap.NewNop(), nil)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, err = service.LoginExternal(context.Background(), ExternalIdentity{
+		Provider:   "google",
+		ProviderID: "google-123",
+		Email:      "user@example.com",
+	})
+	if err != nil {
+		t.Fatalf("login external: %v", err)
+	}
+
+	if !store.created {
+		t.Fatal("new external account was not created")
+	}
+
+	if !store.linked {
+		t.Fatal("new external account was not linked")
+	}
+}
+
+func TestLoginExternalRequiresProviderSubject(t *testing.T) {
+	t.Parallel()
+
+	service, err := NewService(&externalStore{}, serviceTestConfig(), zap.NewNop(), nil)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, err = service.LoginExternal(context.Background(), ExternalIdentity{Email: "user@example.com"})
+	if !errors.Is(err, ErrInvalidExternalIdentity) {
+		t.Fatalf("error = %v, want invalid external identity", err)
+	}
+}

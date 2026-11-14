@@ -1,0 +1,43 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"go.uber.org/zap"
+)
+
+type missingUserStore struct {
+	Store
+}
+
+func (missingUserStore) GetUserByEmail(context.Context, string) (UserRecord, error) {
+	return UserRecord{}, ErrNotFound
+}
+
+func serviceTestConfig() config.Config {
+	return config.Config{
+		JWTSecret:       "0123456789abcdef0123456789abcdef",
+		JWTIssuer:       "test-issuer",
+		JWTAudience:     "test-audience",
+		AccessTokenTTL:  15 * time.Minute,
+		RefreshTokenTTL: time.Hour,
+	}
+}
+
+func TestLoginUnknownEmailIsInvalidCredentials(t *testing.T) {
+	t.Parallel()
+
+	service, err := NewService(missingUserStore{}, serviceTestConfig(), zap.NewNop(), nil)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+
+	_, err = service.Login(context.Background(), "missing@example.com", "correct horse battery")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("error = %v, want invalid credentials", err)
+	}
+}
