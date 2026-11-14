@@ -12,6 +12,7 @@ Feature overlays add their own documents when selected:
 - `AUTH.md` — users, JWT sessions, email flows, and Google OAuth.
 - `TOTP.md` — two-factor enrollment, recovery codes, and login flow.
 - `DATABASE.md` — PostgreSQL setup, migrations, pool settings, and readiness.
+- `CACHE.md` — Redis cache API, TTLs, fail-open behavior, and local/full Docker usage.
 - `DOCKER.md` — full-stack Compose and the local-API/Docker-database workflow.
 - `CI.md` — GitHub Actions checks and integration-test notes.
 

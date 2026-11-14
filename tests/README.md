@@ -9,8 +9,8 @@ them. It requires:
 - optional Docker CLI for `docker compose config`
 
 It covers all four Go/Gin architecture bases with `api-custom` (base) and
-`api` plus TOTP, Docker, and CI, the database-only overlay, and generated code
-drift.
+`api` plus TOTP, cache, Docker, and CI, the database-only and cache-only
+overlays, and generated code drift.
 
 ```bash
 SMOKEFORGE_BIN=../smokeforge/bin/smokeforge ./tests/verify-templates.sh

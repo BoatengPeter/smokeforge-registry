@@ -17,6 +17,10 @@ When PostgreSQL is included, Compose also runs a one-shot `migrate` service
 before starting the API. The API waits for migrations to complete, so the full
 stack starts with the schema ready.
 
+Selected infrastructure overlays add `compose.override.*.yaml` files. The
+Docker Makefile merges them automatically, so `make docker-up` and
+`make docker-down` operate on the complete selected stack.
+
 ## Run only PostgreSQL in Docker
 
 ```bash

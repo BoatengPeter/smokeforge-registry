@@ -7,8 +7,11 @@ LDFLAGS := -s -w \
 	-X '{{.module_path}}/internal/version.commit=$(COMMIT)' \
 	-X '{{.module_path}}/internal/version.date=$(DATE)'
 
+# smokeforge:anchor docker-compose-vars
+
 .PHONY: help install run dev build test test-race test-integration lint fmt fmt-check vet vulncheck generate clean ci
 # smokeforge:anchor db-phony
+# smokeforge:anchor cache-phony
 # smokeforge:anchor docker-phony
 
 help:
@@ -28,6 +31,7 @@ help:
 	@echo "make ci               Run formatting, vet, lint, tests, race, and build"
 	@echo "make clean            Remove build output"
 	# smokeforge:anchor db-help
+	# smokeforge:anchor cache-help
 	# smokeforge:anchor docker-help
 
 install:
@@ -93,4 +97,5 @@ clean:
 	rm -rf bin tmp coverage.out
 
 # smokeforge:anchor db-targets
+# smokeforge:anchor cache-targets
 # smokeforge:anchor docker-targets

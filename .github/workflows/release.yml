@@ -28,4 +28,4 @@ jobs:
             dist/registry.tar.gz \
             dist/registry.sha256 \
             --title "smokeforge-registry $GITHUB_REF_NAME" \
-            --notes "Go/Gin auth/users base with a transport-neutral core and HTTP/Postgres/email/Google adapters. Adds default Postgres+JWT presets, custom API feature selection, TOTP, Swagger, Docker Compose with one-shot migrations, CI, and 19 project skills."
+            --notes "Go/Gin auth/users base with a transport-neutral core and HTTP/Postgres/email/Google adapters. Adds default Postgres+JWT presets, custom API feature selection, Redis cache, TOTP, Swagger, Docker Compose with one-shot migrations, CI, and 19 project skills."

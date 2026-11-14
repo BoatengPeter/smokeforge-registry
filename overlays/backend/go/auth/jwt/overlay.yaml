@@ -97,12 +97,13 @@ ops:
       file: cmd/api/main.go
       anchor: import-auth
       marker: auth:jwt-import
-      content: |-
+      content: |
         auth "{{.module_path}}/internal/auth"
         authemail "{{.module_path}}/internal/auth/email"
         googleauth "{{.module_path}}/internal/auth/google"
         authhttp "{{.module_path}}/internal/auth/http"
         authpostgres "{{.module_path}}/internal/auth/postgres"
+
   - insertAfter:
       file: cmd/api/main.go
       anchor: main-auth

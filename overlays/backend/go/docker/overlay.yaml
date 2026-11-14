@@ -9,6 +9,13 @@ ops:
       - {path: docs/DOCKER.md, dest: docs/DOCKER.md}
   - insertAfter:
       file: Makefile
+      anchor: docker-compose-vars
+      marker: docker-compose-vars
+      content: |-
+        COMPOSE_OVERRIDES := $(wildcard compose.override.yaml) $(wildcard compose.override.*.yaml)
+        COMPOSE_FILES := -f compose.yaml $(addprefix -f ,$(COMPOSE_OVERRIDES))
+  - insertAfter:
+      file: Makefile
       anchor: docker-phony
       marker: docker-make-phony
       content: '.PHONY: docker-build docker-up docker-down'
@@ -29,11 +36,7 @@ ops:
         	docker build -t $(BINARY:bin/%=%) .
 
         docker-up:
-        	@if [ -f compose.override.yaml ]; then \
-        		docker compose -f compose.yaml -f compose.override.yaml up -d --build; \
-        	else \
-        		docker compose up -d --build; \
-        	fi
+        	docker compose $(COMPOSE_FILES) up -d --build
 
         docker-down:
-        	docker compose down
+        	docker compose $(COMPOSE_FILES) down

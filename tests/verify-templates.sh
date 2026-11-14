@@ -43,8 +43,10 @@ import sys
 root = pathlib.Path(sys.argv[1])
 missing = []
 for document in [root / "README.md", *sorted((root / "docs").glob("*.md"))]:
-    for target in re.findall(r"\]\(([^)]+)\)", document.read_text()):
-        if "://" in target or target.startswith("#"):
+    text = re.sub(r"```.*?```", "", document.read_text(), flags=re.S)
+    text = re.sub(r"`[^`]*`", "", text)
+    for target in re.findall(r"\]\(([^)]+)\)", text):
+        if "://" in target or target.startswith("#") or " " in target:
             continue
         path = target.split("#", 1)[0]
         if path and not (document.parent / path).resolve().exists():
@@ -102,6 +104,7 @@ for stack in "${stacks[@]}"; do
     --name "Verify $stack full" \
     --preset api \
     --feature totp \
+    --feature cache:redis \
     --feature docker \
     --feature ci:github \
     --var "module_path=example.com/verify/$slug/full" \
@@ -109,14 +112,23 @@ for stack in "${stacks[@]}"; do
     --no-input --no-git
   run_generated_checks "$target"
   if command -v docker >/dev/null 2>&1; then
-    services="$(cd "$target" && docker compose -f compose.yaml -f compose.override.yaml config --services)"
-    for service in api db migrate; do
+    compose_files=(-f compose.yaml)
+    if [[ -f "$target/compose.override.yaml" ]]; then
+      compose_files+=(-f compose.override.yaml)
+    fi
+    for override in "$target"/compose.override.*.yaml; do
+      if [[ -e "$override" ]]; then
+        compose_files+=(-f "$(basename "$override")")
+      fi
+    done
+    services="$(cd "$target" && docker compose "${compose_files[@]}" config --services)"
+    for service in api db migrate redis; do
       if ! grep -qx "$service" <<<"$services"; then
         echo "  compose stack is missing service: $service" >&2
         exit 1
       fi
     done
-    (cd "$target" && docker compose -f compose.yaml -f compose.override.yaml config >/dev/null)
+    (cd "$target" && docker compose "${compose_files[@]}" config >/dev/null)
   fi
 done
 
@@ -149,6 +161,27 @@ target="$TMP/go-gin-layered-db"
   --var http_port=8080 \
   --no-input --no-git
 run_generated_checks "$target"
+
+echo "== cache-only overlay"
+target="$TMP/go-gin-layered-cache"
+"$CLI_BIN" new "$target" \
+  --registry "$ROOT" \
+  --kind backend \
+  --stack go/gin-layered \
+  --name "Verify cache only" \
+  --preset api-custom \
+  --feature cache:redis \
+  --var module_path=example.com/verify/cache \
+  --var http_port=8080 \
+  --no-input --no-git
+run_generated_checks "$target"
+if [[ ! -f "$target/docs/CACHE.md" ]]; then
+  echo "  cache documentation is missing" >&2
+  exit 1
+fi
+if command -v docker >/dev/null 2>&1; then
+  (cd "$target" && docker compose -f compose.cache.yaml config >/dev/null)
+fi
 
 echo "== generated code drift check"
 target="$TMP/go-gin-layered-full"

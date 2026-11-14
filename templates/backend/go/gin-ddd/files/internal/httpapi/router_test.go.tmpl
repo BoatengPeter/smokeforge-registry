@@ -262,6 +262,7 @@ func TestRouterBodyLimitPreservesCORS(t *testing.T) {
 		strings.NewReader(strings.Repeat("x", 2048)),
 	)
 	request.Header.Set("Origin", "https://app.example.com")
+
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -284,9 +285,11 @@ func TestRouterRateLimitIncludesCORS(t *testing.T) {
 	router := newTestRouterWithConfig(t, cfg, WithPinger(stubPinger{message: "pong"}))
 
 	var response *httptest.ResponseRecorder
+
 	for attempt := 1; attempt <= 2; attempt++ {
 		request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/ping", nil)
 		request.Header.Set("Origin", "https://app.example.com")
+
 		response = httptest.NewRecorder()
 
 		router.ServeHTTP(response, request)

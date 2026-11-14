@@ -51,7 +51,7 @@ presets:
     features: [database:postgres, auth:jwt]
   - id: api-custom
     name: Custom Go API
-    description: Choose database, authentication, TOTP, Docker, and CI
+    description: Choose database, cache, authentication, TOTP, Docker, and CI
     kinds: [backend]
     features: []
 features:
@@ -90,6 +90,24 @@ features:
           go/gin-hexagonal: overlays/backend/go/database/postgres
           go/gin-ddd: overlays/backend/go/database/postgres
           next: overlays/next/database/postgres
+  - id: cache
+    name: Cache
+    kinds: [backend]
+    variants:
+      - id: redis
+        name: Redis
+        default: true
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/cache/redis
+          go/gin-layered: overlays/backend/go/cache/redis
+          go/gin-hexagonal: overlays/backend/go/cache/redis
+          go/gin-ddd: overlays/backend/go/cache/redis
+
   - id: state
     name: Client state
     kinds: [frontend]

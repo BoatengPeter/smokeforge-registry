@@ -33,8 +33,9 @@ tests/                                 # contract/build matrix
   shutdown.
 - Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
 - Frontend presets: `fullstack` (default) and `frontend`.
-- Overlays: Postgres/pgx/sqlc/goose, users/JWT auth, Google OAuth, TOTP,
-  Docker, CI, embedded migrations, and optional demo-user seeding.
+- Overlays: Postgres/pgx/sqlc/goose, optional Redis cache, users/JWT auth,
+  Google OAuth, TOTP, Docker, CI, embedded migrations, and optional demo-user
+  seeding.
 - All 17 Go skills plus `sql-optimization-patterns` and `postgresql-optimization` ship under `.agents/skills` and `.claude/skills`.
 
 ## Current Next decisions

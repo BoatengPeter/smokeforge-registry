@@ -1,0 +1,109 @@
+id: cache:redis
+name: Redis cache
+files: files
+ops:
+  - addFiles:
+      - {path: internal/cache/cache.go, dest: internal/cache/cache.go}
+      - {path: internal/cache/cache_test.go, dest: internal/cache/cache_test.go}
+      - {path: internal/cache/redis/store.go.tmpl, dest: internal/cache/redis/store.go}
+      - {path: internal/cache/redis/store_test.go.tmpl, dest: internal/cache/redis/store_test.go}
+      - {path: internal/config/config_cache.go, dest: internal/config/config_cache.go}
+      - {path: internal/config/config_cache_test.go, dest: internal/config/config_cache_test.go}
+      - {path: compose.cache.yaml, dest: compose.cache.yaml}
+      - {path: compose.override.cache.yaml, dest: compose.override.cache.yaml}
+      - {path: docs/CACHE.md, dest: docs/CACHE.md}
+  - addDependency: {file: go.mod, module: github.com/redis/go-redis/v9, version: v9.23.0}
+  - addDependency: {file: go.mod, module: github.com/alicebob/miniredis/v2, version: v2.40.0}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: cache:redis-config
+      content: |-
+        RedisURL          string        `env:"REDIS_URL" envDefault:"redis://localhost:6379/0"`
+        RedisKeyPrefix    string        `env:"REDIS_KEY_PREFIX" envDefault:""`
+        RedisDialTimeout  time.Duration `env:"REDIS_DIAL_TIMEOUT" envDefault:"5s"`
+        RedisReadTimeout  time.Duration `env:"REDIS_READ_TIMEOUT" envDefault:"3s"`
+        RedisWriteTimeout time.Duration `env:"REDIS_WRITE_TIMEOUT" envDefault:"3s"`
+        RedisPoolSize     int           `env:"REDIS_POOL_SIZE" envDefault:"10"`
+        RedisMinIdleConns int           `env:"REDIS_MIN_IDLE_CONNS" envDefault:"1"`
+        RedisMaxRetries   int           `env:"REDIS_MAX_RETRIES" envDefault:"3"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: cache:redis-config-test
+      content: |-
+        RedisURL:          "redis://localhost:6379/0",
+        RedisKeyPrefix:    "test",
+        RedisDialTimeout:  5 * time.Second,
+        RedisReadTimeout:  3 * time.Second,
+        RedisWriteTimeout: 3 * time.Second,
+        RedisPoolSize:     10,
+        RedisMinIdleConns: 1,
+        RedisMaxRetries:   3,
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: cache:redis-validation
+      content: |-
+        if err := c.validateCache(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-cache
+      marker: cache:redis-import
+      content: |-
+        rediscache "{{.module_path}}/internal/cache/redis"
+        "go.uber.org/zap"
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: main-cache
+      marker: cache:redis-main
+      content: |-
+        cacheStore, err := rediscache.New(cfg)
+        if err != nil {
+        	return fmt.Errorf("create cache: %w", err)
+        }
+
+        defer func() {
+        	_ = cacheStore.Close()
+        }()
+
+        if err := cacheStore.Ping(ctx); err != nil {
+        	logger.Warn("cache unavailable; continuing without cache", zap.Error(err))
+        }
+  - insertAfter:
+      file: Makefile
+      anchor: cache-phony
+      marker: cache:redis-make-phony
+      content: '.PHONY: cache-up cache-down cache-shell'
+  - insertAfter:
+      file: Makefile
+      anchor: cache-help
+      marker: cache:redis-make-help
+      content: |-
+        @echo "make cache-up         Start Redis with Docker"
+        @echo "make cache-down       Stop Redis"
+        @echo "make cache-shell      Open redis-cli in the cache container"
+  - insertAfter:
+      file: Makefile
+      anchor: cache-targets
+      marker: cache:redis-make-targets
+      content: |-
+        cache-up:
+        	docker compose -f compose.cache.yaml up -d
+
+        cache-down:
+        	docker compose -f compose.cache.yaml down
+
+        cache-shell:
+        	docker compose -f compose.cache.yaml exec redis redis-cli
+  - env: {key: REDIS_PORT, example: "6379"}
+  - env: {key: REDIS_URL, example: "redis://localhost:6379/0"}
+  - env: {key: REDIS_KEY_PREFIX, example: ""}
+  - env: {key: REDIS_DIAL_TIMEOUT, example: 5s}
+  - env: {key: REDIS_READ_TIMEOUT, example: 3s}
+  - env: {key: REDIS_WRITE_TIMEOUT, example: 3s}
+  - env: {key: REDIS_POOL_SIZE, example: "10"}
+  - env: {key: REDIS_MIN_IDLE_CONNS, example: "1"}
+  - env: {key: REDIS_MAX_RETRIES, example: "3"}

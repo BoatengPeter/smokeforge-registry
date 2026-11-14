@@ -1,0 +1,118 @@
+// Package rediscache implements the cache port with Redis.
+package rediscache
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"{{.module_path}}/internal/cache"
+	"{{.module_path}}/internal/config"
+	goredis "github.com/redis/go-redis/v9"
+)
+
+// Store implements cache.Store with a Redis client.
+type Store struct {
+	client *goredis.Client
+	prefix string
+}
+
+var _ cache.Store = (*Store)(nil)
+
+// New constructs a Redis-backed cache client. It does not require Redis to be
+// reachable at construction time; callers perform an optional startup ping.
+func New(cfg config.Config) (*Store, error) {
+	options, err := goredis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse redis url: %w", err)
+	}
+
+	options.DialTimeout = cfg.RedisDialTimeout
+	options.ReadTimeout = cfg.RedisReadTimeout
+	options.WriteTimeout = cfg.RedisWriteTimeout
+	options.PoolSize = cfg.RedisPoolSize
+	options.MinIdleConns = cfg.RedisMinIdleConns
+	options.MaxRetries = cfg.RedisMaxRetries
+
+	prefix := strings.TrimSpace(cfg.RedisKeyPrefix)
+	if prefix == "" {
+		prefix = cfg.ServiceName
+	}
+
+	return &Store{
+		client: goredis.NewClient(options),
+		prefix: strings.TrimRight(prefix, ":"),
+	}, nil
+}
+
+// Get returns one cached value and reports whether it existed.
+func (s *Store) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	if err := cache.ValidateKey(key); err != nil {
+		return nil, false, err
+	}
+
+	value, err := s.client.Get(ctx, s.key(key)).Bytes()
+	if errors.Is(err, goredis.Nil) {
+		return nil, false, nil
+	}
+
+	if err != nil {
+		return nil, false, fmt.Errorf("cache: get: %w", err)
+	}
+
+	return value, true, nil
+}
+
+// Set stores a value with a mandatory positive TTL.
+func (s *Store) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+	if err := cache.ValidateKey(key); err != nil {
+		return err
+	}
+
+	if err := cache.ValidateTTL(ttl); err != nil {
+		return err
+	}
+
+	if err := s.client.Set(ctx, s.key(key), value, ttl).Err(); err != nil {
+		return fmt.Errorf("cache: set: %w", err)
+	}
+
+	return nil
+}
+
+// Delete removes one cached value.
+func (s *Store) Delete(ctx context.Context, key string) error {
+	if err := cache.ValidateKey(key); err != nil {
+		return err
+	}
+
+	if err := s.client.Del(ctx, s.key(key)).Err(); err != nil {
+		return fmt.Errorf("cache: delete: %w", err)
+	}
+
+	return nil
+}
+
+// Ping checks Redis connectivity.
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("cache: ping: %w", err)
+	}
+
+	return nil
+}
+
+// Close releases pooled Redis connections.
+func (s *Store) Close() error {
+	if err := s.client.Close(); err != nil {
+		return fmt.Errorf("cache: close: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) key(key string) string {
+	return s.prefix + ":" + key
+}

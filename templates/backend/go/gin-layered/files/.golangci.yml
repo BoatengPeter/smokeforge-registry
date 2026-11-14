@@ -136,3 +136,5 @@ formatters:
       - third_party$
       - builtin$
       - examples$
+      # The composition root is managed by overlay import anchors.
+      - 'cmd/api/main\.go$'
