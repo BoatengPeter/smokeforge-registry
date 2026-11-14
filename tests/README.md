@@ -5,6 +5,7 @@ them. It requires:
 
 - `SMOKEFORGE_BIN` pointing to a built smokeforge binary
 - Go 1.26+
+- Python 3 for documentation link checks
 - optional Docker CLI for `docker compose config`
 
 It covers all four Go/Gin architecture bases with `api-custom` (base) and

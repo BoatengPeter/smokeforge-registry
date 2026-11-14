@@ -29,6 +29,32 @@ run_generated_checks() {
     echo "  generated .env must not export GIN_MODE to Gin" >&2
     return 1
   fi
+  for doc in docs/README.md docs/ARCHITECTURE.md docs/API.md; do
+    if [[ ! -f "$project/$doc" ]]; then
+      echo "  generated docs are missing: $doc" >&2
+      return 1
+    fi
+  done
+  python3 - "$project" <<'PY'
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(sys.argv[1])
+missing = []
+for document in [root / "README.md", *sorted((root / "docs").glob("*.md"))]:
+    for target in re.findall(r"\]\(([^)]+)\)", document.read_text()):
+        if "://" in target or target.startswith("#"):
+            continue
+        path = target.split("#", 1)[0]
+        if path and not (document.parent / path).resolve().exists():
+            missing.append(f"{document.relative_to(root)} -> {target}")
+if missing:
+    print("  broken documentation links:", file=sys.stderr)
+    for item in missing:
+        print(f"    {item}", file=sys.stderr)
+    sys.exit(1)
+PY
   (cd "$project" && GOWORK=off make install && GOWORK=off go test ./... && GOWORK=off go vet ./... && GOWORK=off go build ./...)
   assert_auth_boundaries "$project"
 }

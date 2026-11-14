@@ -137,6 +137,14 @@ and `request_id` extensions. Validation failures return `422` with field-level
   refresh sessions, and TOTP. Refresh cookies are Secure/HttpOnly and
   SameSite=Lax; native clients can request body tokens explicitly.
 
+
+## Documentation
+
+Start with [docs/README.md](docs/README.md). The base documents are
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+[docs/API.md](docs/API.md); selected feature overlays add their own docs for
+auth, TOTP, PostgreSQL, Docker, and CI.
+
 ## Customize this API
 
 1. Change the contract in `internal/swagger/openapi.yaml`.

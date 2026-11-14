@@ -6,8 +6,8 @@ migration command. Auth adds the `users` schema on top.
 ## Start and migrate
 
 ```bash
-make db-up
 make install
+make db-up
 make db-migrate
 make run
 ```

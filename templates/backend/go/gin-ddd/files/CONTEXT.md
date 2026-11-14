@@ -179,4 +179,6 @@ claim success without fresh evidence.
 - `CONTEXT.md` — this file: rules and quality gate.
 - `AGENTS.md` — full agent guide and skill routing.
 - `CLAUDE.md` — quick agent guide.
-- `docs/ARCHITECTURE.md` — package boundaries and request flow.
+- `docs/README.md` — documentation index.
+- `docs/ARCHITECTURE.md` — package boundaries, lifecycle, middleware, and DI.
+- `docs/API.md` — OpenAPI contract and versioning.
