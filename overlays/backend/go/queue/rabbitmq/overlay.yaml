@@ -98,7 +98,7 @@ ops:
       marker: queue:rabbitmq-make-targets
       content: |-
         queue-up:
-        	docker compose -f compose.queue.yaml up -d
+        	docker compose -f compose.queue.yaml up -d --wait
 
         queue-down:
         	docker compose -f compose.queue.yaml down
