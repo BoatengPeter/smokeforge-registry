@@ -1,0 +1,85 @@
+package scheduler
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/alicebob/miniredis/v2"
+	"go.uber.org/zap"
+)
+
+func TestRedisLeaderRunsAndReleasesLease(t *testing.T) {
+	t.Parallel()
+
+	server, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("start miniredis: %v", err)
+	}
+
+	defer server.Close()
+
+	cfg := config.Config{
+		ServiceName:         "test-service",
+		RedisURL:            "redis://" + server.Addr() + "/0",
+		RedisDialTimeout:    time.Second,
+		RedisReadTimeout:    time.Second,
+		RedisWriteTimeout:   time.Second,
+		RedisPoolSize:       2,
+		RedisMinIdleConns:   1,
+		RedisMaxRetries:     1,
+		SchedulerLeaseTTL:   5 * time.Second,
+		SchedulerLeaseRenew: time.Second,
+		SchedulerLeaseRetry: 100 * time.Millisecond,
+	}
+
+	leader, err := NewRedisLeader(cfg, zap.NewNop())
+	if err != nil {
+		t.Fatalf("new leader: %v", err)
+	}
+
+	defer func() {
+		_ = leader.Close()
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	result := make(chan error, 1)
+
+	go func() {
+		result <- leader.Run(ctx, func(ctx context.Context) error {
+			close(started)
+			<-ctx.Done()
+
+			return nil
+		})
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("leader did not start")
+	}
+
+	if !server.Exists(leader.key) {
+		cancel()
+		t.Fatal("leader lease was not created")
+	}
+
+	cancel()
+
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("leader did not stop")
+	}
+
+	if server.Exists(leader.key) {
+		t.Fatal("leader lease was not released")
+	}
+}

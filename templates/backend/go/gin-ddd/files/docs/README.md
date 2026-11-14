@@ -14,6 +14,9 @@ Feature overlays add their own documents when selected:
 - `DATABASE.md` — PostgreSQL setup, migrations, pool settings, and readiness.
 - `CACHE.md` — Redis cache API, TTLs, fail-open behavior, and local/full Docker usage.
 - `QUEUE.md` — RabbitMQ worker pool, retries, DLQ, and scheduler flow.
+- `SCHEDULER.md` — optional Redis scheduler leadership and failover.
+- `DEDUPE.md` — optional Redis job deduplication and its delivery guarantees.
+- `COMPRESSION.md` — optional gzip job compression and safety limits.
 - `DOCKER.md` — full-stack Compose and the local-API/Docker-database workflow.
 - `CI.md` — GitHub Actions checks and integration-test notes.
 

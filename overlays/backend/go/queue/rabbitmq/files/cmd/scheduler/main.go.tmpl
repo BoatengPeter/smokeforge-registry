@@ -11,6 +11,8 @@ import (
 	"{{.module_path}}/internal/config"
 	"{{.module_path}}/internal/logging"
 	"{{.module_path}}/internal/queue/rabbitmq"
+
+	// smokeforge:anchor import-compression
 	"{{.module_path}}/internal/scheduler"
 	"go.uber.org/zap"
 )
@@ -54,13 +56,15 @@ func run() error {
 	}
 
 	publisher := rabbitmq.NewPublisher(manager, cfg, logger)
+	// smokeforge:anchor scheduler-codec
 
 	defer func() {
 		_ = publisher.Close()
 	}()
 
-	leader := scheduler.AlwaysLeader{}
+	var leader scheduler.LeaderElector
 	// smokeforge:anchor scheduler-leader
+	leader = scheduler.OrDefault(leader, scheduler.AlwaysLeader{})
 
 	logger.Info("scheduler started", zap.String("heartbeat", cfg.SchedulerHeartbeat))
 

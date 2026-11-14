@@ -13,6 +13,10 @@ import (
 	"{{.module_path}}/internal/logging"
 	"{{.module_path}}/internal/queue"
 	"{{.module_path}}/internal/queue/rabbitmq"
+
+	// smokeforge:anchor import-compression
+
+	// smokeforge:anchor import-dedupe
 	"go.uber.org/zap"
 )
 
@@ -66,6 +70,8 @@ func run() error {
 	}
 
 	pool := rabbitmq.NewWorkerPool(cfg, manager, publisher, registry, logger)
+	// smokeforge:anchor worker-codec
+	// smokeforge:anchor worker-dedupe
 
 	logger.Info("worker started", zap.Int("concurrency", cfg.WorkerConcurrency))
 

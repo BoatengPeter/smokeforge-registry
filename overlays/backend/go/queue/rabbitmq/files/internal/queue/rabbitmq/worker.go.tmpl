@@ -20,12 +20,14 @@ type RetryPublisher interface {
 
 // WorkerPool consumes one queue with a bounded set of worker channels.
 type WorkerPool struct {
-	config      config.Config
-	manager     *ConnectionManager
-	publisher   RetryPublisher
-	registry    *queue.Registry
-	logger      *zap.Logger
-	retryPolicy queue.RetryPolicy
+	config       config.Config
+	manager      *ConnectionManager
+	publisher    RetryPublisher
+	registry     *queue.Registry
+	deduplicator queue.Deduplicator
+	codec        queue.Codec
+	logger       *zap.Logger
+	retryPolicy  queue.RetryPolicy
 }
 
 // NewWorkerPool constructs a bounded worker pool.
@@ -41,9 +43,24 @@ func NewWorkerPool(
 		manager:     manager,
 		publisher:   publisher,
 		registry:    registry,
+		codec:       queue.JSONCodec{},
 		logger:      logger,
 		retryPolicy: queue.DefaultRetryPolicy,
 	}
+}
+
+// SetCodec replaces the default job codec before workers start.
+func (p *WorkerPool) SetCodec(codec queue.Codec) {
+	if codec == nil {
+		codec = queue.JSONCodec{}
+	}
+
+	p.codec = codec
+}
+
+// SetDeduplicator enables success-based deduplication for queued jobs.
+func (p *WorkerPool) SetDeduplicator(deduplicator queue.Deduplicator) {
+	p.deduplicator = deduplicator
 }
 
 // Run starts all workers and blocks until the context is canceled.
@@ -158,7 +175,12 @@ func (p *WorkerPool) handleDelivery(ctx context.Context, delivery amqp.Delivery)
 		return
 	}
 
-	job, err := queue.Decode(delivery.Body)
+	codec := p.codec
+	if codec == nil {
+		codec = queue.JSONCodec{}
+	}
+
+	job, err := codec.Decode(delivery.Body)
 	if err != nil {
 		p.logger.Warn("rejected invalid job", zap.Error(err))
 		p.nack(delivery, false)
@@ -174,6 +196,23 @@ func (p *WorkerPool) handleDelivery(ctx context.Context, delivery amqp.Delivery)
 		return
 	}
 
+	if p.deduplicator != nil {
+		seen, err := p.deduplicator.Seen(ctx, job)
+		if err != nil {
+			p.logger.Error("check job deduplication", zap.String("job_id", job.ID.String()), zap.Error(err))
+			p.nack(delivery, true)
+
+			return
+		}
+
+		if seen {
+			p.logger.Debug("duplicate job acknowledged", zap.String("job_id", job.ID.String()))
+			p.ack(delivery)
+
+			return
+		}
+	}
+
 	if err := handler.Handle(ctx, job); err != nil {
 		p.logger.Error(
 			"job failed",
@@ -186,6 +225,12 @@ func (p *WorkerPool) handleDelivery(ctx context.Context, delivery amqp.Delivery)
 		p.retryOrDeadLetter(ctx, delivery, job)
 
 		return
+	}
+
+	if p.deduplicator != nil {
+		if err := p.deduplicator.Mark(ctx, job); err != nil {
+			p.logger.Error("mark job deduplication", zap.String("job_id", job.ID.String()), zap.Error(err))
+		}
 	}
 
 	if err := delivery.Ack(false); err != nil {

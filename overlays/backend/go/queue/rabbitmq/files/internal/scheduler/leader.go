@@ -14,3 +14,12 @@ type AlwaysLeader struct{}
 func (AlwaysLeader) Run(ctx context.Context, leader func(context.Context) error) error {
 	return leader(ctx)
 }
+
+// OrDefault returns leader when set, otherwise fallback.
+func OrDefault(leader, fallback LeaderElector) LeaderElector {
+	if leader == nil {
+		return fallback
+	}
+
+	return leader
+}

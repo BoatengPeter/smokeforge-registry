@@ -4,6 +4,8 @@ files: files
 ops:
   - addFiles:
       - {path: internal/queue/job.go, dest: internal/queue/job.go}
+      - {path: internal/queue/codec.go, dest: internal/queue/codec.go}
+      - {path: internal/queue/codec_test.go, dest: internal/queue/codec_test.go}
       - {path: internal/queue/job_test.go, dest: internal/queue/job_test.go}
       - {path: internal/queue/retry.go, dest: internal/queue/retry.go}
       - {path: internal/queue/retry_test.go, dest: internal/queue/retry_test.go}

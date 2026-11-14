@@ -106,6 +106,9 @@ for stack in "${stacks[@]}"; do
     --feature totp \
     --feature cache:redis \
     --feature queue:rabbitmq \
+    --feature scheduler:leader \
+    --feature dedupe:redis \
+    --feature compression:gzip \
     --feature docker \
     --feature ci:github \
     --var "module_path=example.com/verify/$slug/full" \

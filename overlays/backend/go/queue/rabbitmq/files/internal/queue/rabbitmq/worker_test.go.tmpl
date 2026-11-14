@@ -78,6 +78,7 @@ func testWorker(publisher RetryPublisher, handler queue.Handler) *WorkerPool {
 		},
 		publisher:   publisher,
 		registry:    registry,
+		codec:       queue.JSONCodec{},
 		logger:      zap.NewNop(),
 		retryPolicy: queue.DefaultRetryPolicy,
 	}

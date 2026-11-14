@@ -1,0 +1,72 @@
+package redisdedupe
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/google/uuid"
+)
+
+func TestStoreSeenAndMark(t *testing.T) {
+	t.Parallel()
+
+	server, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("start miniredis: %v", err)
+	}
+
+	defer server.Close()
+
+	cfg := config.Config{
+		ServiceName:       "test-service",
+		RedisURL:          "redis://" + server.Addr() + "/0",
+		RedisDialTimeout:  time.Second,
+		RedisReadTimeout:  time.Second,
+		RedisWriteTimeout: time.Second,
+		RedisPoolSize:     2,
+		RedisMinIdleConns: 1,
+		RedisMaxRetries:   1,
+		DedupeTTL:         time.Hour,
+	}
+
+	store, err := New(cfg)
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+
+	defer func() {
+		_ = store.Close()
+	}()
+
+	job := queue.Job{ID: uuid.New(), Type: "test.job"}
+
+	seen, err := store.Seen(context.Background(), job)
+	if err != nil {
+		t.Fatalf("seen before mark: %v", err)
+	}
+
+	if seen {
+		t.Fatal("job was unexpectedly marked")
+	}
+
+	if err := store.Mark(context.Background(), job); err != nil {
+		t.Fatalf("mark: %v", err)
+	}
+
+	seen, err = store.Seen(context.Background(), job)
+	if err != nil {
+		t.Fatalf("seen after mark: %v", err)
+	}
+
+	if !seen {
+		t.Fatal("job was not marked")
+	}
+
+	if ttl := server.TTL(store.key(job)); ttl <= 0 {
+		t.Fatalf("dedupe marker ttl = %s", ttl)
+	}
+}

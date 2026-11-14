@@ -1,0 +1,82 @@
+// Package gzipcodec compresses large job envelopes with gzip.
+package gzipcodec
+
+import (
+	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+)
+
+// Codec compresses job envelopes above a threshold.
+type Codec struct {
+	minBytes   int
+	maxDecoded int
+}
+
+var _ queue.Codec = (*Codec)(nil)
+
+// New constructs a gzip codec from validated configuration.
+func New(cfg config.Config) *Codec {
+	return &Codec{
+		minBytes:   cfg.QueueCompressionMinBytes,
+		maxDecoded: cfg.QueueCompressionMaxDecompressedBytes,
+	}
+}
+
+// Encode compresses large jobs and leaves small jobs as JSON.
+func (c *Codec) Encode(job queue.Job) ([]byte, error) {
+	raw, err := job.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(raw) < c.minBytes {
+		return raw, nil
+	}
+
+	var buffer bytes.Buffer
+
+	writer := gzip.NewWriter(&buffer)
+	if _, err := writer.Write(raw); err != nil {
+		return nil, fmt.Errorf("compress job: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("close job compressor: %w", err)
+	}
+
+	return buffer.Bytes(), nil
+}
+
+// Decode expands gzip jobs and parses plain JSON jobs.
+func (c *Codec) Decode(data []byte) (queue.Job, error) {
+	if len(data) < 2 || data[0] != 0x1f || data[1] != 0x8b {
+		return queue.Decode(data)
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return queue.Job{}, fmt.Errorf("open job decompressor: %w", err)
+	}
+
+	defer func() {
+		_ = reader.Close()
+	}()
+
+	limited := io.LimitReader(reader, int64(c.maxDecoded)+1)
+
+	raw, err := io.ReadAll(limited)
+	if err != nil {
+		return queue.Job{}, fmt.Errorf("decompress job: %w", err)
+	}
+
+	if len(raw) > c.maxDecoded {
+		return queue.Job{}, fmt.Errorf("decompressed job exceeds %d bytes", c.maxDecoded)
+	}
+
+	return queue.Decode(raw)
+}

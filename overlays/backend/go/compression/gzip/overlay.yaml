@@ -1,0 +1,57 @@
+id: compression:gzip
+name: Gzip job compression
+files: files
+ops:
+  - addFiles:
+      - {path: internal/queue/gzipcodec/codec.go.tmpl, dest: internal/queue/gzipcodec/codec.go}
+      - {path: internal/queue/gzipcodec/codec_test.go.tmpl, dest: internal/queue/gzipcodec/codec_test.go}
+      - {path: internal/config/config_compression.go, dest: internal/config/config_compression.go}
+      - {path: internal/config/config_compression_test.go, dest: internal/config/config_compression_test.go}
+      - {path: docs/COMPRESSION.md, dest: docs/COMPRESSION.md}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: compression:gzip-config
+      content: |-
+        QueueCompressionMinBytes             int `env:"QUEUE_COMPRESSION_MIN_BYTES" envDefault:"1024"`
+        QueueCompressionMaxDecompressedBytes int `env:"QUEUE_COMPRESSION_MAX_DECOMPRESSED_BYTES" envDefault:"1048576"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: compression:gzip-config-test
+      content: |-
+        QueueCompressionMinBytes:             1024,
+        QueueCompressionMaxDecompressedBytes: 1048576,
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: compression:gzip-validation
+      content: |-
+        if err := c.validateCompression(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/worker/main.go
+      anchor: import-compression
+      marker: compression:gzip-worker-import
+      content: 'gzipcodec "{{.module_path}}/internal/queue/gzipcodec"'
+  - insertAfter:
+      file: cmd/worker/main.go
+      anchor: worker-codec
+      marker: compression:gzip-worker-codec
+      content: |-
+        compressionCodec := gzipcodec.New(cfg)
+        publisher.SetCodec(compressionCodec)
+        pool.SetCodec(compressionCodec)
+  - insertAfter:
+      file: cmd/scheduler/main.go
+      anchor: import-compression
+      marker: compression:gzip-scheduler-import
+      content: 'gzipcodec "{{.module_path}}/internal/queue/gzipcodec"'
+  - insertAfter:
+      file: cmd/scheduler/main.go
+      anchor: scheduler-codec
+      marker: compression:gzip-scheduler-codec
+      content: 'publisher.SetCodec(gzipcodec.New(cfg))'
+  - env: {key: QUEUE_COMPRESSION_MIN_BYTES, example: "1024"}
+  - env: {key: QUEUE_COMPRESSION_MAX_DECOMPRESSED_BYTES, example: "1048576"}

@@ -81,6 +81,12 @@ type Publisher interface {
 	Publish(ctx context.Context, job Job) error
 }
 
+// Deduplicator records successfully processed job IDs.
+type Deduplicator interface {
+	Seen(ctx context.Context, job Job) (bool, error)
+	Mark(ctx context.Context, job Job) error
+}
+
 // Handler processes one job.
 type Handler interface {
 	Handle(ctx context.Context, job Job) error

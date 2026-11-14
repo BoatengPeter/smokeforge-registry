@@ -1,0 +1,230 @@
+package scheduler
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/google/uuid"
+	goredis "github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
+)
+
+var (
+	renewLeaseScript = goredis.NewScript(`
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("pexpire", KEYS[1], ARGV[2])
+end
+return 0
+`)
+	releaseLeaseScript = goredis.NewScript(`
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+end
+return 0
+`)
+)
+
+// RedisLeader elects one scheduler process using a renewable Redis lease.
+type RedisLeader struct {
+	client *goredis.Client
+	logger *zap.Logger
+	key    string
+	ttl    time.Duration
+	renew  time.Duration
+	retry  time.Duration
+
+	closeOnce sync.Once
+}
+
+var _ LeaderElector = (*RedisLeader)(nil)
+
+// NewRedisLeader constructs a Redis-backed scheduler leader elector.
+func NewRedisLeader(cfg config.Config, logger *zap.Logger) (*RedisLeader, error) {
+	options, err := goredis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse redis url: %w", err)
+	}
+
+	options.DialTimeout = cfg.RedisDialTimeout
+	options.ReadTimeout = cfg.RedisReadTimeout
+	options.WriteTimeout = cfg.RedisWriteTimeout
+	options.PoolSize = cfg.RedisPoolSize
+	options.MinIdleConns = cfg.RedisMinIdleConns
+	options.MaxRetries = cfg.RedisMaxRetries
+
+	prefix := strings.TrimSpace(cfg.RedisKeyPrefix)
+	if prefix == "" {
+		prefix = cfg.ServiceName
+	}
+
+	return &RedisLeader{
+		client: goredis.NewClient(options),
+		logger: logger,
+		key:    strings.TrimRight(prefix, ":") + ":scheduler:leader",
+		ttl:    cfg.SchedulerLeaseTTL,
+		renew:  cfg.SchedulerLeaseRenew,
+		retry:  cfg.SchedulerLeaseRetry,
+	}, nil
+}
+
+// Run elects this process and runs the scheduler while the lease is held.
+func (l *RedisLeader) Run(
+	ctx context.Context,
+	leader func(context.Context) error,
+) error {
+	if leader == nil {
+		return errors.New("scheduler: leader function is required")
+	}
+
+	for {
+		if ctx.Err() != nil {
+			return nil //nolint:nilerr // context cancellation is normal scheduler shutdown.
+		}
+
+		stop, err := l.runOnce(ctx, leader)
+		if err != nil {
+			return err
+		}
+
+		if stop || !waitForRetry(ctx, l.retry) {
+			return nil
+		}
+	}
+}
+
+func (l *RedisLeader) runOnce(
+	ctx context.Context,
+	leader func(context.Context) error,
+) (bool, error) {
+	token, err := uuid.NewV7()
+	if err != nil {
+		return false, fmt.Errorf("generate scheduler lease token: %w", err)
+	}
+
+	acquired, err := l.client.SetNX(ctx, l.key, token.String(), l.ttl).Result()
+	if err != nil {
+		if ctx.Err() != nil {
+			return true, nil //nolint:nilerr // shutting down while retrying is not an error.
+		}
+
+		l.logger.Warn("acquire scheduler lease", zap.Error(err))
+
+		return false, nil
+	}
+
+	if !acquired {
+		return false, nil
+	}
+
+	l.logger.Info("scheduler leadership acquired")
+
+	leaderErr := l.runLeader(ctx, token.String(), leader)
+
+	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), l.renew)
+	releaseErr := l.release(releaseCtx, token.String())
+
+	releaseCancel()
+
+	if releaseErr != nil {
+		l.logger.Warn("release scheduler lease", zap.Error(releaseErr))
+	}
+
+	if leaderErr != nil {
+		return false, leaderErr
+	}
+
+	return ctx.Err() != nil, nil
+}
+
+// Close releases the Redis client.
+func (l *RedisLeader) Close() error {
+	var err error
+
+	l.closeOnce.Do(func() {
+		err = l.client.Close()
+	})
+
+	if err != nil {
+		return fmt.Errorf("close scheduler leader redis client: %w", err)
+	}
+
+	return nil
+}
+
+func (l *RedisLeader) runLeader(
+	parent context.Context,
+	token string,
+	leader func(context.Context) error,
+) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+
+	renewed := make(chan struct{})
+
+	go func() {
+		defer close(renewed)
+
+		l.renewLease(ctx, token, cancel)
+	}()
+
+	leaderErr := leader(ctx)
+
+	cancel()
+	<-renewed
+
+	return leaderErr
+}
+
+func (l *RedisLeader) renewLease(ctx context.Context, token string, cancel context.CancelFunc) {
+	ticker := time.NewTicker(l.renew)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			result, err := renewLeaseScript.Run(ctx, l.client, []string{l.key}, token, l.ttl.Milliseconds()).Int()
+			if err != nil {
+				if ctx.Err() == nil {
+					l.logger.Warn("renew scheduler lease", zap.Error(err))
+					cancel()
+				}
+
+				return
+			}
+
+			if result == 0 {
+				l.logger.Warn("scheduler leadership lost")
+				cancel()
+
+				return
+			}
+		}
+	}
+}
+
+func (l *RedisLeader) release(ctx context.Context, token string) error {
+	if _, err := releaseLeaseScript.Run(ctx, l.client, []string{l.key}, token).Result(); err != nil {
+		return fmt.Errorf("release scheduler lease: %w", err)
+	}
+
+	return nil
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}

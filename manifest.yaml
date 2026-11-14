@@ -51,7 +51,7 @@ presets:
     features: [database:postgres, auth:jwt]
   - id: api-custom
     name: Custom Go API
-    description: Choose database, cache, queue, authentication, TOTP, Docker, and CI
+    description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, Docker, and CI
     kinds: [backend]
     features: []
 features:
@@ -154,6 +154,60 @@ features:
           go/gin-layered: overlays/backend/go/queue/rabbitmq
           go/gin-hexagonal: overlays/backend/go/queue/rabbitmq
           go/gin-ddd: overlays/backend/go/queue/rabbitmq
+
+  - id: scheduler
+    name: Scheduler
+    kinds: [backend]
+    variants:
+      - id: leader
+        name: Redis leader election
+        requires: [queue:rabbitmq, cache:redis]
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/scheduler/leader
+          go/gin-layered: overlays/backend/go/scheduler/leader
+          go/gin-hexagonal: overlays/backend/go/scheduler/leader
+          go/gin-ddd: overlays/backend/go/scheduler/leader
+
+  - id: dedupe
+    name: Job deduplication
+    kinds: [backend]
+    variants:
+      - id: redis
+        name: Redis markers
+        requires: [queue:rabbitmq, cache:redis]
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/dedupe/redis
+          go/gin-layered: overlays/backend/go/dedupe/redis
+          go/gin-hexagonal: overlays/backend/go/dedupe/redis
+          go/gin-ddd: overlays/backend/go/dedupe/redis
+
+  - id: compression
+    name: Queue compression
+    kinds: [backend]
+    variants:
+      - id: gzip
+        name: Gzip
+        requires: [queue:rabbitmq]
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/compression/gzip
+          go/gin-layered: overlays/backend/go/compression/gzip
+          go/gin-hexagonal: overlays/backend/go/compression/gzip
+          go/gin-ddd: overlays/backend/go/compression/gzip
 
   - id: auth
     name: Authentication

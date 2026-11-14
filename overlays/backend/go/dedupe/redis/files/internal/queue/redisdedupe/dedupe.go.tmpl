@@ -1,0 +1,89 @@
+// Package redisdedupe records successfully processed job IDs in Redis.
+package redisdedupe
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+	goredis "github.com/redis/go-redis/v9"
+)
+
+// Store implements success-based job deduplication.
+type Store struct {
+	client *goredis.Client
+	prefix string
+	ttl    time.Duration
+
+	closeOnce sync.Once
+}
+
+var _ queue.Deduplicator = (*Store)(nil)
+
+// New constructs a Redis deduplication store.
+func New(cfg config.Config) (*Store, error) {
+	options, err := goredis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse redis url: %w", err)
+	}
+
+	options.DialTimeout = cfg.RedisDialTimeout
+	options.ReadTimeout = cfg.RedisReadTimeout
+	options.WriteTimeout = cfg.RedisWriteTimeout
+	options.PoolSize = cfg.RedisPoolSize
+	options.MinIdleConns = cfg.RedisMinIdleConns
+	options.MaxRetries = cfg.RedisMaxRetries
+
+	prefix := strings.TrimSpace(cfg.RedisKeyPrefix)
+	if prefix == "" {
+		prefix = cfg.ServiceName
+	}
+
+	return &Store{
+		client: goredis.NewClient(options),
+		prefix: strings.TrimRight(prefix, ":"),
+		ttl:    cfg.DedupeTTL,
+	}, nil
+}
+
+// Seen reports whether a job was already processed successfully.
+func (s *Store) Seen(ctx context.Context, job queue.Job) (bool, error) {
+	exists, err := s.client.Exists(ctx, s.key(job)).Result()
+	if err != nil {
+		return false, fmt.Errorf("check dedupe marker: %w", err)
+	}
+
+	return exists > 0, nil
+}
+
+// Mark records a successfully processed job.
+func (s *Store) Mark(ctx context.Context, job queue.Job) error {
+	if err := s.client.Set(ctx, s.key(job), "processed", s.ttl).Err(); err != nil {
+		return fmt.Errorf("write dedupe marker: %w", err)
+	}
+
+	return nil
+}
+
+// Close releases the Redis client.
+func (s *Store) Close() error {
+	var err error
+
+	s.closeOnce.Do(func() {
+		err = s.client.Close()
+	})
+
+	if err != nil {
+		return fmt.Errorf("close dedupe redis client: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) key(job queue.Job) string {
+	return s.prefix + ":dedupe:" + job.ID.String()
+}

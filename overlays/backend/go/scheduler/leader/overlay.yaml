@@ -1,0 +1,52 @@
+id: scheduler:leader
+name: Redis scheduler leader election
+files: files
+ops:
+  - addFiles:
+      - {path: internal/scheduler/redis_leader.go.tmpl, dest: internal/scheduler/redis_leader.go}
+      - {path: internal/scheduler/redis_leader_test.go.tmpl, dest: internal/scheduler/redis_leader_test.go}
+      - {path: internal/config/config_scheduler_leader.go, dest: internal/config/config_scheduler_leader.go}
+      - {path: internal/config/config_scheduler_leader_test.go, dest: internal/config/config_scheduler_leader_test.go}
+      - {path: docs/SCHEDULER.md, dest: docs/SCHEDULER.md}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: scheduler:leader-config
+      content: |-
+        SchedulerLeaseTTL   time.Duration `env:"SCHEDULER_LEASE_TTL" envDefault:"30s"`
+        SchedulerLeaseRenew time.Duration `env:"SCHEDULER_LEASE_RENEW" envDefault:"10s"`
+        SchedulerLeaseRetry time.Duration `env:"SCHEDULER_LEASE_RETRY" envDefault:"5s"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: scheduler:leader-config-test
+      content: |-
+        SchedulerLeaseTTL:   30 * time.Second,
+        SchedulerLeaseRenew: 10 * time.Second,
+        SchedulerLeaseRetry: 5 * time.Second,
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: scheduler:leader-validation
+      content: |-
+        if err := c.validateSchedulerLeader(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/scheduler/main.go
+      anchor: scheduler-leader
+      marker: scheduler:leader-main
+      content: |-
+        redisLeader, err := scheduler.NewRedisLeader(cfg, logger)
+        if err != nil {
+        	return fmt.Errorf("configure scheduler leader: %w", err)
+        }
+
+        defer func() {
+        	_ = redisLeader.Close()
+        }()
+
+        leader = redisLeader
+  - env: {key: SCHEDULER_LEASE_TTL, example: 30s}
+  - env: {key: SCHEDULER_LEASE_RENEW, example: 10s}
+  - env: {key: SCHEDULER_LEASE_RETRY, example: 5s}

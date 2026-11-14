@@ -1,0 +1,51 @@
+id: dedupe:redis
+name: Redis job deduplication
+files: files
+ops:
+  - addFiles:
+      - {path: internal/queue/redisdedupe/dedupe.go.tmpl, dest: internal/queue/redisdedupe/dedupe.go}
+      - {path: internal/queue/redisdedupe/dedupe_test.go.tmpl, dest: internal/queue/redisdedupe/dedupe_test.go}
+      - {path: internal/config/config_dedupe.go, dest: internal/config/config_dedupe.go}
+      - {path: internal/config/config_dedupe_test.go, dest: internal/config/config_dedupe_test.go}
+      - {path: docs/DEDUPE.md, dest: docs/DEDUPE.md}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: dedupe:redis-config
+      content: |-
+        DedupeTTL time.Duration `env:"DEDUPE_TTL" envDefault:"24h"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: dedupe:redis-config-test
+      content: |-
+        DedupeTTL: 24 * time.Hour,
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: dedupe:redis-validation
+      content: |-
+        if err := c.validateDedupe(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/worker/main.go
+      anchor: import-dedupe
+      marker: dedupe:redis-import
+      content: 'redisdedupe "{{.module_path}}/internal/queue/redisdedupe"'
+  - insertAfter:
+      file: cmd/worker/main.go
+      anchor: worker-dedupe
+      marker: dedupe:redis-main
+      content: |-
+        dedupeStore, err := redisdedupe.New(cfg)
+        if err != nil {
+        	return fmt.Errorf("create dedupe store: %w", err)
+        }
+
+        defer func() {
+        	_ = dedupeStore.Close()
+        }()
+
+        pool.SetDeduplicator(dedupeStore)
+  - env: {key: DEDUPE_TTL, example: 24h}

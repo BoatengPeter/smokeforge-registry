@@ -1,0 +1,99 @@
+package gzipcodec
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/queue"
+	"github.com/google/uuid"
+)
+
+func testJob(payload string) queue.Job {
+	return queue.Job{
+		ID:        uuid.New(),
+		Type:      "test.job",
+		Payload:   []byte(`"` + payload + `"`),
+		CreatedAt: time.Now().UTC(),
+	}
+}
+
+func TestCodecLeavesSmallJobsUncompressed(t *testing.T) {
+	t.Parallel()
+
+	codec := New(config.Config{
+		QueueCompressionMinBytes:             512,
+		QueueCompressionMaxDecompressedBytes: 4096,
+	})
+	job := testJob("small")
+
+	encoded, err := codec.Encode(job)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	if bytes.HasPrefix(encoded, []byte{0x1f, 0x8b}) {
+		t.Fatal("small job was compressed")
+	}
+
+	decoded, err := codec.Decode(encoded)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if decoded.ID != job.ID {
+		t.Fatalf("job id = %s, want %s", decoded.ID, job.ID)
+	}
+}
+
+func TestCodecCompressesLargeJobs(t *testing.T) {
+	t.Parallel()
+
+	codec := New(config.Config{
+		QueueCompressionMinBytes:             512,
+		QueueCompressionMaxDecompressedBytes: 8192,
+	})
+	job := testJob(strings.Repeat("a", 4096))
+
+	encoded, err := codec.Encode(job)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	if !bytes.HasPrefix(encoded, []byte{0x1f, 0x8b}) {
+		t.Fatal("large job was not compressed")
+	}
+
+	decoded, err := codec.Decode(encoded)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if decoded.ID != job.ID {
+		t.Fatalf("job id = %s, want %s", decoded.ID, job.ID)
+	}
+}
+
+func TestCodecRejectsDecompressionBomb(t *testing.T) {
+	t.Parallel()
+
+	encoder := New(config.Config{
+		QueueCompressionMinBytes:             512,
+		QueueCompressionMaxDecompressedBytes: 8192,
+	})
+	decoder := New(config.Config{
+		QueueCompressionMinBytes:             512,
+		QueueCompressionMaxDecompressedBytes: 128,
+	})
+
+	encoded, err := encoder.Encode(testJob(strings.Repeat("a", 4096)))
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+
+	if _, err := decoder.Decode(encoded); err == nil {
+		t.Fatal("expected decompression limit error")
+	}
+}
