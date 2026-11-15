@@ -51,7 +51,7 @@ presets:
     features: [database:postgres, auth:jwt]
   - id: api-custom
     name: Custom Go API
-    description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, Docker, and CI
+    description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, media, Docker, and CI
     kinds: [backend]
     features: []
 features:
@@ -242,3 +242,49 @@ features:
       go/gin-layered: overlays/backend/go/totp
       go/gin-hexagonal: overlays/backend/go/totp
       go/gin-ddd: overlays/backend/go/totp
+
+  - id: media
+    name: Image media
+    kinds: [backend]
+    requires: [database:postgres, auth:jwt]
+    stacks:
+      - go/gin-flat
+      - go/gin-layered
+      - go/gin-hexagonal
+      - go/gin-ddd
+    overlays:
+      go/gin-flat: overlays/backend/go/media/core
+      go/gin-layered: overlays/backend/go/media/core
+      go/gin-hexagonal: overlays/backend/go/media/core
+      go/gin-ddd: overlays/backend/go/media/core
+
+  - id: media-provider
+    name: Media provider
+    kinds: [backend]
+    requires: [media]
+    variants:
+      - id: minio
+        name: MinIO + imgproxy + nginx
+        default: true
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/media/minio
+          go/gin-layered: overlays/backend/go/media/minio
+          go/gin-hexagonal: overlays/backend/go/media/minio
+          go/gin-ddd: overlays/backend/go/media/minio
+      - id: r2
+        name: Cloudflare R2
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/media/r2
+          go/gin-layered: overlays/backend/go/media/r2
+          go/gin-hexagonal: overlays/backend/go/media/r2
+          go/gin-ddd: overlays/backend/go/media/r2

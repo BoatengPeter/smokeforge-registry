@@ -1,0 +1,88 @@
+id: media-provider:minio
+name: MinIO + imgproxy + nginx
+files: files
+ops:
+  - addFiles:
+      - {path: internal/media/imgproxy/builder.go.tmpl, dest: internal/media/imgproxy/builder.go}
+      - {path: internal/media/imgproxy/builder_test.go.tmpl, dest: internal/media/imgproxy/builder_test.go}
+      - {path: internal/config/config_media_imgproxy.go.tmpl, dest: internal/config/config_media_imgproxy.go}
+      - {path: compose.media.yaml, dest: compose.media.yaml}
+      - {path: compose.override.media.yaml, dest: compose.override.media.yaml}
+      - {path: deploy/nginx/nginx.conf, dest: deploy/nginx/nginx.conf}
+      - {path: docs/MEDIA_MINIO.md, dest: docs/MEDIA_MINIO.md}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: media-provider:minio-config
+      content: |-
+        MediaImgproxyBaseURL string `env:"MEDIA_IMGPROXY_BASE_URL" envDefault:"http://localhost:8081"`
+        MediaImgproxyKey     string `env:"MEDIA_IMGPROXY_KEY" envDefault:"0123456789abcdef0123456789abcdef"`
+        MediaImgproxySalt    string `env:"MEDIA_IMGPROXY_SALT" envDefault:"fedcba9876543210fedcba9876543210"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: media-provider:minio-config-test
+      content: |-
+        MediaImgproxyBaseURL: "http://localhost:8081",
+        MediaImgproxyKey:     "0123456789abcdef0123456789abcdef",
+        MediaImgproxySalt:    "fedcba9876543210fedcba9876543210",
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: media-provider:minio-validation
+      content: |-
+        if err := c.validateMediaImgproxy(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-media-provider
+      marker: media-provider:minio-import
+      content: 'mediabuilder "{{.module_path}}/internal/media/imgproxy"'
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: media-provider
+      marker: media-provider:minio-main
+      content: |-
+        mediaURLBuilder, err := mediabuilder.New(cfg)
+        if err != nil {
+        	return fmt.Errorf("configure media image transformations: %w", err)
+        }
+
+        mediaService.SetURLBuilder(mediaURLBuilder)
+  - insertAfter:
+      file: Makefile
+      anchor: media-phony
+      marker: media-provider:minio-phony
+      content: '.PHONY: media-up media-down media-logs media-shell'
+  - insertAfter:
+      file: Makefile
+      anchor: media-help
+      marker: media-provider:minio-help
+      content: |-
+        @echo "make media-up         Start MinIO, imgproxy, and nginx with Docker"
+        @echo "make media-down       Stop the media stack"
+        @echo "make media-logs       Follow media container logs"
+        @echo "make media-shell      Open a shell in the MinIO container"
+  - insertAfter:
+      file: Makefile
+      anchor: media-targets
+      marker: media-provider:minio-targets
+      content: |-
+        media-up:
+        	docker compose -f compose.media.yaml up -d
+
+        media-down:
+        	docker compose -f compose.media.yaml down
+
+        media-logs:
+        	docker compose -f compose.media.yaml logs -f
+
+        media-shell:
+        	docker compose -f compose.media.yaml exec minio sh
+  - env: {key: MEDIA_MINIO_PORT, example: "9000"}
+  - env: {key: MEDIA_MINIO_CONSOLE_PORT, example: "9001"}
+  - env: {key: MEDIA_NGINX_PORT, example: "8081"}
+  - env: {key: MEDIA_IMGPROXY_BASE_URL, example: "http://localhost:8081"}
+  - env: {key: MEDIA_IMGPROXY_KEY, example: 0123456789abcdef0123456789abcdef, secret: true}
+  - env: {key: MEDIA_IMGPROXY_SALT, example: fedcba9876543210fedcba9876543210, secret: true}

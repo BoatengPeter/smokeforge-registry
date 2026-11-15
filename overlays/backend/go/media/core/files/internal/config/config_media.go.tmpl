@@ -1,0 +1,89 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
+)
+
+func (c Config) validateMedia() error {
+	if err := validateMediaStorage(c); err != nil {
+		return err
+	}
+
+	if err := validateMediaLimits(c); err != nil {
+		return err
+	}
+
+	return validateMediaContentTypes(c)
+}
+
+func validateMediaStorage(c Config) error {
+	if err := validateHTTPURL("media s3 endpoint", c.MediaS3Endpoint); err != nil {
+		return err
+	}
+
+	if c.MediaS3PublicEndpoint != "" {
+		if err := validateHTTPURL("media s3 public endpoint", c.MediaS3PublicEndpoint); err != nil {
+			return err
+		}
+	}
+
+	if strings.TrimSpace(c.MediaS3Region) == "" {
+		return errors.New("media s3 region must not be empty")
+	}
+
+	if strings.TrimSpace(c.MediaS3Bucket) == "" {
+		return errors.New("media s3 bucket must not be empty")
+	}
+
+	if strings.TrimSpace(c.MediaS3AccessKey) == "" || strings.TrimSpace(c.MediaS3SecretKey) == "" {
+		return errors.New("media s3 access and secret keys must not be empty")
+	}
+
+	return nil
+}
+
+func validateMediaLimits(c Config) error {
+	if c.MediaMaxBytes < 1 {
+		return errors.New("media max bytes must be positive")
+	}
+
+	if c.MediaUploadURLTTL <= 0 || c.MediaDownloadURLTTL <= 0 {
+		return errors.New("media url ttls must be positive")
+	}
+
+	return nil
+}
+
+func validateMediaContentTypes(c Config) error {
+	if len(c.MediaAllowedContentTypes) == 0 {
+		return errors.New("media allowed content types must not be empty")
+	}
+
+	for _, contentType := range c.MediaAllowedContentTypes {
+		if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "image/") {
+			return fmt.Errorf("media content type %q must start with image/", contentType)
+		}
+	}
+
+	return nil
+}
+
+func validateHTTPURL(name, raw string) error {
+	parsed, err := url.ParseRequestURI(raw)
+	if err != nil {
+		return fmt.Errorf("%s %q: %w", name, raw, err)
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s %q must use http or https", name, raw)
+	}
+
+	if parsed.Host == "" {
+		return fmt.Errorf("%s %q must include a host", name, raw)
+	}
+
+	return nil
+}

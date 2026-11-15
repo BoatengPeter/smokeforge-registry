@@ -1,0 +1,83 @@
+package config
+
+import (
+	"testing"
+	"time"
+)
+
+func validMediaConfig() Config {
+	config := validConfig()
+	config.MediaS3Endpoint = "http://localhost:9000"
+	config.MediaS3PublicEndpoint = "http://localhost:9000"
+	config.MediaS3Region = "us-east-1"
+	config.MediaS3Bucket = "media"
+	config.MediaS3AccessKey = "minioadmin"
+	config.MediaS3SecretKey = "minioadmin"
+	config.MediaS3ForcePathStyle = true
+	config.MediaMaxBytes = 10 * 1024 * 1024
+	config.MediaAllowedContentTypes = []string{"image/jpeg", "image/png", "image/webp", "image/gif"}
+	config.MediaUploadURLTTL = 15 * time.Minute
+	config.MediaDownloadURLTTL = time.Hour
+
+	return config
+}
+
+func TestConfigValidateMedia(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr bool
+	}{
+		{name: "valid", mutate: func(*Config) {}},
+		{
+			name:    "invalid endpoint",
+			mutate:  func(config *Config) { config.MediaS3Endpoint = "ftp://localhost:9000" },
+			wantErr: true,
+		},
+		{
+			name:    "empty bucket",
+			mutate:  func(config *Config) { config.MediaS3Bucket = "" },
+			wantErr: true,
+		},
+		{
+			name:    "missing credentials",
+			mutate:  func(config *Config) { config.MediaS3SecretKey = "" },
+			wantErr: true,
+		},
+		{
+			name:    "invalid size",
+			mutate:  func(config *Config) { config.MediaMaxBytes = 0 },
+			wantErr: true,
+		},
+		{
+			name:    "invalid content type",
+			mutate:  func(config *Config) { config.MediaAllowedContentTypes = []string{"application/pdf"} },
+			wantErr: true,
+		},
+		{
+			name:    "zero ttl",
+			mutate:  func(config *Config) { config.MediaDownloadURLTTL = 0 },
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := validMediaConfig()
+			test.mutate(&config)
+
+			err := config.Validate()
+			if test.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+
+			if !test.wantErr && err != nil {
+				t.Fatalf("validate: %v", err)
+			}
+		})
+	}
+}

@@ -1,0 +1,288 @@
+// Package mediahttp implements the media HTTP contract.
+package mediahttp
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"{{.module_path}}/internal/auth"
+	authhttp "{{.module_path}}/internal/auth/http"
+	"{{.module_path}}/internal/media"
+	"{{.module_path}}/internal/response"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+// ServiceContract is the media behavior consumed by the HTTP handler.
+type ServiceContract interface {
+	CreateUpload(ctx context.Context, ownerID uuid.UUID, input media.UploadInput) (media.Upload, error)
+	Complete(ctx context.Context, ownerID, id uuid.UUID) (media.Media, error)
+	Get(ctx context.Context, ownerID, id uuid.UUID) (media.Media, error)
+	URL(ctx context.Context, ownerID, id uuid.UUID, transform media.Transform) (media.URL, error)
+	Delete(ctx context.Context, ownerID, id uuid.UUID) error
+}
+
+// Handler implements the media HTTP contract.
+type Handler struct {
+	service  ServiceContract
+	verifier auth.TokenVerifier
+	logger   *zap.Logger
+}
+
+// NewHandler constructs the media handler.
+func NewHandler(
+	service ServiceContract,
+	verifier auth.TokenVerifier,
+	logger *zap.Logger,
+) *Handler {
+	return &Handler{
+		service:  service,
+		verifier: verifier,
+		logger:   logger,
+	}
+}
+
+// RegisterRoutes adds authenticated media routes.
+func (h *Handler) RegisterRoutes(router gin.IRouter) {
+	group := router.Group("/api/v1/media")
+	group.Use(authhttp.RequireAuth(h.verifier))
+
+	group.POST("/uploads", h.CreateUpload)
+	group.POST("/:id/complete", h.CompleteUpload)
+	group.GET("/:id/url", h.GetMediaURL)
+	group.GET("/:id", h.GetMedia)
+	group.DELETE("/:id", h.DeleteMedia)
+}
+
+// CreateUpload creates an upload reservation.
+func (h *Handler) CreateUpload(c *gin.Context) {
+	identity, ok := h.identity(c)
+	if !ok {
+		return
+	}
+
+	var request CreateUploadRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		response.WriteValidationError(c, err)
+
+		return
+	}
+
+	upload, err := h.service.CreateUpload(c.Request.Context(), identity.UserID, media.UploadInput{
+		Filename:    request.Filename,
+		ContentType: request.ContentType,
+		ByteSize:    request.SizeBytes,
+	})
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	response.Created(c, MediaUpload{
+		Media:         toMedia(upload.Media),
+		UploadURL:     upload.URL,
+		UploadHeaders: upload.Headers,
+		ExpiresIn:     upload.ExpiresIn,
+	})
+}
+
+// CompleteUpload verifies and marks an upload ready.
+func (h *Handler) CompleteUpload(c *gin.Context) {
+	identity, ok := h.identity(c)
+	if !ok {
+		return
+	}
+
+	id, err := parseID(c)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	item, err := h.service.Complete(c.Request.Context(), identity.UserID, id)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	response.OK(c, toMedia(item))
+}
+
+// GetMedia returns image metadata.
+func (h *Handler) GetMedia(c *gin.Context) {
+	identity, ok := h.identity(c)
+	if !ok {
+		return
+	}
+
+	id, err := parseID(c)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	item, err := h.service.Get(c.Request.Context(), identity.UserID, id)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	response.OK(c, toMedia(item))
+}
+
+// GetMediaURL returns a timed read or transform URL.
+func (h *Handler) GetMediaURL(c *gin.Context) {
+	identity, ok := h.identity(c)
+	if !ok {
+		return
+	}
+
+	id, err := parseID(c)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	transform, err := parseTransform(c)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	imageURL, err := h.service.URL(c.Request.Context(), identity.UserID, id, transform)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	response.OK(c, MediaURL{URL: imageURL.URL, ExpiresIn: imageURL.ExpiresIn})
+}
+
+// DeleteMedia deletes an image owned by the caller.
+func (h *Handler) DeleteMedia(c *gin.Context) {
+	identity, ok := h.identity(c)
+	if !ok {
+		return
+	}
+
+	id, err := parseID(c)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	if err := h.service.Delete(c.Request.Context(), identity.UserID, id); err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	response.NoContent(c)
+}
+
+func (h *Handler) identity(c *gin.Context) (auth.Identity, bool) {
+	identity, ok := authhttp.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+
+		return auth.Identity{}, false
+	}
+
+	return identity, true
+}
+
+func (h *Handler) writeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, media.ErrNotFound):
+		response.WriteNotFound(c, "The image does not exist.")
+	case errors.Is(err, media.ErrUnsupportedTransform):
+		response.WriteError(c, response.NewError(
+			http.StatusNotImplemented,
+			"transformations_not_configured",
+			"Transformations not configured",
+			"This media provider serves original images only.",
+		))
+	case errors.Is(err, media.ErrObjectMissing):
+		response.WriteError(c, response.NewError(
+			http.StatusUnprocessableEntity,
+			"upload_incomplete",
+			"Upload incomplete",
+			"The uploaded object does not exist.",
+		))
+	case errors.Is(err, media.ErrInvalidInput),
+		errors.Is(err, media.ErrUnsupportedContentType),
+		errors.Is(err, media.ErrSizeMismatch),
+		errors.Is(err, media.ErrContentTypeMismatch):
+		response.WriteError(c, response.NewError(
+			http.StatusUnprocessableEntity,
+			"validation_failed",
+			"Validation failed",
+			err.Error(),
+		))
+	default:
+		response.WriteInternalError(c, h.logger, err)
+	}
+}
+
+func parseID(c *gin.Context) (uuid.UUID, error) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("%w: image id must be a uuid", media.ErrInvalidInput)
+	}
+
+	return id, nil
+}
+
+func parseTransform(c *gin.Context) (media.Transform, error) {
+	var transform media.Transform
+
+	width, err := parseOptionalInt(c, "width")
+	if err != nil {
+		return media.Transform{}, err
+	}
+
+	height, err := parseOptionalInt(c, "height")
+	if err != nil {
+		return media.Transform{}, err
+	}
+
+	quality, err := parseOptionalInt(c, "quality")
+	if err != nil {
+		return media.Transform{}, err
+	}
+
+	transform.Width = width
+	transform.Height = height
+	transform.Quality = quality
+	transform.Fit = c.Query("fit")
+	transform.Format = c.Query("format")
+
+	return transform, nil
+}
+
+func parseOptionalInt(c *gin.Context, name string) (int, error) {
+	raw := c.Query(name)
+	if raw == "" {
+		return 0, nil
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s must be an integer", media.ErrInvalidInput, name)
+	}
+
+	return value, nil
+}

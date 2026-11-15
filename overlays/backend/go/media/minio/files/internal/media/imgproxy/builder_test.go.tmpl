@@ -1,0 +1,98 @@
+package imgproxy
+
+import (
+	"encoding/hex"
+	"strings"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/media"
+)
+
+func TestSignatureMatchesImgproxyExample(t *testing.T) {
+	t.Parallel()
+
+	key, err := hex.DecodeString("736563726574")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	salt, err := hex.DecodeString("68656c6c6f")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	path := "/rs:fill:300:400:0/g:sm/aHR0cDovL2V4YW1w/bGUuY29tL2ltYWdl/cy9jdXJpb3NpdHku/anBn.png"
+
+	const expected = "oKfUtW34Dvo2BGQehJFR4Nr0_rIjOtdtzJ3QFsUcXH8"
+
+	if got := signature(key, salt, path); got != expected {
+		t.Fatalf("signature = %q, want %q", got, expected)
+	}
+}
+
+func TestBuilderBuildURL(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Config{
+		MediaS3Bucket:        "media",
+		MediaImgproxyBaseURL: "http://localhost:8081",
+		MediaImgproxyKey:     "736563726574",
+		MediaImgproxySalt:    "68656c6c6f",
+		MediaDownloadURLTTL:  time.Hour,
+	}
+
+	builder, err := New(cfg)
+	if err != nil {
+		t.Fatalf("new builder: %v", err)
+	}
+
+	rawURL, err := builder.BuildURL("users/owner/media/image.jpg", media.Transform{
+		Width:   300,
+		Height:  400,
+		Fit:     "cover",
+		Format:  "webp",
+		Quality: 80,
+	})
+	if err != nil {
+		t.Fatalf("build url: %v", err)
+	}
+
+	if !strings.HasPrefix(rawURL, "http://localhost:8081/") {
+		t.Fatalf("url = %q", rawURL)
+	}
+
+	if !strings.Contains(rawURL, "/rs:fill:300:400:0/q:80/format:webp/expires:") {
+		t.Fatalf("url missing processing options: %q", rawURL)
+	}
+
+	if !strings.HasSuffix(rawURL, ".webp") {
+		t.Fatalf("url missing extension: %q", rawURL)
+	}
+}
+
+func TestResizeType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		fit      string
+		expected string
+	}{
+		{name: "cover", fit: "cover", expected: "fill"},
+		{name: "contain", fit: "contain", expected: "fit"},
+		{name: "fill", fit: "fill", expected: "force"},
+		{name: "default", fit: "", expected: "fill"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := resizeType(test.fit); got != test.expected {
+				t.Fatalf("resizeType(%q) = %q, want %q", test.fit, got, test.expected)
+			}
+		})
+	}
+}

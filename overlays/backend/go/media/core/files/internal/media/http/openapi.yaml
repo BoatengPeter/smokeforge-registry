@@ -1,0 +1,302 @@
+openapi: 3.0.3
+info:
+  title: Media
+  version: 0.1.0
+  description: Authenticated image uploads, private reads, and optional transformations.
+tags:
+  - name: media
+    description: Image upload and retrieval workflows.
+paths:
+  /api/v1/media/uploads:
+    post:
+      operationId: createUpload
+      tags: [media]
+      summary: Create an image upload
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUploadRequest'
+      responses:
+        '201':
+          description: Upload reservation created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaUpload'
+        '401':
+          description: Authentication required.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/media/{id}/complete:
+    post:
+      operationId: completeUpload
+      tags: [media]
+      summary: Mark an uploaded image ready
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MediaID'
+      responses:
+        '200':
+          description: Image is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '401':
+          description: Authentication required.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Image not found or not owned by the caller.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Uploaded object does not match the reservation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/media/{id}:
+    get:
+      operationId: getMedia
+      tags: [media]
+      summary: Get image metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MediaID'
+      responses:
+        '200':
+          description: Image metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '401':
+          description: Authentication required.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Image not found or not owned by the caller.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deleteMedia
+      tags: [media]
+      summary: Delete an image
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MediaID'
+      responses:
+        '204':
+          description: Image deleted.
+        '401':
+          description: Authentication required.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Image not found or not owned by the caller.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/media/{id}/url:
+    get:
+      operationId: getMediaURL
+      tags: [media]
+      summary: Get a timed image URL
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/MediaID'
+        - name: width
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8192
+        - name: height
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 8192
+        - name: fit
+          in: query
+          schema:
+            type: string
+            enum: [cover, contain, fill]
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [jpeg, png, webp]
+        - name: quality
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Timed URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaURL'
+        '401':
+          description: Authentication required.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Image not found or not owned by the caller.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Invalid transformation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Transformations are not configured.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    MediaID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Media:
+      type: object
+      required: [id, filename, content_type, size_bytes, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        content_type:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [pending, ready]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    MediaUpload:
+      type: object
+      required: [media, upload_url, upload_headers, expires_in]
+      properties:
+        media:
+          $ref: '#/components/schemas/Media'
+        upload_url:
+          type: string
+        upload_headers:
+          type: object
+          additionalProperties:
+            type: string
+        expires_in:
+          type: integer
+          format: int64
+    MediaURL:
+      type: object
+      required: [url, expires_in]
+      properties:
+        url:
+          type: string
+        expires_in:
+          type: integer
+          format: int64
+    CreateUploadRequest:
+      type: object
+      required: [filename, content_type, size_bytes]
+      properties:
+        filename:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content_type:
+          type: string
+          minLength: 1
+        size_bytes:
+          type: integer
+          format: int64
+          minimum: 1
+    ErrorResponse:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string

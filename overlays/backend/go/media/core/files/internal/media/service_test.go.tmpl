@@ -1,0 +1,356 @@
+package media
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+type fakeRepository struct {
+	items map[uuid.UUID]Media
+}
+
+func newFakeRepository() *fakeRepository {
+	return &fakeRepository{items: map[uuid.UUID]Media{}}
+}
+
+func (r *fakeRepository) Create(_ context.Context, item Media) error {
+	r.items[item.ID] = item
+
+	return nil
+}
+
+func (r *fakeRepository) Get(_ context.Context, id, ownerID uuid.UUID) (Media, error) {
+	item, ok := r.items[id]
+	if !ok || item.OwnerID != ownerID {
+		return Media{}, ErrNotFound
+	}
+
+	return item, nil
+}
+
+func (r *fakeRepository) MarkReady(_ context.Context, id, ownerID uuid.UUID) (Media, error) {
+	item, ok := r.items[id]
+	if !ok || item.OwnerID != ownerID {
+		return Media{}, ErrNotFound
+	}
+
+	item.Status = StatusReady
+	item.UpdatedAt = time.Now().UTC()
+	r.items[id] = item
+
+	return item, nil
+}
+
+func (r *fakeRepository) Delete(_ context.Context, id, ownerID uuid.UUID) error {
+	item, ok := r.items[id]
+	if !ok || item.OwnerID != ownerID {
+		return ErrNotFound
+	}
+
+	delete(r.items, id)
+
+	return nil
+}
+
+type fakeObjects struct {
+	target   UploadTarget
+	info     ObjectInfo
+	infoErr  error
+	getURL   string
+	deleted  []string
+	getCalls int
+	headCall int
+	putCalls int
+}
+
+func (s *fakeObjects) PresignPut(
+	_ context.Context,
+	_, _ string,
+	_ time.Duration,
+) (UploadTarget, error) {
+	s.putCalls++
+
+	return s.target, nil
+}
+
+func (s *fakeObjects) PresignGet(_ context.Context, _ string, _ time.Duration) (string, error) {
+	s.getCalls++
+
+	return s.getURL, nil
+}
+
+func (s *fakeObjects) Head(_ context.Context, _ string) (ObjectInfo, error) {
+	s.headCall++
+
+	return s.info, s.infoErr
+}
+
+func (s *fakeObjects) Delete(_ context.Context, key string) error {
+	s.deleted = append(s.deleted, key)
+
+	return nil
+}
+
+type fakeBuilder struct {
+	key       string
+	transform Transform
+}
+
+func (b *fakeBuilder) BuildURL(objectKey string, transform Transform) (string, error) {
+	b.key = objectKey
+	b.transform = transform
+
+	return "https://cdn.example.test/image.webp", nil
+}
+
+func testConfig() config.Config {
+	return config.Config{
+		MediaMaxBytes:            10 * 1024 * 1024,
+		MediaS3Bucket:            "media",
+		MediaS3Endpoint:          "http://localhost:9000",
+		MediaS3PublicEndpoint:    "http://localhost:9000",
+		MediaS3Region:            "us-east-1",
+		MediaS3AccessKey:         "minioadmin",
+		MediaS3SecretKey:         "minioadmin",
+		MediaS3ForcePathStyle:    true,
+		MediaAllowedContentTypes: []string{"image/jpeg", "image/png", "image/webp"},
+		MediaUploadURLTTL:        15 * time.Minute,
+		MediaDownloadURLTTL:      time.Hour,
+	}
+}
+
+func TestServiceCreateUpload(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	repository := newFakeRepository()
+	objects := &fakeObjects{
+		target: UploadTarget{
+			URL:       "https://uploads.example.test/signed",
+			Headers:   map[string]string{"Content-Type": "image/png"},
+			ExpiresIn: 900,
+		},
+	}
+	service := NewService(repository, objects, testConfig(), zap.NewNop())
+
+	upload, err := service.CreateUpload(context.Background(), ownerID, UploadInput{
+		Filename:    "avatar.png",
+		ContentType: "image/png",
+		ByteSize:    2048,
+	})
+	if err != nil {
+		t.Fatalf("create upload: %v", err)
+	}
+
+	if upload.Media.Status != StatusPending {
+		t.Fatalf("status = %q, want pending", upload.Media.Status)
+	}
+
+	if upload.URL != objects.target.URL {
+		t.Fatalf("url = %q", upload.URL)
+	}
+
+	if upload.Media.ObjectKey != "users/"+ownerID.String()+"/media/"+upload.Media.ID.String()+".png" {
+		t.Fatalf("object key = %q", upload.Media.ObjectKey)
+	}
+
+	if len(repository.items) != 1 {
+		t.Fatalf("repository size = %d, want 1", len(repository.items))
+	}
+}
+
+func TestServiceCreateUploadValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   UploadInput
+		wantErr error
+	}{
+		{
+			name:    "empty filename",
+			input:   UploadInput{Filename: " ", ContentType: "image/png", ByteSize: 1},
+			wantErr: ErrInvalidInput,
+		},
+		{
+			name:    "too large",
+			input:   UploadInput{Filename: "x.png", ContentType: "image/png", ByteSize: 11 * 1024 * 1024},
+			wantErr: ErrInvalidInput,
+		},
+		{
+			name:    "unsupported type",
+			input:   UploadInput{Filename: "x.pdf", ContentType: "application/pdf", ByteSize: 10},
+			wantErr: ErrUnsupportedContentType,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := NewService(
+				newFakeRepository(),
+				&fakeObjects{},
+				testConfig(),
+				zap.NewNop(),
+			)
+
+			_, err := service.CreateUpload(context.Background(), uuid.New(), test.input)
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("error = %v, want %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestServiceComplete(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	item := Media{
+		ID:          uuid.New(),
+		OwnerID:     ownerID,
+		ObjectKey:   "users/owner/media/image.png",
+		ContentType: "image/png",
+		ByteSize:    2048,
+		Filename:    "avatar.png",
+		Status:      StatusPending,
+	}
+	repository := newFakeRepository()
+	repository.items[item.ID] = item
+	objects := &fakeObjects{info: ObjectInfo{ByteSize: 2048, ContentType: "image/png"}}
+	service := NewService(repository, objects, testConfig(), zap.NewNop())
+
+	ready, err := service.Complete(context.Background(), ownerID, item.ID)
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+
+	if ready.Status != StatusReady {
+		t.Fatalf("status = %q, want ready", ready.Status)
+	}
+}
+
+func TestServiceCompleteMismatch(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	item := Media{
+		ID:          uuid.New(),
+		OwnerID:     ownerID,
+		ObjectKey:   "object",
+		ContentType: "image/png",
+		ByteSize:    2048,
+		Status:      StatusPending,
+	}
+	repository := newFakeRepository()
+	repository.items[item.ID] = item
+	objects := &fakeObjects{info: ObjectInfo{ByteSize: 10, ContentType: "image/png"}}
+	service := NewService(repository, objects, testConfig(), zap.NewNop())
+
+	_, err := service.Complete(context.Background(), ownerID, item.ID)
+	if !errors.Is(err, ErrSizeMismatch) {
+		t.Fatalf("error = %v, want size mismatch", err)
+	}
+}
+
+func TestServiceURL(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	item := Media{
+		ID:        uuid.New(),
+		OwnerID:   ownerID,
+		ObjectKey: "object",
+		Status:    StatusReady,
+	}
+	repository := newFakeRepository()
+	repository.items[item.ID] = item
+	objects := &fakeObjects{getURL: "https://download.example.test/signed"}
+	service := NewService(repository, objects, testConfig(), zap.NewNop())
+
+	imageURL, err := service.URL(context.Background(), ownerID, item.ID, Transform{})
+	if err != nil {
+		t.Fatalf("url: %v", err)
+	}
+
+	if imageURL.URL != objects.getURL {
+		t.Fatalf("url = %q", imageURL.URL)
+	}
+}
+
+func TestServiceURLTransform(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	item := Media{
+		ID:        uuid.New(),
+		OwnerID:   ownerID,
+		ObjectKey: "object",
+		Status:    StatusReady,
+	}
+	repository := newFakeRepository()
+	repository.items[item.ID] = item
+	builder := &fakeBuilder{}
+	service := NewService(repository, &fakeObjects{}, testConfig(), zap.NewNop())
+	service.SetURLBuilder(builder)
+
+	transform := Transform{Width: 200, Height: 100, Fit: "cover", Format: "webp"}
+
+	imageURL, err := service.URL(context.Background(), ownerID, item.ID, transform)
+	if err != nil {
+		t.Fatalf("url: %v", err)
+	}
+
+	if imageURL.URL != "https://cdn.example.test/image.webp" {
+		t.Fatalf("url = %q", imageURL.URL)
+	}
+
+	if builder.key != item.ObjectKey || builder.transform != transform {
+		t.Fatalf("builder = %#v", builder)
+	}
+}
+
+func TestServiceURLUnsupportedTransform(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	item := Media{ID: uuid.New(), OwnerID: ownerID, Status: StatusReady}
+	repository := newFakeRepository()
+	repository.items[item.ID] = item
+	service := NewService(repository, &fakeObjects{}, testConfig(), zap.NewNop())
+
+	_, err := service.URL(context.Background(), ownerID, item.ID, Transform{Width: 10})
+	if !errors.Is(err, ErrUnsupportedTransform) {
+		t.Fatalf("error = %v, want unsupported transform", err)
+	}
+}
+
+func TestServiceDelete(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	item := Media{ID: uuid.New(), OwnerID: ownerID, ObjectKey: "object", Status: StatusReady}
+	repository := newFakeRepository()
+	repository.items[item.ID] = item
+	objects := &fakeObjects{}
+	service := NewService(repository, objects, testConfig(), zap.NewNop())
+
+	if err := service.Delete(context.Background(), ownerID, item.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	if len(objects.deleted) != 1 || objects.deleted[0] != item.ObjectKey {
+		t.Fatalf("deleted = %#v", objects.deleted)
+	}
+
+	if len(repository.items) != 0 {
+		t.Fatalf("repository size = %d, want 0", len(repository.items))
+	}
+}

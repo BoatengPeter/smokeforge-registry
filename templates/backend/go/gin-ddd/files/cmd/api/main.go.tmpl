@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	// smokeforge:anchor import-auth
+	// smokeforge:anchor import-media
 	// smokeforge:anchor import-database
 	// smokeforge:anchor import-totp
 	"{{.module_path}}/internal/app"
@@ -47,6 +48,7 @@ func run() error {
 	// smokeforge:anchor main-database
 	// smokeforge:anchor main-cache
 	// smokeforge:anchor main-auth
+	// smokeforge:anchor main-media
 	// smokeforge:anchor main-totp
 
 	options := []httpapi.Option{

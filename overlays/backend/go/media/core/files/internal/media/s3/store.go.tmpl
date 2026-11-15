@@ -1,0 +1,143 @@
+// Package s3 stores private media objects in an S3-compatible bucket.
+package s3
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/media"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
+)
+
+// Store signs uploads and reads against a private bucket.
+type Store struct {
+	bucket    string
+	client    *s3.Client
+	presigner *s3.PresignClient
+	public    *s3.PresignClient
+}
+
+// New constructs an S3 client with static credentials.
+func New(cfg config.Config) (*Store, error) {
+	awsConfig := aws.Config{
+		Region: cfg.MediaS3Region,
+		Credentials: credentials.NewStaticCredentialsProvider(
+			cfg.MediaS3AccessKey,
+			cfg.MediaS3SecretKey,
+			"",
+		),
+	}
+
+	client := s3.NewFromConfig(awsConfig, func(options *s3.Options) {
+		options.UsePathStyle = cfg.MediaS3ForcePathStyle
+
+		if cfg.MediaS3Endpoint != "" {
+			options.BaseEndpoint = aws.String(cfg.MediaS3Endpoint)
+		}
+	})
+
+	publicClient := client
+	if cfg.MediaS3PublicEndpoint != "" && cfg.MediaS3PublicEndpoint != cfg.MediaS3Endpoint {
+		publicClient = s3.NewFromConfig(awsConfig, func(options *s3.Options) {
+			options.UsePathStyle = cfg.MediaS3ForcePathStyle
+			options.BaseEndpoint = aws.String(cfg.MediaS3PublicEndpoint)
+		})
+	}
+
+	return &Store{
+		bucket:    cfg.MediaS3Bucket,
+		client:    client,
+		presigner: s3.NewPresignClient(client),
+		public:    s3.NewPresignClient(publicClient),
+	}, nil
+}
+
+// PresignPut returns a direct-upload URL bound to one content type.
+func (s *Store) PresignPut(
+	ctx context.Context,
+	key, contentType string,
+	ttl time.Duration,
+) (media.UploadTarget, error) {
+	request, err := s.public.PresignPutObject(
+		ctx,
+		&s3.PutObjectInput{
+			Bucket:      aws.String(s.bucket),
+			Key:         aws.String(key),
+			ContentType: aws.String(contentType),
+		},
+		func(options *s3.PresignOptions) {
+			options.Expires = ttl
+		},
+	)
+	if err != nil {
+		return media.UploadTarget{}, fmt.Errorf("presign put: %w", err)
+	}
+
+	return media.UploadTarget{
+		URL:       request.URL,
+		Headers:   map[string]string{"Content-Type": contentType},
+		ExpiresIn: int64(ttl.Seconds()),
+	}, nil
+}
+
+// PresignGet returns a private read URL.
+func (s *Store) PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error) {
+	request, err := s.public.PresignGetObject(
+		ctx,
+		&s3.GetObjectInput{
+			Bucket: aws.String(s.bucket),
+			Key:    aws.String(key),
+		},
+		func(options *s3.PresignOptions) {
+			options.Expires = ttl
+		},
+	)
+	if err != nil {
+		return "", fmt.Errorf("presign get: %w", err)
+	}
+
+	return request.URL, nil
+}
+
+// Head returns object metadata.
+func (s *Store) Head(ctx context.Context, key string) (media.ObjectInfo, error) {
+	output, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			code := apiErr.ErrorCode()
+			if code == "NotFound" || code == "NoSuchKey" {
+				return media.ObjectInfo{}, media.ErrObjectMissing
+			}
+		}
+
+		return media.ObjectInfo{}, fmt.Errorf("head object: %w", err)
+	}
+
+	return media.ObjectInfo{
+		ByteSize:    aws.ToInt64(output.ContentLength),
+		ContentType: aws.ToString(output.ContentType),
+	}, nil
+}
+
+// Delete removes an object. S3 treats missing keys as success.
+func (s *Store) Delete(ctx context.Context, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("delete object: %w", err)
+	}
+
+	return nil
+}

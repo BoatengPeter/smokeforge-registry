@@ -1,0 +1,151 @@
+package mediahttp
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/auth"
+	"{{.module_path}}/internal/media"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+type fakeVerifier struct {
+	identity auth.Identity
+	err      error
+}
+
+func (v fakeVerifier) Authenticate(context.Context, string) (auth.Identity, error) {
+	return v.identity, v.err
+}
+
+type fakeService struct {
+	upload      media.Upload
+	item        media.Media
+	imageURL    media.URL
+	uploadErr   error
+	completeErr error
+	getErr      error
+	urlErr      error
+	deleteErr   error
+}
+
+func (s *fakeService) CreateUpload(
+	context.Context,
+	uuid.UUID,
+	media.UploadInput,
+) (media.Upload, error) {
+	return s.upload, s.uploadErr
+}
+
+func (s *fakeService) Complete(context.Context, uuid.UUID, uuid.UUID) (media.Media, error) {
+	return s.item, s.completeErr
+}
+
+func (s *fakeService) Get(context.Context, uuid.UUID, uuid.UUID) (media.Media, error) {
+	return s.item, s.getErr
+}
+
+func (s *fakeService) URL(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	media.Transform,
+) (media.URL, error) {
+	return s.imageURL, s.urlErr
+}
+
+func (s *fakeService) Delete(context.Context, uuid.UUID, uuid.UUID) error {
+	return s.deleteErr
+}
+
+func TestHandlerCreateUpload(t *testing.T) {
+	t.Parallel()
+
+	identity := auth.Identity{UserID: uuid.New(), Role: "user"}
+	service := &fakeService{
+		upload: media.Upload{
+			Media: media.Media{
+				ID:          uuid.New(),
+				Filename:    "avatar.png",
+				ContentType: "image/png",
+				ByteSize:    10,
+				Status:      media.StatusPending,
+				CreatedAt:   time.Now().UTC(),
+				UpdatedAt:   time.Now().UTC(),
+			},
+			URL:       "https://uploads.example.test/signed",
+			ExpiresIn: 900,
+		},
+	}
+	router := newTestRouter(service, fakeVerifier{identity: identity})
+
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/media/uploads",
+		bytes.NewBufferString(`{"filename":"avatar.png","content_type":"image/png","size_bytes":10}`),
+	)
+	request.Header.Set("Authorization", "Bearer token")
+	request.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+}
+
+func TestHandlerRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	router := newTestRouter(&fakeService{}, fakeVerifier{err: errors.New("invalid token")})
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/media/"+uuid.NewString(), nil)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestHandlerUnsupportedTransform(t *testing.T) {
+	t.Parallel()
+
+	identity := auth.Identity{UserID: uuid.New(), Role: "user"}
+	service := &fakeService{urlErr: media.ErrUnsupportedTransform}
+	router := newTestRouter(service, fakeVerifier{identity: identity})
+
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/api/v1/media/"+uuid.NewString()+"/url?width=100",
+		nil,
+	)
+	request.Header.Set("Authorization", "Bearer token")
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNotImplemented)
+	}
+}
+
+func newTestRouter(service *fakeService, verifier fakeVerifier) *gin.Engine {
+	router := gin.New()
+	NewHandler(service, verifier, zap.NewNop()).RegisterRoutes(router)
+
+	return router
+}

@@ -1,0 +1,127 @@
+// Package imgproxy builds signed imgproxy transform URLs.
+package imgproxy
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/media"
+)
+
+// Builder signs imgproxy URLs for one bucket and key pair.
+type Builder struct {
+	baseURL string
+	bucket  string
+	key     []byte
+	salt    []byte
+	ttl     time.Duration
+}
+
+// New validates the imgproxy configuration and decodes its hex key and salt.
+func New(cfg config.Config) (*Builder, error) {
+	parsed, err := url.ParseRequestURI(cfg.MediaImgproxyBaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse imgproxy url: %w", err)
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("imgproxy url %q must use http or https", cfg.MediaImgproxyBaseURL)
+	}
+
+	key, err := hex.DecodeString(cfg.MediaImgproxyKey)
+	if err != nil || len(key) == 0 {
+		return nil, fmt.Errorf("decode imgproxy key: %w", err)
+	}
+
+	salt, err := hex.DecodeString(cfg.MediaImgproxySalt)
+	if err != nil || len(salt) == 0 {
+		return nil, fmt.Errorf("decode imgproxy salt: %w", err)
+	}
+
+	if cfg.MediaDownloadURLTTL <= 0 {
+		return nil, errors.New("media download url ttl must be positive")
+	}
+
+	return &Builder{
+		baseURL: strings.TrimRight(cfg.MediaImgproxyBaseURL, "/"),
+		bucket:  cfg.MediaS3Bucket,
+		key:     key,
+		salt:    salt,
+		ttl:     cfg.MediaDownloadURLTTL,
+	}, nil
+}
+
+// BuildURL returns a signed processing URL for an object key.
+func (b *Builder) BuildURL(objectKey string, transform media.Transform) (string, error) {
+	options, err := processingOptions(transform)
+	if err != nil {
+		return "", err
+	}
+
+	source := base64.RawURLEncoding.EncodeToString(
+		[]byte("s3://" + b.bucket + "/" + objectKey),
+	)
+
+	options = append(options, fmt.Sprintf("expires:%d", time.Now().Add(b.ttl).Unix()))
+
+	path := "/" + strings.Join(options, "/") + "/" + source
+	if transform.Format != "" {
+		path += "." + transform.Format
+	}
+
+	return b.baseURL + "/" + signature(b.key, b.salt, path) + path, nil
+}
+
+func processingOptions(transform media.Transform) ([]string, error) {
+	options := make([]string, 0, 3)
+
+	if transform.Width > 0 || transform.Height > 0 {
+		options = append(options, fmt.Sprintf(
+			"rs:%s:%d:%d:0",
+			resizeType(transform.Fit),
+			transform.Width,
+			transform.Height,
+		))
+	}
+
+	if transform.Quality > 0 {
+		options = append(options, fmt.Sprintf("q:%d", transform.Quality))
+	}
+
+	if transform.Format != "" {
+		options = append(options, "format:"+transform.Format)
+	}
+
+	if len(options) == 0 {
+		return nil, media.ErrInvalidInput
+	}
+
+	return options, nil
+}
+
+func resizeType(fit string) string {
+	switch fit {
+	case "contain":
+		return "fit"
+	case "fill":
+		return "force"
+	default:
+		return "fill"
+	}
+}
+
+func signature(key, salt []byte, path string) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(salt)
+	mac.Write([]byte(path))
+
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}

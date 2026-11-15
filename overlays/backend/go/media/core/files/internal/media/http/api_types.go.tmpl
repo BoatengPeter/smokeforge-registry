@@ -1,0 +1,63 @@
+package mediahttp
+
+import (
+	"time"
+
+	"{{.module_path}}/internal/media"
+	"github.com/google/uuid"
+)
+
+// CreateUploadRequest reserves an image upload.
+type CreateUploadRequest struct {
+	Filename    string `json:"filename"`
+	ContentType string `json:"content_type"`
+	SizeBytes   int64  `json:"size_bytes"`
+}
+
+// Media is the public image metadata shape.
+type Media struct {
+	ID          uuid.UUID `json:"id"`
+	Filename    string    `json:"filename"`
+	ContentType string    `json:"content_type"`
+	SizeBytes   int64     `json:"size_bytes"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// MediaUpload is a signed upload reservation.
+type MediaUpload struct {
+	Media         Media             `json:"media"`
+	UploadURL     string            `json:"upload_url"`
+	UploadHeaders map[string]string `json:"upload_headers"`
+	ExpiresIn     int64             `json:"expires_in"`
+}
+
+// MediaURL is a timed read or transform URL.
+type MediaURL struct {
+	URL       string `json:"url"`
+	ExpiresIn int64  `json:"expires_in"`
+}
+
+// ErrorResponse is an RFC 9457 problem response.
+type ErrorResponse struct {
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	Status    int32  `json:"status"`
+	Detail    string `json:"detail,omitempty"`
+	Instance  string `json:"instance,omitempty"`
+	Code      string `json:"code,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
+}
+
+func toMedia(item media.Media) Media {
+	return Media{
+		ID:          item.ID,
+		Filename:    item.Filename,
+		ContentType: item.ContentType,
+		SizeBytes:   item.ByteSize,
+		Status:      string(item.Status),
+		CreatedAt:   item.CreatedAt,
+		UpdatedAt:   item.UpdatedAt,
+	}
+}

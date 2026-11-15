@@ -1,0 +1,270 @@
+package media
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+// Service applies media validation and authorization rules.
+type Service struct {
+	repository Repository
+	objects    ObjectStore
+	builder    URLBuilder
+	config     config.Config
+	logger     *zap.Logger
+}
+
+// NewService constructs the media service.
+func NewService(
+	repository Repository,
+	objects ObjectStore,
+	cfg config.Config,
+	logger *zap.Logger,
+) *Service {
+	return &Service{
+		repository: repository,
+		objects:    objects,
+		config:     cfg,
+		logger:     logger,
+	}
+}
+
+// SetURLBuilder enables image transformations.
+func (s *Service) SetURLBuilder(builder URLBuilder) {
+	s.builder = builder
+}
+
+// CreateUpload reserves an object key and returns a signed direct-upload URL.
+func (s *Service) CreateUpload(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	input UploadInput,
+) (Upload, error) {
+	contentType, err := s.validateUpload(input)
+	if err != nil {
+		return Upload{}, err
+	}
+
+	mediaID := uuid.New()
+
+	item := Media{
+		ID:          mediaID,
+		OwnerID:     ownerID,
+		ObjectKey:   objectKey(ownerID, mediaID, contentType),
+		ContentType: contentType,
+		ByteSize:    input.ByteSize,
+		Filename:    strings.TrimSpace(input.Filename),
+		Status:      StatusPending,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	if err := s.repository.Create(ctx, item); err != nil {
+		return Upload{}, fmt.Errorf("create media metadata: %w", err)
+	}
+
+	target, err := s.objects.PresignPut(
+		ctx,
+		item.ObjectKey,
+		item.ContentType,
+		s.config.MediaUploadURLTTL,
+	)
+	if err != nil {
+		s.cleanupReservation(ctx, item)
+
+		return Upload{}, fmt.Errorf("sign media upload: %w", err)
+	}
+
+	return Upload{
+		Media:     item,
+		URL:       target.URL,
+		Headers:   target.Headers,
+		ExpiresIn: target.ExpiresIn,
+	}, nil
+}
+
+// Complete verifies the uploaded object and marks the image ready.
+func (s *Service) Complete(ctx context.Context, ownerID, id uuid.UUID) (Media, error) {
+	item, err := s.repository.Get(ctx, id, ownerID)
+	if err != nil {
+		return Media{}, err
+	}
+
+	if item.Status == StatusReady {
+		return item, nil
+	}
+
+	info, err := s.objects.Head(ctx, item.ObjectKey)
+	if err != nil {
+		return Media{}, fmt.Errorf("inspect uploaded object: %w", err)
+	}
+
+	if info.ByteSize != item.ByteSize {
+		return Media{}, fmt.Errorf("%w: got %d bytes, want %d", ErrSizeMismatch, info.ByteSize, item.ByteSize)
+	}
+
+	infoType := strings.ToLower(strings.TrimSpace(info.ContentType))
+	if infoType != "" && infoType != item.ContentType {
+		return Media{}, fmt.Errorf("%w: got %q, want %q", ErrContentTypeMismatch, info.ContentType, item.ContentType)
+	}
+
+	ready, err := s.repository.MarkReady(ctx, id, ownerID)
+	if err != nil {
+		return Media{}, fmt.Errorf("mark media ready: %w", err)
+	}
+
+	return ready, nil
+}
+
+// Get returns metadata for an image owned by the caller.
+func (s *Service) Get(ctx context.Context, ownerID, id uuid.UUID) (Media, error) {
+	return s.repository.Get(ctx, id, ownerID)
+}
+
+// URL returns a timed presigned URL or a signed transformation URL.
+func (s *Service) URL(
+	ctx context.Context,
+	ownerID, id uuid.UUID,
+	transform Transform,
+) (URL, error) {
+	item, err := s.repository.Get(ctx, id, ownerID)
+	if err != nil {
+		return URL{}, err
+	}
+
+	if item.Status != StatusReady {
+		return URL{}, fmt.Errorf("%w: image is still pending", ErrInvalidInput)
+	}
+
+	if !transform.IsZero() {
+		if err := validateTransform(transform); err != nil {
+			return URL{}, err
+		}
+
+		if s.builder == nil {
+			return URL{}, ErrUnsupportedTransform
+		}
+
+		rawURL, err := s.builder.BuildURL(item.ObjectKey, transform)
+		if err != nil {
+			return URL{}, fmt.Errorf("build image url: %w", err)
+		}
+
+		return URL{URL: rawURL, ExpiresIn: int64(s.config.MediaDownloadURLTTL.Seconds())}, nil
+	}
+
+	rawURL, err := s.objects.PresignGet(ctx, item.ObjectKey, s.config.MediaDownloadURLTTL)
+	if err != nil {
+		return URL{}, fmt.Errorf("sign media download: %w", err)
+	}
+
+	return URL{URL: rawURL, ExpiresIn: int64(s.config.MediaDownloadURLTTL.Seconds())}, nil
+}
+
+// Delete removes metadata and the stored object.
+func (s *Service) Delete(ctx context.Context, ownerID, id uuid.UUID) error {
+	item, err := s.repository.Get(ctx, id, ownerID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.objects.Delete(ctx, item.ObjectKey); err != nil {
+		return fmt.Errorf("delete media object: %w", err)
+	}
+
+	if err := s.repository.Delete(ctx, id, ownerID); err != nil {
+		return fmt.Errorf("delete media metadata: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Service) validateUpload(input UploadInput) (string, error) {
+	filename := strings.TrimSpace(input.Filename)
+	if filename == "" || len(filename) > 255 {
+		return "", fmt.Errorf("%w: filename must contain 1 to 255 characters", ErrInvalidInput)
+	}
+
+	if input.ByteSize < 1 || input.ByteSize > s.config.MediaMaxBytes {
+		return "", fmt.Errorf("%w: size must be between 1 and %d bytes", ErrInvalidInput, s.config.MediaMaxBytes)
+	}
+
+	contentType := strings.ToLower(strings.TrimSpace(input.ContentType))
+	for _, allowed := range s.config.MediaAllowedContentTypes {
+		if contentType == strings.ToLower(strings.TrimSpace(allowed)) {
+			return contentType, nil
+		}
+	}
+
+	return "", fmt.Errorf("%w: %q", ErrUnsupportedContentType, input.ContentType)
+}
+
+func (s *Service) cleanupReservation(ctx context.Context, item Media) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+
+	if err := s.repository.Delete(cleanupCtx, item.ID, item.OwnerID); err != nil {
+		s.logger.Warn("failed to remove media reservation", zap.Error(err))
+	}
+}
+
+func validateTransform(transform Transform) error {
+	if err := validateTransformSize(transform); err != nil {
+		return err
+	}
+
+	if transform.Fit != "" && transform.Width == 0 && transform.Height == 0 {
+		return fmt.Errorf("%w: fit requires width or height", ErrInvalidInput)
+	}
+
+	if transform.Quality < 0 || transform.Quality > 100 {
+		return fmt.Errorf("%w: quality must be between 0 and 100", ErrInvalidInput)
+	}
+
+	if transform.Format != "" && !slices.Contains([]string{"jpeg", "png", "webp"}, transform.Format) {
+		return fmt.Errorf("%w: unsupported format %q", ErrInvalidInput, transform.Format)
+	}
+
+	if transform.Fit != "" && !slices.Contains([]string{"cover", "contain", "fill"}, transform.Fit) {
+		return fmt.Errorf("%w: unsupported fit %q", ErrInvalidInput, transform.Fit)
+	}
+
+	return nil
+}
+
+func validateTransformSize(transform Transform) error {
+	if transform.Width < 0 || transform.Width > 8192 {
+		return fmt.Errorf("%w: width must be between 0 and 8192", ErrInvalidInput)
+	}
+
+	if transform.Height < 0 || transform.Height > 8192 {
+		return fmt.Errorf("%w: height must be between 0 and 8192", ErrInvalidInput)
+	}
+
+	return nil
+}
+
+func objectKey(ownerID, mediaID uuid.UUID, contentType string) string {
+	return fmt.Sprintf("users/%s/media/%s%s", ownerID, mediaID, extension(contentType))
+}
+
+func extension(contentType string) string {
+	switch contentType {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	default:
+		return ""
+	}
+}

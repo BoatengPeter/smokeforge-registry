@@ -3,8 +3,9 @@
 Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
 **Status:** the Next.js base and the Go/Gin backend (four architectures) are
-implemented, including PostgreSQL, users/JWT auth, Google OAuth, TOTP, Docker,
-CI, Swagger UI, embedded migrations, and project-scoped Go skills.
+implemented, including PostgreSQL, users/JWT auth, Google OAuth, TOTP, Redis
+cache, RabbitMQ queues, scheduler leadership, dedupe, gzip, image media,
+Docker, CI, Swagger UI, embedded migrations, and project-scoped Go skills.
 Contract/build-matrix automation is the remaining M3 work.
 
 ## Layout
@@ -34,9 +35,9 @@ tests/                                 # contract/build matrix
 - Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
 - Frontend presets: `fullstack` (default) and `frontend`.
 - Overlays: Postgres/pgx/sqlc/goose, optional Redis cache, RabbitMQ worker and
-  scheduler, Redis scheduler leadership, dedupe, compression, users/JWT auth,
-  Google OAuth, TOTP, Docker, CI, embedded migrations, and optional demo-user
-  seeding.
+  scheduler, Redis scheduler leadership, dedupe, gzip, users/JWT auth, Google
+  OAuth, TOTP, MinIO/imgproxy/nginx or Cloudflare R2 media, Docker, CI,
+  embedded migrations, and optional demo-user seeding.
 - All 17 Go skills plus `sql-optimization-patterns` and `postgresql-optimization` ship in the base; `cache:redis` adds `redis-patterns` and `queue:rabbitmq` adds `rabbitmq-development`.
 
 ## Current Next decisions

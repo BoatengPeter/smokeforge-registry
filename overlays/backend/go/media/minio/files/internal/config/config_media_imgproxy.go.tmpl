@@ -1,0 +1,24 @@
+package config
+
+import (
+	"encoding/hex"
+	"errors"
+)
+
+func (c Config) validateMediaImgproxy() error {
+	if err := validateHTTPURL("media imgproxy base url", c.MediaImgproxyBaseURL); err != nil {
+		return err
+	}
+
+	key, err := hex.DecodeString(c.MediaImgproxyKey)
+	if err != nil || len(key) == 0 {
+		return errors.New("media imgproxy key must be non-empty hex")
+	}
+
+	salt, err := hex.DecodeString(c.MediaImgproxySalt)
+	if err != nil || len(salt) == 0 {
+		return errors.New("media imgproxy salt must be non-empty hex")
+	}
+
+	return nil
+}

@@ -109,6 +109,8 @@ for stack in "${stacks[@]}"; do
     --feature scheduler:leader \
     --feature dedupe:redis \
     --feature compression:gzip \
+    --feature media \
+    --feature media-provider:minio \
     --feature docker \
     --feature ci:github \
     --var "module_path=example.com/verify/$slug/full" \
@@ -126,7 +128,7 @@ for stack in "${stacks[@]}"; do
       fi
     done
     services="$(cd "$target" && docker compose "${compose_files[@]}" config --services)"
-    for service in api db migrate redis rabbitmq worker scheduler; do
+    for service in api db migrate redis rabbitmq worker scheduler minio minio-init imgproxy nginx; do
       if ! grep -qx "$service" <<<"$services"; then
         echo "  compose stack is missing service: $service" >&2
         exit 1
@@ -206,6 +208,35 @@ if [[ ! -f "$target/docs/QUEUE.md" || ! -f "$target/cmd/worker/main.go" || ! -f 
 fi
 if command -v docker >/dev/null 2>&1; then
   (cd "$target" && docker compose -f compose.queue.yaml config >/dev/null)
+fi
+
+echo "== media R2 overlay"
+target="$TMP/go-gin-layered-media-r2"
+"$CLI_BIN" new "$target" \
+  --registry "$ROOT" \
+  --kind backend \
+  --stack go/gin-layered \
+  --name "Verify media R2" \
+  --preset api \
+  --feature media \
+  --feature media-provider:r2 \
+  --var module_path=example.com/verify/media-r2 \
+  --var http_port=8080 \
+  --no-input --no-git
+run_generated_checks "$target"
+for doc in docs/MEDIA.md docs/MEDIA_R2.md; do
+  if [[ ! -f "$target/$doc" ]]; then
+    echo "  media documentation is missing: $doc" >&2
+    exit 1
+  fi
+done
+if [[ -d "$target/internal/media/imgproxy" ]]; then
+  echo "  R2 must not include imgproxy" >&2
+  exit 1
+fi
+if compgen -G "$target/compose.media.yaml" >/dev/null; then
+  echo "  R2 must not include the MinIO compose stack" >&2
+  exit 1
 fi
 
 echo "== generated code drift check"
