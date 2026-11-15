@@ -49,13 +49,13 @@ presets:
     kinds: [frontend]
     features: []
   - id: api
-    name: Go API
-    description: Postgres and JWT authentication
+    name: Backend API
+    description: Postgres and JWT authentication for any backend stack
     kinds: [backend]
     default: true
     features: [database:postgres, auth:jwt]
   - id: api-custom
-    name: Custom Go API
+    name: Custom backend API
     description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, media, search, search sync, pagination, Docker, and CI
     kinds: [backend]
     features: []
