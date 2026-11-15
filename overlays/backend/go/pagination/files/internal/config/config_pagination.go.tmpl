@@ -1,0 +1,25 @@
+package config
+
+import "errors"
+
+const minPaginationSecretSize = 32
+
+func (c Config) validatePagination() error {
+	if len([]byte(c.PaginationCursorSecret)) < minPaginationSecretSize {
+		return errors.New("pagination cursor secret must be at least 32 bytes")
+	}
+
+	if c.PaginationMaxLimit < 1 || c.PaginationMaxLimit > 1000 {
+		return errors.New("pagination max limit must be between 1 and 1000")
+	}
+
+	if c.PaginationDefaultLimit < 1 || c.PaginationDefaultLimit > c.PaginationMaxLimit {
+		return errors.New("pagination default limit must be between 1 and the max limit")
+	}
+
+	if c.PaginationMaxOffset < 1 || c.PaginationMaxOffset > 1_000_000 {
+		return errors.New("pagination max offset must be between 1 and 1000000")
+	}
+
+	return nil
+}

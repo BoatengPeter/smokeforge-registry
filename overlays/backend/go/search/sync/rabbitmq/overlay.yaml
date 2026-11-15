@@ -1,0 +1,64 @@
+id: search-sync:rabbitmq
+name: RabbitMQ search index sync
+files: files
+ops:
+  - addFiles:
+      - {path: internal/search/sync/job.go.tmpl, dest: internal/search/sync/job.go}
+      - {path: internal/search/sync/indexer.go.tmpl, dest: internal/search/sync/indexer.go}
+      - {path: internal/search/sync/indexer_test.go.tmpl, dest: internal/search/sync/indexer_test.go}
+      - {path: internal/search/sync/handler.go.tmpl, dest: internal/search/sync/handler.go}
+      - {path: internal/search/sync/handler_test.go.tmpl, dest: internal/search/sync/handler_test.go}
+      - {path: docs/SEARCH_SYNC.md, dest: docs/SEARCH_SYNC.md}
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-search-sync
+      marker: search-sync:rabbitmq-import
+      content: |
+        searchsync "{{.module_path}}/internal/search/sync"
+        syncrabbit "{{.module_path}}/internal/queue/rabbitmq"
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: search-indexer
+      marker: search-sync:rabbitmq-main
+      content: |-
+        syncManager, err := syncrabbit.NewConnectionManager(ctx, cfg, logger)
+        if err != nil {
+        	return fmt.Errorf("connect search queue: %w", err)
+        }
+
+        defer func() {
+        	_ = syncManager.Close()
+        }()
+
+        if err := syncrabbit.EnsureTopology(ctx, syncManager, cfg); err != nil {
+        	return fmt.Errorf("declare search queue topology: %w", err)
+        }
+
+        syncPublisher := syncrabbit.NewPublisher(syncManager, cfg, logger)
+
+        defer func() {
+        	_ = syncPublisher.Close()
+        }()
+
+        searchService.SetIndexer(searchsync.NewIndexer(syncPublisher))
+  - insertAfter:
+      file: cmd/worker/main.go
+      anchor: worker-search-import
+      marker: search-sync:rabbitmq-worker-import
+      content: |
+        searchmeili "{{.module_path}}/internal/search/meilisearch"
+        searchsync "{{.module_path}}/internal/search/sync"
+
+  - insertAfter:
+      file: cmd/worker/main.go
+      anchor: worker-search
+      marker: search-sync:rabbitmq-worker
+      content: |-
+        searchIndexer, err := searchmeili.New(cfg)
+        if err != nil {
+        	return fmt.Errorf("configure search indexer: %w", err)
+        }
+
+        if err := searchsync.Register(registry, searchIndexer); err != nil {
+        	return fmt.Errorf("register search handlers: %w", err)
+        }

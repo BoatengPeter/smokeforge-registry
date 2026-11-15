@@ -8,8 +8,8 @@ import (
 
 // Document is one indexable record. ID must be stable and unique.
 type Document struct {
-	ID     string
-	Fields map[string]any
+	ID     string         `json:"id"`
+	Fields map[string]any `json:"fields"`
 }
 
 // Options controls one page of results.

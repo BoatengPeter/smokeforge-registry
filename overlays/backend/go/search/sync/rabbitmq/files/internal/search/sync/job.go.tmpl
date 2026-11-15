@@ -1,0 +1,50 @@
+// Package searchsync moves search indexing through the job queue.
+package searchsync
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"{{.module_path}}/internal/queue"
+	"{{.module_path}}/internal/search"
+	"github.com/google/uuid"
+)
+
+const (
+	// UpsertType indexes or replaces documents asynchronously.
+	UpsertType = "search.documents.upsert"
+	// DeleteType removes documents asynchronously.
+	DeleteType = "search.documents.delete"
+)
+
+// UpsertPayload is the queue payload for document indexing.
+type UpsertPayload struct {
+	Documents []search.Document `json:"documents"`
+}
+
+// DeletePayload is the queue payload for document deletion.
+type DeletePayload struct {
+	IDs []string `json:"ids"`
+}
+
+func newJob(jobType string, payload any) (queue.Job, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return queue.Job{}, fmt.Errorf("generate search job id: %w", err)
+	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return queue.Job{}, fmt.Errorf("encode search job payload: %w", err)
+	}
+
+	now := time.Now().UTC()
+
+	return queue.Job{
+		ID:        id,
+		Type:      jobType,
+		Payload:   encoded,
+		CreatedAt: now,
+	}, nil
+}

@@ -1,0 +1,61 @@
+package searchsync
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"{{.module_path}}/internal/queue"
+	"{{.module_path}}/internal/search"
+)
+
+// Register adds async search handlers to the worker registry.
+func Register(registry *queue.Registry, indexer search.Indexer) error {
+	if err := registry.Register(UpsertType, queue.HandlerFunc(func(ctx context.Context, job queue.Job) error {
+		return handleUpsert(ctx, job, indexer)
+	})); err != nil {
+		return fmt.Errorf("register search upsert handler: %w", err)
+	}
+
+	if err := registry.Register(DeleteType, queue.HandlerFunc(func(ctx context.Context, job queue.Job) error {
+		return handleDelete(ctx, job, indexer)
+	})); err != nil {
+		return fmt.Errorf("register search delete handler: %w", err)
+	}
+
+	return nil
+}
+
+func handleUpsert(ctx context.Context, job queue.Job, indexer search.Indexer) error {
+	var payload UpsertPayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		return fmt.Errorf("decode search upsert job: %w", err)
+	}
+
+	if len(payload.Documents) == 0 {
+		return nil
+	}
+
+	if err := indexer.Upsert(ctx, payload.Documents); err != nil {
+		return fmt.Errorf("apply search upsert: %w", err)
+	}
+
+	return nil
+}
+
+func handleDelete(ctx context.Context, job queue.Job, indexer search.Indexer) error {
+	var payload DeletePayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		return fmt.Errorf("decode search delete job: %w", err)
+	}
+
+	if len(payload.IDs) == 0 {
+		return nil
+	}
+
+	if err := indexer.Delete(ctx, payload.IDs); err != nil {
+		return fmt.Errorf("apply search delete: %w", err)
+	}
+
+	return nil
+}

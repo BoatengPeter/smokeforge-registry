@@ -1,0 +1,131 @@
+package searchsync
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/queue"
+	"{{.module_path}}/internal/search"
+	"github.com/google/uuid"
+)
+
+const testDocumentID = "doc-1"
+
+type fakeIndexer struct {
+	documents []search.Document
+	ids       []string
+	err       error
+}
+
+func (i *fakeIndexer) Upsert(_ context.Context, documents []search.Document) error {
+	i.documents = documents
+
+	return i.err
+}
+
+func (i *fakeIndexer) Delete(_ context.Context, ids []string) error {
+	i.ids = ids
+
+	return i.err
+}
+
+func TestRegisterUpsert(t *testing.T) {
+	t.Parallel()
+
+	indexer := &fakeIndexer{}
+
+	registry := queue.NewRegistry()
+	if err := Register(registry, indexer); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	handler, ok := registry.Lookup(UpsertType)
+	if !ok {
+		t.Fatal("upsert handler not registered")
+	}
+
+	payload, err := json.Marshal(UpsertPayload{Documents: []search.Document{
+		{
+			ID:     testDocumentID,
+			Fields: map[string]any{"title": "Design"},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	job := queue.Job{
+		ID:        uuid.New(),
+		Type:      UpsertType,
+		Payload:   payload,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := handler.Handle(context.Background(), job); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+
+	if len(indexer.documents) != 1 || indexer.documents[0].ID != testDocumentID {
+		t.Fatalf("documents = %#v", indexer.documents)
+	}
+}
+
+func TestRegisterDelete(t *testing.T) {
+	t.Parallel()
+
+	indexer := &fakeIndexer{}
+
+	registry := queue.NewRegistry()
+	if err := Register(registry, indexer); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	handler, ok := registry.Lookup(DeleteType)
+	if !ok {
+		t.Fatal("delete handler not registered")
+	}
+
+	payload, err := json.Marshal(DeletePayload{IDs: []string{testDocumentID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	job := queue.Job{
+		ID:        uuid.New(),
+		Type:      DeleteType,
+		Payload:   payload,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := handler.Handle(context.Background(), job); err != nil {
+		t.Fatalf("handle: %v", err)
+	}
+
+	if len(indexer.ids) != 1 || indexer.ids[0] != testDocumentID {
+		t.Fatalf("ids = %#v", indexer.ids)
+	}
+}
+
+func TestHandlerFailure(t *testing.T) {
+	t.Parallel()
+
+	indexer := &fakeIndexer{err: errors.New("engine down")}
+
+	registry := queue.NewRegistry()
+	if err := Register(registry, indexer); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	handler, _ := registry.Lookup(UpsertType)
+	job := queue.Job{
+		ID:        uuid.New(),
+		Type:      UpsertType,
+		Payload:   []byte(`{"documents":[{"id":"doc-1"}]}`),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if err := handler.Handle(context.Background(), job); err == nil {
+		t.Fatal("expected handler error")
+	}
+}

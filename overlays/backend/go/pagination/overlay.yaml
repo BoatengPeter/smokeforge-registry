@@ -1,0 +1,44 @@
+id: pagination
+name: Signed cursor and offset pagination
+files: files
+ops:
+  - addFiles:
+      - {path: internal/pagination/models.go, dest: internal/pagination/models.go}
+      - {path: internal/pagination/offset.go, dest: internal/pagination/offset.go}
+      - {path: internal/pagination/cursor.go, dest: internal/pagination/cursor.go}
+      - {path: internal/pagination/models_test.go, dest: internal/pagination/models_test.go}
+      - {path: internal/pagination/offset_test.go, dest: internal/pagination/offset_test.go}
+      - {path: internal/pagination/cursor_test.go, dest: internal/pagination/cursor_test.go}
+      - {path: internal/config/config_pagination.go.tmpl, dest: internal/config/config_pagination.go}
+      - {path: internal/config/config_pagination_test.go.tmpl, dest: internal/config/config_pagination_test.go}
+      - {path: docs/PAGINATION.md, dest: docs/PAGINATION.md}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: pagination-config
+      content: |-
+        PaginationCursorSecret string `env:"PAGINATION_CURSOR_SECRET" envDefault:"smokeforge-dev-pagination-secret-32"`
+        PaginationDefaultLimit int    `env:"PAGINATION_DEFAULT_LIMIT" envDefault:"20"`
+        PaginationMaxLimit     int    `env:"PAGINATION_MAX_LIMIT" envDefault:"100"`
+        PaginationMaxOffset    int    `env:"PAGINATION_MAX_OFFSET" envDefault:"10000"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: pagination-config-test
+      content: |-
+        PaginationCursorSecret: paginationFixtureSecret,
+        PaginationDefaultLimit: 20,
+        PaginationMaxLimit:     100,
+        PaginationMaxOffset:    10000,
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: pagination-validation
+      content: |-
+        if err := c.validatePagination(); err != nil {
+        	return err
+        }
+  - env: {key: PAGINATION_CURSOR_SECRET, example: smokeforge-dev-pagination-secret-32, secret: true}
+  - env: {key: PAGINATION_DEFAULT_LIMIT, example: "20"}
+  - env: {key: PAGINATION_MAX_LIMIT, example: "100"}
+  - env: {key: PAGINATION_MAX_OFFSET, example: "10000"}

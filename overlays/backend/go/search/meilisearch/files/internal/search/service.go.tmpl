@@ -17,6 +17,7 @@ const (
 // Service validates search input and delegates to the configured engine.
 type Service struct {
 	engine   Engine
+	indexer  Indexer
 	maxLimit int
 }
 
@@ -24,7 +25,15 @@ type Service struct {
 func NewService(engine Engine, maxLimit int) *Service {
 	return &Service{
 		engine:   engine,
+		indexer:  engine,
 		maxLimit: maxLimit,
+	}
+}
+
+// SetIndexer replaces synchronous indexing with another Indexer.
+func (s *Service) SetIndexer(indexer Indexer) {
+	if indexer != nil {
+		s.indexer = indexer
 	}
 }
 
@@ -78,7 +87,7 @@ func (s *Service) Upsert(ctx context.Context, documents []Document) error {
 		return nil
 	}
 
-	return s.engine.Upsert(ctx, documents)
+	return s.indexer.Upsert(ctx, documents)
 }
 
 // Delete removes documents by ID. It is intended for server-side domain code.
@@ -93,5 +102,5 @@ func (s *Service) Delete(ctx context.Context, ids []string) error {
 		return nil
 	}
 
-	return s.engine.Delete(ctx, ids)
+	return s.indexer.Delete(ctx, ids)
 }

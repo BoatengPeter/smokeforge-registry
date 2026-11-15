@@ -55,6 +55,7 @@ ops:
         search "{{.module_path}}/internal/search"
         searchhttp "{{.module_path}}/internal/search/http"
         searchmeili "{{.module_path}}/internal/search/meilisearch"
+        // smokeforge:anchor import-search-sync
   - insertAfter:
       file: cmd/api/main.go
       anchor: main-search
@@ -66,6 +67,7 @@ ops:
         }
 
         searchService := search.NewService(searchClient, cfg.SearchMaxLimit)
+        // smokeforge:anchor search-indexer
         searchHandler := searchhttp.NewHandler(searchService, logger)
   - insertAfter:
       file: cmd/api/main.go

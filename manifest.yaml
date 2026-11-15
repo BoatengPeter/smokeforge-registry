@@ -51,7 +51,7 @@ presets:
     features: [database:postgres, auth:jwt]
   - id: api-custom
     name: Custom Go API
-    description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, media, search, Docker, and CI
+    description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, media, search, search sync, pagination, Docker, and CI
     kinds: [backend]
     features: []
 features:
@@ -306,3 +306,36 @@ features:
           go/gin-layered: overlays/backend/go/search/meilisearch
           go/gin-hexagonal: overlays/backend/go/search/meilisearch
           go/gin-ddd: overlays/backend/go/search/meilisearch
+
+  - id: search-sync
+    name: Search index sync
+    kinds: [backend]
+    variants:
+      - id: rabbitmq
+        name: RabbitMQ
+        default: true
+        requires: [search:meilisearch, queue:rabbitmq]
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/search/sync/rabbitmq
+          go/gin-layered: overlays/backend/go/search/sync/rabbitmq
+          go/gin-hexagonal: overlays/backend/go/search/sync/rabbitmq
+          go/gin-ddd: overlays/backend/go/search/sync/rabbitmq
+
+  - id: pagination
+    name: Pagination
+    kinds: [backend]
+    stacks:
+      - go/gin-flat
+      - go/gin-layered
+      - go/gin-hexagonal
+      - go/gin-ddd
+    overlays:
+      go/gin-flat: overlays/backend/go/pagination
+      go/gin-layered: overlays/backend/go/pagination
+      go/gin-hexagonal: overlays/backend/go/pagination
+      go/gin-ddd: overlays/backend/go/pagination

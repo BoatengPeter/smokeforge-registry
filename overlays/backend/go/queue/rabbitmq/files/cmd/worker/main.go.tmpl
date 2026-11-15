@@ -13,11 +13,12 @@ import (
 	"{{.module_path}}/internal/logging"
 	"{{.module_path}}/internal/queue"
 	"{{.module_path}}/internal/queue/rabbitmq"
+	"go.uber.org/zap"
 
 	// smokeforge:anchor import-compression
 
 	// smokeforge:anchor import-dedupe
-	"go.uber.org/zap"
+	// smokeforge:anchor worker-search-import
 )
 
 func main() {
@@ -68,6 +69,8 @@ func run() error {
 	if err := registry.Register(heartbeat.Type, heartbeat.NewHandler(logger)); err != nil {
 		return fmt.Errorf("register heartbeat handler: %w", err)
 	}
+
+	// smokeforge:anchor worker-search
 
 	pool := rabbitmq.NewWorkerPool(cfg, manager, publisher, registry, logger)
 	// smokeforge:anchor worker-codec

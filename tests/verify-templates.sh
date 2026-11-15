@@ -112,6 +112,8 @@ for stack in "${stacks[@]}"; do
     --feature media \
     --feature media-provider:minio \
     --feature search:meilisearch \
+    --feature search-sync:rabbitmq \
+    --feature pagination \
     --feature docker \
     --feature ci:github \
     --var "module_path=example.com/verify/$slug/full" \
@@ -137,8 +139,8 @@ for stack in "${stacks[@]}"; do
     done
     (cd "$target" && docker compose "${compose_files[@]}" config >/dev/null)
   fi
-  if [[ ! -f "$target/docs/SEARCH.md" ]]; then
-    echo "  search documentation is missing" >&2
+  if [[ ! -f "$target/docs/SEARCH.md" || ! -f "$target/docs/SEARCH_SYNC.md" || ! -f "$target/docs/PAGINATION.md" ]]; then
+    echo "  search/pagination documentation is missing" >&2
     exit 1
   fi
 done

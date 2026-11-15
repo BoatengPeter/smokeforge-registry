@@ -1,0 +1,57 @@
+package searchsync
+
+import (
+	"context"
+	"fmt"
+
+	"{{.module_path}}/internal/queue"
+	"{{.module_path}}/internal/search"
+)
+
+// Indexer publishes search mutations instead of applying them synchronously.
+type Indexer struct {
+	publisher queue.Publisher
+}
+
+var _ search.Indexer = (*Indexer)(nil)
+
+// NewIndexer constructs a queue-backed search indexer.
+func NewIndexer(publisher queue.Publisher) *Indexer {
+	return &Indexer{publisher: publisher}
+}
+
+// Upsert publishes an indexing job.
+func (i *Indexer) Upsert(ctx context.Context, documents []search.Document) error {
+	if len(documents) == 0 {
+		return nil
+	}
+
+	job, err := newJob(UpsertType, UpsertPayload{Documents: documents})
+	if err != nil {
+		return err
+	}
+
+	if err := i.publisher.Publish(ctx, job); err != nil {
+		return fmt.Errorf("publish search upsert: %w", err)
+	}
+
+	return nil
+}
+
+// Delete publishes a deletion job.
+func (i *Indexer) Delete(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	job, err := newJob(DeleteType, DeletePayload{IDs: ids})
+	if err != nil {
+		return err
+	}
+
+	if err := i.publisher.Publish(ctx, job); err != nil {
+		return fmt.Errorf("publish search delete: %w", err)
+	}
+
+	return nil
+}

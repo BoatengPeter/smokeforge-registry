@@ -1,0 +1,98 @@
+package searchsync
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"{{.module_path}}/internal/queue"
+	"{{.module_path}}/internal/search"
+)
+
+type fakePublisher struct {
+	jobs []queue.Job
+}
+
+func (p *fakePublisher) Publish(_ context.Context, job queue.Job) error {
+	p.jobs = append(p.jobs, job)
+
+	return nil
+}
+
+func TestIndexerUpsert(t *testing.T) {
+	t.Parallel()
+
+	publisher := &fakePublisher{}
+	indexer := NewIndexer(publisher)
+	documents := []search.Document{
+		{
+			ID:     "doc-1",
+			Fields: map[string]any{"title": "Design"},
+		},
+	}
+
+	if err := indexer.Upsert(context.Background(), documents); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	if len(publisher.jobs) != 1 {
+		t.Fatalf("jobs = %d, want 1", len(publisher.jobs))
+	}
+
+	job := publisher.jobs[0]
+	if job.Type != UpsertType {
+		t.Fatalf("job type = %q", job.Type)
+	}
+
+	var payload UpsertPayload
+	if err := json.Unmarshal(job.Payload, &payload); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+
+	if len(payload.Documents) != 1 || payload.Documents[0].ID != "doc-1" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestIndexerDelete(t *testing.T) {
+	t.Parallel()
+
+	publisher := &fakePublisher{}
+	indexer := NewIndexer(publisher)
+
+	if err := indexer.Delete(context.Background(), []string{"doc-1", "doc-2"}); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	if len(publisher.jobs) != 1 || publisher.jobs[0].Type != DeleteType {
+		t.Fatalf("jobs = %#v", publisher.jobs)
+	}
+
+	var payload DeletePayload
+	if err := json.Unmarshal(publisher.jobs[0].Payload, &payload); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+
+	if len(payload.IDs) != 2 || payload.IDs[0] != "doc-1" {
+		t.Fatalf("payload = %#v", payload)
+	}
+}
+
+func TestIndexerEmpty(t *testing.T) {
+	t.Parallel()
+
+	publisher := &fakePublisher{}
+	indexer := NewIndexer(publisher)
+
+	if err := indexer.Upsert(context.Background(), nil); err != nil {
+		t.Fatalf("empty upsert: %v", err)
+	}
+
+	if err := indexer.Delete(context.Background(), nil); err != nil {
+		t.Fatalf("empty delete: %v", err)
+	}
+
+	if len(publisher.jobs) != 0 {
+		t.Fatalf("jobs = %d, want 0", len(publisher.jobs))
+	}
+}
