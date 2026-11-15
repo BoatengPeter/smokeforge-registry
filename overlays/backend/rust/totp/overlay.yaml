@@ -1,0 +1,40 @@
+id: totp
+name: TOTP two-factor authentication
+files: files
+ops:
+  - addFiles:
+      - {path: src/auth/totp.rs, dest: src/auth/totp.rs}
+      - {path: migrations/0003_totp.sql, dest: migrations/0003_totp.sql}
+      - {path: docs/TOTP.md, dest: docs/TOTP.md}
+  - addDependency: {file: Cargo.toml, module: sha1, version: "0.11.0"}
+  - insertAfter:
+      file: src/auth/mod.rs
+      anchor: auth-modules
+      marker: totp-module
+      content: 'pub mod totp;'
+  - insertAfter:
+      file: src/auth/routes.rs
+      anchor: auth-totp-routes
+      marker: totp-routes
+      content: 'let router = router.merge(super::totp::router());'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: totp-config
+      content: 'pub totp_issuer: String,'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: totp-defaults
+      content: 'totp_issuer: "smokeforge".to_owned(),'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: totp-validation
+      content: |-
+        if self.totp_issuer.trim().is_empty() {
+            return Err(ConfigError::Invalid(
+                "TOTP_ISSUER must not be empty".to_owned(),
+            ));
+        }
+  - env: {key: TOTP_ISSUER, example: smokeforge}

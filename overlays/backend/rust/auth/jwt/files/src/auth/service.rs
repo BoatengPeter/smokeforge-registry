@@ -39,6 +39,11 @@ impl AuthService {
         }
     }
 
+    /// Returns the shared pool for feature modules.
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     pub async fn register(
         &self,
         email: String,

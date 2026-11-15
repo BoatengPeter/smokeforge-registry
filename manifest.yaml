@@ -117,11 +117,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/cache/redis
           go/gin-layered: overlays/backend/go/cache/redis
           go/gin-hexagonal: overlays/backend/go/cache/redis
           go/gin-ddd: overlays/backend/go/cache/redis
+          rust/axum: overlays/backend/rust/cache/redis
 
   - id: state
     name: Client state
@@ -258,12 +260,14 @@ features:
       - go/gin-layered
       - go/gin-hexagonal
       - go/gin-ddd
+      - rust/axum
     requires: [auth:jwt]
     overlays:
       go/gin-flat: overlays/backend/go/totp
       go/gin-layered: overlays/backend/go/totp
       go/gin-hexagonal: overlays/backend/go/totp
       go/gin-ddd: overlays/backend/go/totp
+      rust/axum: overlays/backend/rust/totp
 
   - id: media
     name: Image media
@@ -356,8 +360,10 @@ features:
       - go/gin-layered
       - go/gin-hexagonal
       - go/gin-ddd
+      - rust/axum
     overlays:
       go/gin-flat: overlays/backend/go/pagination
       go/gin-layered: overlays/backend/go/pagination
       go/gin-hexagonal: overlays/backend/go/pagination
       go/gin-ddd: overlays/backend/go/pagination
+      rust/axum: overlays/backend/rust/pagination

@@ -1,5 +1,6 @@
 .PHONY: install run dev fmt fmt-check clippy test check build clean
 # smokeforge:anchor db-phony
+# smokeforge:anchor cache-phony
 # smokeforge:anchor docker-phony
 
 CARGO ?= cargo
@@ -17,6 +18,7 @@ help:
 	@echo "make build            Build a release binary"
 	@echo "make clean            Remove target artifacts"
 	# smokeforge:anchor db-help
+	# smokeforge:anchor cache-help
 	# smokeforge:anchor docker-help
 
 install:
@@ -48,4 +50,5 @@ build:
 clean:
 	$(CARGO) clean
 # smokeforge:anchor db-targets
+# smokeforge:anchor cache-targets
 # smokeforge:anchor docker-targets

@@ -1,0 +1,50 @@
+id: pagination
+name: Signed cursor and offset pagination
+files: files
+ops:
+  - addFiles:
+      - {path: src/pagination/mod.rs, dest: src/pagination/mod.rs}
+      - {path: src/pagination/offset.rs, dest: src/pagination/offset.rs}
+      - {path: src/pagination/cursor.rs, dest: src/pagination/cursor.rs}
+      - {path: src/pagination/tests.rs, dest: src/pagination/tests.rs}
+      - {path: src/config/config_pagination.rs, dest: src/config/config_pagination.rs}
+      - {path: docs/PAGINATION.md, dest: docs/PAGINATION.md}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: pagination-config-module
+      content: 'mod config_pagination;'
+  - addDependency: {file: Cargo.toml, module: base64, version: "0.23.1"}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: pagination-config
+      content: |-
+        pub pagination_cursor_secret: String,
+        pub pagination_default_limit: u64,
+        pub pagination_max_limit: u64,
+        pub pagination_max_offset: u64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: pagination-defaults
+      content: |-
+        pagination_cursor_secret: "smokeforge-dev-pagination-secret-32".to_owned(),
+        pagination_default_limit: 20,
+        pagination_max_limit: 100,
+        pagination_max_offset: 10_000,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: pagination-validation
+      content: |-
+        self.validate_pagination()?;
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: pagination-module
+      content: 'pub mod pagination;'
+  - env: {key: PAGINATION_CURSOR_SECRET, example: smokeforge-dev-pagination-secret-32, secret: true}
+  - env: {key: PAGINATION_DEFAULT_LIMIT, example: "20"}
+  - env: {key: PAGINATION_MAX_LIMIT, example: "100"}
+  - env: {key: PAGINATION_MAX_OFFSET, example: "10000"}

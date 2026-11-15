@@ -6,6 +6,7 @@ use tracing::info;
 use {{.crate_name}}::{app, config::Config, state::AppState, telemetry};
 // smokeforge:anchor import-database
 // smokeforge:anchor import-auth
+// smokeforge:anchor import-cache
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -18,6 +19,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
 
     // smokeforge:anchor main-database
     // smokeforge:anchor main-auth
+    // smokeforge:anchor main-cache
 
     let state = AppState::new(config.service_name.clone());
     // smokeforge:anchor main-state

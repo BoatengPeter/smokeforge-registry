@@ -5,6 +5,8 @@ use figment::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+// smokeforge:anchor config-modules
+
 /// Runtime configuration loaded from environment variables.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

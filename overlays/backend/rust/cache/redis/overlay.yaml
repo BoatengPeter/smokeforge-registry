@@ -1,0 +1,93 @@
+id: cache:redis
+name: Redis cache
+files: files
+ops:
+  - addFiles:
+      - {path: src/cache/mod.rs, dest: src/cache/mod.rs}
+      - {path: src/cache/redis/mod.rs, dest: src/cache/redis/mod.rs}
+      - {path: src/config/config_cache.rs, dest: src/config/config_cache.rs}
+      - {path: compose.cache.yaml, dest: compose.cache.yaml}
+      - {path: compose.override.cache.yaml, dest: compose.override.cache.yaml}
+      - {path: docs/CACHE.md, dest: docs/CACHE.md}
+  - addDependency: {file: Cargo.toml, module: redis, version: "1.8.2", features: ["tokio-comp", "connection-manager", "tokio-rustls-comp"]}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: cache-config-module
+      content: 'mod config_cache;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: cache-config
+      content: |-
+        pub redis_url: String,
+        pub redis_key_prefix: String,
+        pub redis_timeout_seconds: u64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: cache-defaults
+      content: |-
+        redis_url: "redis://localhost:6379/0".to_owned(),
+        redis_key_prefix: String::new(),
+        redis_timeout_seconds: 5,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: cache-validation
+      content: |-
+        self.validate_cache()?;
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: cache-module
+      content: 'pub mod cache;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: import-cache
+      marker: cache-import
+      content: 'use {{.crate_name}}::cache::redis::RedisCache;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: main-cache
+      marker: cache-main
+      content: |-
+        let cache = match RedisCache::connect(&config).await {
+            Ok(cache) => Some(cache),
+            Err(error) => {
+                tracing::warn!(error = %error, "cache unavailable; continuing");
+                None
+            }
+        };
+
+        if let Some(cache) = &cache
+            && let Err(error) = cache.ping().await
+        {
+            tracing::warn!(error = %error, "cache ping failed; continuing");
+        }
+  - insertAfter:
+      file: Makefile
+      anchor: cache-phony
+      marker: rust-cache-phony
+      content: '.PHONY: cache-up cache-down'
+  - insertAfter:
+      file: Makefile
+      anchor: cache-help
+      marker: rust-cache-help
+      content: |-
+        @echo "make cache-up         Start Redis"
+        @echo "make cache-down       Stop Redis"
+  - insertAfter:
+      file: Makefile
+      anchor: cache-targets
+      marker: rust-cache-targets
+      content: |-
+        cache-up:
+        	docker compose -f compose.cache.yaml up -d --wait
+
+        cache-down:
+        	docker compose -f compose.cache.yaml down
+  - env: {key: REDIS_PORT, example: "6379"}
+  - env: {key: REDIS_URL, example: "redis://localhost:6379/0"}
+  - env: {key: REDIS_KEY_PREFIX, example: ""}
+  - env: {key: REDIS_TIMEOUT_SECONDS, example: "5"}

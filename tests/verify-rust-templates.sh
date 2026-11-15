@@ -53,9 +53,9 @@ for doc in docs/API.md docs/ARCHITECTURE.md; do
 done
 
 echo "== rust/axum api preset with database/auth/docker/ci"
-generate "$TMP/api" api --feature docker --feature ci:github
+generate "$TMP/api" api --feature cache:redis --feature pagination --feature totp --feature docker --feature ci:github
 check "$TMP/api"
-for file in migrations/0001_init.sql migrations/0002_auth.sql Dockerfile compose.yaml compose.db.yaml .github/workflows/ci.yml; do
+for file in migrations/0001_init.sql migrations/0002_auth.sql migrations/0003_totp.sql Dockerfile compose.yaml compose.db.yaml compose.cache.yaml .github/workflows/ci.yml docs/PAGINATION.md docs/CACHE.md docs/TOTP.md; do
   test -f "$TMP/api/$file"
 done
 if command -v docker >/dev/null 2>&1; then

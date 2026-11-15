@@ -14,7 +14,6 @@ ops:
       - {path: docs/AUTH.md, dest: docs/AUTH.md}
   - addDependency: {file: Cargo.toml, module: argon2, version: "0.6.0"}
   - addDependency: {file: Cargo.toml, module: jsonwebtoken, version: "12.0.0", features: ["rust_crypto"]}
-  - addDependency: {file: Cargo.toml, module: sha2, version: "0.11.1"}
   - addDependency: {file: Cargo.toml, module: hex, version: "0.4.3"}
   - insertAfter:
       file: src/config.rs

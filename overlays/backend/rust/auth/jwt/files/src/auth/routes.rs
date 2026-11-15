@@ -15,13 +15,15 @@ use crate::error::AppError;
 
 /// Builds the auth router.
 pub fn router(service: Arc<AuthService>) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/api/v1/auth/register", post(register))
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/refresh", post(refresh))
         .route("/api/v1/auth/logout", post(logout))
-        .route("/api/v1/auth/me", get(me))
-        .layer(Extension(service))
+        .route("/api/v1/auth/me", get(me));
+
+    // smokeforge:anchor auth-totp-routes
+    router.layer(Extension(service))
 }
 
 #[derive(Debug, Deserialize)]
