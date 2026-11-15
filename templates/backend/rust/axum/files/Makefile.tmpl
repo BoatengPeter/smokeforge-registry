@@ -1,6 +1,8 @@
 .PHONY: install run dev fmt fmt-check clippy test check build clean
 # smokeforge:anchor db-phony
 # smokeforge:anchor cache-phony
+# smokeforge:anchor search-phony
+# smokeforge:anchor media-phony
 # smokeforge:anchor docker-phony
 
 CARGO ?= cargo
@@ -19,6 +21,8 @@ help:
 	@echo "make clean            Remove target artifacts"
 	# smokeforge:anchor db-help
 	# smokeforge:anchor cache-help
+	# smokeforge:anchor search-help
+	# smokeforge:anchor media-help
 	# smokeforge:anchor docker-help
 
 install:
@@ -51,4 +55,6 @@ clean:
 	$(CARGO) clean
 # smokeforge:anchor db-targets
 # smokeforge:anchor cache-targets
+# smokeforge:anchor search-targets
+# smokeforge:anchor media-targets
 # smokeforge:anchor docker-targets

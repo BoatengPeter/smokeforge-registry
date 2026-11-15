@@ -278,11 +278,13 @@ features:
       - go/gin-layered
       - go/gin-hexagonal
       - go/gin-ddd
+      - rust/axum
     overlays:
       go/gin-flat: overlays/backend/go/media/core
       go/gin-layered: overlays/backend/go/media/core
       go/gin-hexagonal: overlays/backend/go/media/core
       go/gin-ddd: overlays/backend/go/media/core
+      rust/axum: overlays/backend/rust/media/core
 
   - id: media-provider
     name: Media provider
@@ -297,11 +299,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/media/minio
           go/gin-layered: overlays/backend/go/media/minio
           go/gin-hexagonal: overlays/backend/go/media/minio
           go/gin-ddd: overlays/backend/go/media/minio
+          rust/axum: overlays/backend/rust/media/minio
       - id: r2
         name: Cloudflare R2
         stacks:
@@ -309,11 +313,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/media/r2
           go/gin-layered: overlays/backend/go/media/r2
           go/gin-hexagonal: overlays/backend/go/media/r2
           go/gin-ddd: overlays/backend/go/media/r2
+          rust/axum: overlays/backend/rust/media/r2
 
   - id: search
     name: Search
@@ -327,11 +333,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/search/meilisearch
           go/gin-layered: overlays/backend/go/search/meilisearch
           go/gin-hexagonal: overlays/backend/go/search/meilisearch
           go/gin-ddd: overlays/backend/go/search/meilisearch
+          rust/axum: overlays/backend/rust/search/meilisearch
 
   - id: search-sync
     name: Search index sync

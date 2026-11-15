@@ -1,0 +1,23 @@
+services:
+  search:
+    image: getmeili/meilisearch:v1.6
+    environment:
+      MEILI_ENV: development
+      MEILI_MASTER_KEY: ${SEARCH_API_KEY:-smokeforge-dev-search-key}
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "${SEARCH_PORT:-7700}:7700"
+    volumes:
+      - search-data:/meili_data
+
+  api:
+    environment:
+      SEARCH_URL: http://search:7700
+      SEARCH_INDEX: ${SEARCH_INDEX:-documents}
+      SEARCH_API_KEY: ${SEARCH_API_KEY:-smokeforge-dev-search-key}
+    depends_on:
+      search:
+        condition: service_started
+
+volumes:
+  search-data:

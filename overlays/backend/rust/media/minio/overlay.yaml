@@ -1,0 +1,32 @@
+id: media-provider:minio
+name: MinIO media provider
+files: files
+ops:
+  - addFiles:
+      - {path: compose.media.yaml, dest: compose.media.yaml}
+      - {path: compose.override.media.yaml, dest: compose.override.media.yaml}
+      - {path: docs/MEDIA_MINIO.md, dest: docs/MEDIA_MINIO.md}
+  - insertAfter:
+      file: Makefile
+      anchor: media-phony
+      marker: media-minio-phony
+      content: '.PHONY: media-up media-down'
+  - insertAfter:
+      file: Makefile
+      anchor: media-help
+      marker: media-minio-help
+      content: |-
+        @echo "make media-up         Start MinIO"
+        @echo "make media-down       Stop MinIO"
+  - insertAfter:
+      file: Makefile
+      anchor: media-targets
+      marker: media-minio-targets
+      content: |-
+        media-up:
+        	docker compose -f compose.media.yaml up -d
+
+        media-down:
+        	docker compose -f compose.media.yaml down
+  - env: {key: MEDIA_MINIO_PORT, example: "9000"}
+  - env: {key: MEDIA_MINIO_CONSOLE_PORT, example: "9001"}

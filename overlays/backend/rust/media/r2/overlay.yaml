@@ -1,0 +1,6 @@
+id: media-provider:r2
+name: Cloudflare R2 media provider
+files: files
+ops:
+  - addFiles:
+      - {path: docs/MEDIA_R2.md, dest: docs/MEDIA_R2.md}

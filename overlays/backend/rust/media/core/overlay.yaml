@@ -1,0 +1,88 @@
+id: media
+name: Authenticated private S3 media
+files: files
+ops:
+  - addFiles:
+      - {path: src/media/mod.rs, dest: src/media/mod.rs}
+      - {path: src/media/repository.rs, dest: src/media/repository.rs}
+      - {path: src/media/s3.rs, dest: src/media/s3.rs}
+      - {path: src/media/service.rs, dest: src/media/service.rs}
+      - {path: src/media/routes.rs, dest: src/media/routes.rs}
+      - {path: src/config/config_media.rs, dest: src/config/config_media.rs}
+      - {path: migrations/0004_media.sql, dest: migrations/0004_media.sql}
+      - {path: docs/MEDIA.md, dest: docs/MEDIA.md}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: media-config-module
+      content: 'mod config_media;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: media-config
+      content: |-
+        pub media_s3_endpoint: String,
+        pub media_s3_public_endpoint: String,
+        pub media_s3_region: String,
+        pub media_s3_bucket: String,
+        pub media_s3_access_key: String,
+        pub media_s3_secret_key: String,
+        pub media_allowed_content_types: String,
+        pub media_max_bytes: i64,
+        pub media_upload_ttl_seconds: u64,
+        pub media_download_ttl_seconds: u64,
+        pub media_timeout_seconds: u64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: media-defaults
+      content: |-
+        media_s3_endpoint: "http://localhost:9000".to_owned(),
+        media_s3_public_endpoint: "http://localhost:9000".to_owned(),
+        media_s3_region: "us-east-1".to_owned(),
+        media_s3_bucket: "media".to_owned(),
+        media_s3_access_key: "minioadmin".to_owned(),
+        media_s3_secret_key: "minioadmin".to_owned(),
+        media_allowed_content_types: "image/jpeg,image/png,image/webp,image/gif".to_owned(),
+        media_max_bytes: 10_485_760,
+        media_upload_ttl_seconds: 900,
+        media_download_ttl_seconds: 3600,
+        media_timeout_seconds: 5,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: media-validation
+      content: 'self.validate_media()?;'
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: media-module
+      content: 'pub mod media;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: import-media
+      marker: media-import
+      content: 'use {{.crate_name}}::media;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: main-media
+      marker: media-main
+      content: |-
+        let media_service =
+            std::sync::Arc::new(media::MediaService::new(database.pool().clone(), &config)?);
+  - insertAfter:
+      file: src/main.rs
+      anchor: router-media
+      marker: media-router
+      content: 'let application = application.merge(media::router(media_service, auth_service.clone()));'
+  - env: {key: MEDIA_S3_ENDPOINT, example: "http://localhost:9000"}
+  - env: {key: MEDIA_S3_PUBLIC_ENDPOINT, example: "http://localhost:9000"}
+  - env: {key: MEDIA_S3_REGION, example: us-east-1}
+  - env: {key: MEDIA_S3_BUCKET, example: media}
+  - env: {key: MEDIA_S3_ACCESS_KEY, example: minioadmin}
+  - env: {key: MEDIA_S3_SECRET_KEY, example: minioadmin, secret: true}
+  - env: {key: MEDIA_ALLOWED_CONTENT_TYPES, example: "image/jpeg,image/png,image/webp,image/gif"}
+  - env: {key: MEDIA_MAX_BYTES, example: "10485760"}
+  - env: {key: MEDIA_UPLOAD_TTL_SECONDS, example: "900"}
+  - env: {key: MEDIA_DOWNLOAD_TTL_SECONDS, example: "3600"}
+  - env: {key: MEDIA_TIMEOUT_SECONDS, example: "5"}

@@ -1,0 +1,99 @@
+id: search:meilisearch
+name: Meilisearch full-text search
+files: files
+ops:
+  - addFiles:
+      - {path: src/search/mod.rs, dest: src/search/mod.rs}
+      - {path: src/search/meilisearch.rs, dest: src/search/meilisearch.rs}
+      - {path: src/search/http.rs, dest: src/search/http.rs}
+      - {path: src/config/config_search.rs, dest: src/config/config_search.rs}
+      - {path: compose.search.yaml, dest: compose.search.yaml}
+      - {path: compose.override.search.yaml, dest: compose.override.search.yaml}
+      - {path: docs/SEARCH.md, dest: docs/SEARCH.md}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: search-config-module
+      content: 'mod config_search;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: search-config
+      content: |-
+        pub search_url: String,
+        pub search_index: String,
+        pub search_api_key: String,
+        pub search_timeout_seconds: u64,
+        pub search_max_limit: u64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: search-defaults
+      content: |-
+        search_url: "http://localhost:7700".to_owned(),
+        search_index: "documents".to_owned(),
+        search_api_key: "smokeforge-dev-search-key".to_owned(),
+        search_timeout_seconds: 5,
+        search_max_limit: 50,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: search-validation
+      content: 'self.validate_search()?;'
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: search-module
+      content: 'pub mod search;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: import-search
+      marker: search-import
+      content: 'use {{.crate_name}}::search;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: main-search
+      marker: search-main
+      content: |-
+        let search_engine = search::meilisearch::Meilisearch::new(&config)?;
+        let search_service = std::sync::Arc::new(search::SearchService::new(
+            search_engine,
+            config.search_max_limit,
+        ));
+  - insertAfter:
+      file: src/main.rs
+      anchor: router-search
+      marker: search-router
+      content: 'let application = application.merge(search::http::router(search_service));'
+  - insertAfter:
+      file: Makefile
+      anchor: search-phony
+      marker: rust-search-phony
+      content: '.PHONY: search-up search-down search-logs'
+  - insertAfter:
+      file: Makefile
+      anchor: search-help
+      marker: rust-search-help
+      content: |-
+        @echo "make search-up        Start Meilisearch"
+        @echo "make search-down      Stop Meilisearch"
+        @echo "make search-logs      Follow Meilisearch logs"
+  - insertAfter:
+      file: Makefile
+      anchor: search-targets
+      marker: rust-search-targets
+      content: |-
+        search-up:
+        	docker compose -f compose.search.yaml up -d
+
+        search-down:
+        	docker compose -f compose.search.yaml down
+
+        search-logs:
+        	docker compose -f compose.search.yaml logs -f
+  - env: {key: SEARCH_PORT, example: "7700"}
+  - env: {key: SEARCH_URL, example: "http://localhost:7700"}
+  - env: {key: SEARCH_INDEX, example: documents}
+  - env: {key: SEARCH_API_KEY, example: smokeforge-dev-search-key, secret: true}
+  - env: {key: SEARCH_TIMEOUT_SECONDS, example: "5"}
+  - env: {key: SEARCH_MAX_LIMIT, example: "50"}
