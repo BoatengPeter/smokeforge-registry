@@ -1,0 +1,48 @@
+# Root compose delegates service definitions to the generated app compose files.
+services:
+  api:
+    extends:
+      file: apps/api/compose.yaml
+      service: api
+    build:
+      context: ./apps/api
+    env_file:
+      - ./apps/api/.env
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/app
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    extends:
+      file: apps/api/compose.override.yaml
+      service: migrate
+    build:
+      context: ./apps/api
+    env_file:
+      - ./apps/api/.env
+
+  db:
+    extends:
+      file: apps/api/compose.db.yaml
+      service: db
+
+  web:
+    extends:
+      file: apps/web/compose.yaml
+      service: web
+    build:
+      context: ./apps/web
+    env_file:
+      - ./apps/web/.env
+    environment:
+      API_URL: http://api:8080
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:

@@ -1,0 +1,23 @@
+id: auth/bff
+name: Next.js BFF for API JWT
+files: files
+ops:
+  - addFiles:
+      - {path: src/lib/auth/bff.ts, dest: src/lib/auth/bff.ts}
+      - {path: src/lib/auth/tokens.ts, dest: src/lib/auth/tokens.ts}
+      - {path: src/lib/auth/tokens.test.ts, dest: src/lib/auth/tokens.test.ts}
+      - {path: src/app/api/auth/login/route.ts, dest: src/app/api/auth/login/route.ts}
+      - {path: src/app/api/auth/register/route.ts, dest: src/app/api/auth/register/route.ts}
+      - {path: src/app/api/auth/refresh/route.ts, dest: src/app/api/auth/refresh/route.ts}
+      - {path: src/app/api/auth/logout/route.ts, dest: src/app/api/auth/logout/route.ts}
+      - {path: src/app/api/auth/me/route.ts, dest: src/app/api/auth/me/route.ts}
+      - {path: src/components/auth/login-form.tsx, dest: src/components/auth/login-form.tsx}
+      - {path: src/components/auth/signup-form.tsx, dest: src/components/auth/signup-form.tsx}
+      - {path: src/components/auth/sign-out-button.tsx, dest: src/components/auth/sign-out-button.tsx}
+      - {path: src/app/(auth)/login/page.tsx, dest: src/app/(auth)/login/page.tsx}
+      - {path: src/app/(auth)/signup/page.tsx, dest: src/app/(auth)/signup/page.tsx}
+      - {path: src/app/(app)/dashboard/page.tsx, dest: src/app/(app)/dashboard/page.tsx}
+      - {path: docs/AUTH-BFF.md, dest: docs/AUTH-BFF.md}
+  - env:
+      key: API_URL
+      example: http://localhost:8080

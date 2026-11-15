@@ -21,10 +21,12 @@ templates/
   backend/rust/
     axum/
   frontend/next/
+  workspace/fullstack/                # root CONTEXT-MAP, Makefile, env docs
 overlays/
   backend/go/                          # database, auth, cache, queue, media, search, pagination
   backend/rust/                        # database, auth, docker, ci
-  next/                                # database, auth, state, testing, posthog, docker, ci
+  next/                                # database, auth, bff, state, data, testing, posthog, docker, ci
+  workspace/fullstack/                 # root compose and CI aggregation
 tests/                                 # contract/build matrix
 ```
 
@@ -40,6 +42,7 @@ tests/                                 # contract/build matrix
   shutdown.
 - Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
 - Frontend presets: `fullstack` (default) and `frontend`.
+- Fullstack preset: `fullstack-api` (Next.js + Go/Rust API, BFF auth, TanStack Query, Docker, CI).
 - Rust: `rust/axum` single-crate layered base with SQLx/Postgres, JWT auth,
   Redis cache, signed pagination, TOTP enrollment, Docker, CI, and five
   project-scoped Rust skills.
@@ -52,15 +55,18 @@ tests/                                 # contract/build matrix
 
 ## Current Next decisions
 
-- One composable `next` base; fullstack is the default preset.
-- Presets: `fullstack` (default) and `frontend`. Add Docker, CI, E2E, and PostHog with `--feature`.
+- One composable `next` base; `fullstack` is the default frontend preset.
+- Presets: `fullstack` (Next-owned auth) and `frontend`. The `fullstack-api`
+  kind preset combines Next.js with a Go/Rust API.
+- Add Docker, CI, E2E, and PostHog with `--feature`. `auth:bff` is auto-added
+  for `fullstack-api` when the API uses `auth:jwt`.
 - Next 16.4.6, React 19.3.0, TypeScript 5.9.3, Node 24.
 - pnpm default; npm and bun selectable.
 - App Router; `route.ts` Route Handlers are the backend.
 - Tailwind 4, Jest, Zod, Pino.
 - Metadata API, OpenGraph image, sitemap, robots.
 - Overlays: Postgres/Drizzle, Better Auth/RHF, Zustand, TanStack Query,
-  Playwright E2E, PostHog, Docker, CI. CI runs E2E only when the E2E overlay is
+  API JWT BFF, Playwright E2E, PostHog, Docker, CI. CI runs E2E only when the E2E overlay is
   present.
 - Required overlays are auto-added; removal is guarded unless `--cascade`.
 

@@ -1,0 +1,6 @@
+id: workspace/fullstack
+variables:
+  - name: package_manager
+    prompt: Package manager
+    default: pnpm
+    choices: [pnpm, npm, bun]

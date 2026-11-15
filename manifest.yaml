@@ -5,6 +5,8 @@ kinds:
     max: 1
   frontend:
     max: 1
+  fullstack:
+    max: 1
 stacks:
   - id: go/gin-flat
     kind: backend
@@ -36,6 +38,11 @@ stacks:
     name: Next.js
     template: templates/frontend/next
     variables: [package_manager, site_description]
+  - id: workspace/fullstack
+    kind: fullstack
+    name: Fullstack workspace
+    template: templates/workspace/fullstack
+    variables: [package_manager]
 presets:
   - id: fullstack
     name: Fullstack SaaS
@@ -59,10 +66,16 @@ presets:
     description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, media, search, search sync, pagination, Docker, and CI
     kinds: [backend]
     features: []
+  - id: fullstack-api
+    name: Fullstack API + Next.js
+    description: Go or Rust API with Postgres/JWT, a Next.js BFF frontend, TanStack Query, Docker, and CI
+    kinds: [fullstack]
+    default: true
+    features: [database:postgres, auth:jwt, data:tanstack-query, docker, ci:github]
 features:
   - id: docker
     name: Docker
-    kinds: [backend, frontend]
+    kinds: [backend, frontend, fullstack]
     overlays:
       go/gin-flat: overlays/backend/go/docker
       go/gin-layered: overlays/backend/go/docker
@@ -70,9 +83,10 @@ features:
       go/gin-ddd: overlays/backend/go/docker
       rust/axum: overlays/backend/rust/docker
       next: overlays/next/docker
+      workspace/fullstack: overlays/workspace/fullstack/docker
   - id: ci
     name: CI
-    kinds: [backend, frontend]
+    kinds: [backend, frontend, fullstack]
     variants:
       - id: github
         name: GitHub Actions
@@ -84,6 +98,7 @@ features:
           go/gin-ddd: overlays/backend/go/ci/github
           rust/axum: overlays/backend/rust/ci/github
           next: overlays/next/ci/github
+          workspace/fullstack: overlays/workspace/fullstack/ci
   - id: database
     name: Database
     kinds: [backend, frontend]
@@ -267,6 +282,12 @@ features:
           go/gin-hexagonal: overlays/backend/go/auth/jwt
           go/gin-ddd: overlays/backend/go/auth/jwt
           rust/axum: overlays/backend/rust/auth/jwt
+      - id: bff
+        name: Next.js BFF for API JWT
+        stacks: [next]
+        requires: [data:tanstack-query]
+        overlays:
+          next: overlays/next/auth/bff
   - id: totp
     name: TOTP two-factor authentication
     kinds: [backend]

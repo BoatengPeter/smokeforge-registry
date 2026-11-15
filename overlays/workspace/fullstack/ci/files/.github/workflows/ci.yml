@@ -1,0 +1,55 @@
+name: fullstack-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - if: hashFiles('apps/api/go.mod') != ''
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/api/go.mod
+          cache: false
+      - if: hashFiles('apps/api/Cargo.toml') != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - if: hashFiles('apps/api/Cargo.toml') != ''
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/api
+      - name: Install API dependencies
+        run: make -C apps/api install
+      - name: Go checks
+        if: hashFiles('apps/api/go.mod') != ''
+        run: |
+          cd apps/api
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+          go build ./...
+      - name: Rust checks
+        if: hashFiles('apps/api/Cargo.toml') != ''
+        run: make -C apps/api fmt-check clippy test build
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+        working-directory: apps/web
+      - run: make -C apps/web ci

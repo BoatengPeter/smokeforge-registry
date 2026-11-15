@@ -1,0 +1,42 @@
+.PHONY: help install api-dev web-dev api-test web-test test ci docker-up docker-down clean
+
+help:
+	@echo "make install    Install API and web dependencies"
+	@echo "make api-dev    Run the API"
+	@echo "make web-dev    Run the Next.js app"
+	@echo "make test       Run API and web tests"
+	@echo "make ci         Run API and web CI checks"
+	@echo "make docker-up  Build and start the full stack"
+	@echo "make docker-down Stop the full stack"
+
+install:
+	$(MAKE) -C apps/api install
+	$(MAKE) -C apps/web install
+
+api-dev:
+	$(MAKE) -C apps/api run
+
+web-dev:
+	$(MAKE) -C apps/web dev
+
+api-test:
+	$(MAKE) -C apps/api test
+
+web-test:
+	$(MAKE) -C apps/web test
+
+test: api-test web-test
+
+ci:
+	$(MAKE) -C apps/api ci
+	$(MAKE) -C apps/web ci
+
+docker-up:
+	docker compose up --build -d
+
+docker-down:
+	docker compose down
+
+clean:
+	$(MAKE) -C apps/api clean
+	$(MAKE) -C apps/web clean

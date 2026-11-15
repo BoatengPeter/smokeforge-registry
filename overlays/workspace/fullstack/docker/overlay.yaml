@@ -1,0 +1,9 @@
+id: docker
+name: Fullstack Docker Compose
+files: files
+ops:
+  - addFiles:
+      - path: compose.yaml
+        dest: compose.yaml
+      - path: docs/DOCKER.md
+        dest: docs/DOCKER.md
