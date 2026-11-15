@@ -106,6 +106,13 @@ If a change crosses areas, invoke every relevant skill. Read the skill's
 - When the auth/forms overlay is present, use shadcn `Form` with React Hook
   Form; do not build parallel form wrappers.
 
+## Code layout
+
+`README.md` has the generated file map. Start there before adding a directory:
+routes live in `src/app`, server-only code in `src/server`, API helpers in
+`src/lib/api`, and TanStack Query hooks/keys in `src/lib/query`. Keep feature
+code beside its route or component; do not create generic `utils/` dumps.
+
 ## File and import patterns
 
 - Shared types: `src/types/*.ts`.

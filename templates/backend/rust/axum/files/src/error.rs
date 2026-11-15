@@ -1,35 +1,22 @@
-use axum::{
-    Json,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use serde::Serialize;
+use axum::http::StatusCode;
 use thiserror::Error;
 
-/// RFC 9457 problem details returned by the API.
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct ProblemDetails {
-    #[serde(rename = "type")]
-    pub kind: String,
-    pub title: String,
-    pub status: u16,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detail: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub code: Option<String>,
-}
+use crate::response::{self, FieldError};
 
 /// Application error that converts into an RFC 9457 response.
 #[derive(Debug, Error)]
 #[error("{title}: {detail}")]
+#[must_use]
 pub struct AppError {
     status: StatusCode,
     code: &'static str,
     title: &'static str,
     detail: String,
+    fields: Vec<FieldError>,
 }
 
 impl AppError {
+    /// Creates a typed application error.
     pub fn new(
         status: StatusCode,
         code: &'static str,
@@ -41,9 +28,22 @@ impl AppError {
             code,
             title,
             detail: detail.into(),
+            fields: Vec::new(),
         }
     }
 
+    /// Creates a 422 validation error with field-level details.
+    pub fn validation(fields: Vec<FieldError>) -> Self {
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "validation_failed",
+            title: "Validation failed",
+            detail: "One or more fields are invalid.".to_owned(),
+            fields,
+        }
+    }
+
+    /// Creates a 401 unauthorized error.
     pub fn unauthorized(detail: impl Into<String>) -> Self {
         Self::new(
             StatusCode::UNAUTHORIZED,
@@ -53,10 +53,12 @@ impl AppError {
         )
     }
 
+    /// Creates a 404 not-found error.
     pub fn not_found(detail: impl Into<String>) -> Self {
         Self::new(StatusCode::NOT_FOUND, "not_found", "Not found", detail)
     }
 
+    /// Creates a 500 internal error.
     pub fn internal(detail: impl Into<String>) -> Self {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -67,16 +69,15 @@ impl AppError {
     }
 }
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let body = ProblemDetails {
-            kind: "about:blank".to_owned(),
-            title: self.title.to_owned(),
-            status: self.status.as_u16(),
-            detail: Some(self.detail),
-            code: Some(self.code.to_owned()),
-        };
+impl axum::response::IntoResponse for AppError {
+    fn into_response(self) -> axum::response::Response {
+        let mut problem =
+            response::ProblemDetails::new(self.status, self.code, self.title, self.detail);
 
-        (self.status, Json(body)).into_response()
+        if !self.fields.is_empty() {
+            problem = problem.with_errors(self.fields);
+        }
+
+        response::problem_response(problem)
     }
 }

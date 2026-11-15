@@ -102,9 +102,14 @@ jobs:
             --var module_path=example.com/fullstack \
             --var package_manager=pnpm \
             --no-input --no-git
-      - name: Validate compose
+      - name: Validate compose and generated layout docs
         working-directory: /tmp/fullstack
-        run: docker compose config
+        run: |
+          docker compose config
+          grep -q '## Code layout' README.md
+          grep -q 'Code layout' CONTEXT-MAP.md
+          grep -Eq '## (Code layout|Architecture)' apps/api/README.md
+          grep -q '## Code layout' apps/web/README.md
       - name: API tests
         working-directory: /tmp/fullstack/apps/api
         run: |

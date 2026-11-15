@@ -20,6 +20,13 @@ flowchart LR
     Web[Next.js server] -->|API_URL| API
 ```
 
+## Code layout
+
+- API layout: [`apps/api/README.md`](apps/api/README.md) and
+  [`apps/api/docs/ARCHITECTURE.md`](apps/api/docs/ARCHITECTURE.md).
+- Web layout: [`apps/web/README.md`](apps/web/README.md).
+- Workspace layout: [`README.md`](README.md).
+
 ## Boundaries
 
 - The API owns JWT issuance, refresh rotation, authorization, and persistence.

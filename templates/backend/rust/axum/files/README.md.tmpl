@@ -14,5 +14,49 @@ make build
 ```
 
 The API serves `/healthz`, `/readyz`, `/api/v1/ping`, `/openapi.json`, and
-`/docs`. Read `CONTEXT.md` for engineering rules and `docs/API.md` for the
-contract.
+`/docs`.
+
+## Code layout
+
+```text
+src/
+  main.rs          process startup, telemetry, listener, graceful shutdown
+  lib.rs           router, middleware, OpenAPI composition
+  config.rs        typed figment/dotenv configuration
+  error.rs         application error type and status mapping
+  response.rs      success helpers and RFC 9457 problem responses
+  state.rs         cheaply cloneable AppState and readiness seam
+  telemetry.rs     tracing subscriber setup
+  health/          liveness and readiness routes
+  db/              SQLx adapter (database overlay)
+  auth/            JWT auth service and routes (auth overlay)
+  media/           private S3 media (media overlay)
+  search/          Meilisearch adapter (search overlay)
+  cache/           Redis adapter (cache overlay)
+  queue/           RabbitMQ worker/scheduler (queue overlay)
+docs/
+  API.md           endpoint and error contract
+  ARCHITECTURE.md  request flow, module boundaries, extension points
+tests/
+  api_test.rs      base HTTP integration tests
+  response_test.rs response/error integration tests
+  common/          shared test helpers
+```
+
+Read `docs/ARCHITECTURE.md` before changing module boundaries, and `CONTEXT.md`
+before changing engineering rules. Feature overlays add their own module under
+the closest domain and their own documentation.
+
+## Response contract
+
+Use `crate::response` for HTTP response construction:
+
+- `response::ok`, `created`, `accepted`, `json`, and `no_content` for success.
+- `AppError` from `crate::error` for failures; `IntoResponse` emits RFC 9457
+  problem details.
+- `ProblemDetails` includes `type`, `title`, `status`, `detail`, `instance`,
+  `code`, `request_id`, and field `errors`.
+- `finalize_problem` adds the request path and request ID to errors produced by
+  any downstream layer.
+
+Never hand-build an error JSON body in a handler.

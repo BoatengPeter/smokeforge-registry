@@ -7,8 +7,10 @@ implemented. Go includes PostgreSQL, users/JWT auth, Google OAuth, TOTP, Redis
 cache, RabbitMQ queues, scheduler leadership, dedupe, gzip, image media,
 Meilisearch search, RabbitMQ index sync, signed pagination, Docker, CI, Swagger
 UI, embedded migrations, and project-scoped Go skills. Rust includes Axum,
-SQLx/Postgres, JWT auth, Redis cache, signed pagination, TOTP enrollment, Meilisearch search, private S3/MinIO/R2 media, RabbitMQ worker/scheduler, gzip queue compression, Docker, CI, and five
-Rust skills.
+SQLx/Postgres, JWT auth, Redis cache, signed pagination, TOTP enrollment,
+Meilisearch search, private S3/MinIO/R2 media, RabbitMQ worker/scheduler, gzip
+queue compression, a Go-parity response/error layer, Docker, CI, and five Rust
+skills.
 Contract/build-matrix automation is the remaining M3 work.
 
 ## Layout

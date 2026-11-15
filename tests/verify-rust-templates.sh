@@ -52,6 +52,12 @@ for doc in docs/API.md docs/ARCHITECTURE.md; do
   test -f "$TMP/base/$doc"
 done
 
+grep -q '## Code layout' "$TMP/base/README.md"
+grep -q 'src/response.rs' "$TMP/base/README.md"
+grep -q 'src/response.rs' "$TMP/base/docs/ARCHITECTURE.md"
+test -f "$TMP/base/src/response.rs"
+test -f "$TMP/base/tests/response_test.rs"
+
 echo "== rust/axum api preset with database/auth/docker/ci"
 generate "$TMP/api" api --feature cache:redis --feature pagination --feature totp --feature search:meilisearch --feature media --feature media-provider:minio --feature queue:rabbitmq --feature compression:gzip --feature docker --feature ci:github
 check "$TMP/api"

@@ -26,7 +26,7 @@ pub async fn health_check(State(state): State<AppState>) -> Json<HealthResponse>
     path = "/readyz",
     responses(
         (status = 200, body = HealthResponse),
-        (status = 503, body = crate::error::ProblemDetails)
+        (status = 503, body = crate::response::ProblemDetails)
     )
 )]
 pub async fn ready_check(State(state): State<AppState>) -> Result<Json<HealthResponse>, AppError> {

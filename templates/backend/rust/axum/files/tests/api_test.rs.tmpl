@@ -1,11 +1,29 @@
 mod common;
 
+use std::sync::Arc;
+
+use async_trait::async_trait;
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
+use serde_json::Value;
 use tower::ServiceExt;
+
+struct FailingReadiness;
+
+#[async_trait]
+impl {{.crate_name}}::state::Readiness for FailingReadiness {
+    async fn ready(&self) -> Result<(), {{.crate_name}}::error::AppError> {
+        Err({{.crate_name}}::error::AppError::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "not_ready",
+            "Not ready",
+            "The dependency is unavailable.",
+        ))
+    }
+}
 
 #[tokio::test]
 async fn health_is_available() {
@@ -72,4 +90,29 @@ async fn unknown_route_is_not_found() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn readiness_errors_include_request_context() {
+    let state = {{.crate_name}}::state::AppState::new("test-service")
+        .with_readiness(Arc::new(FailingReadiness));
+    let response = common::test_app_with_state(state)
+        .oneshot(
+            Request::get("/readyz")
+                .header("x-forwarded-for", "127.0.0.1")
+                .header("x-request-id", "readiness-test-id")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let problem: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(problem["instance"], "/readyz");
+    assert_eq!(problem["request_id"], "readiness-test-id");
+    assert_eq!(problem["code"], "not_ready");
 }

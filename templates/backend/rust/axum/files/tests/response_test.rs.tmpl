@@ -1,0 +1,85 @@
+use axum::{
+    Router,
+    body::Body,
+    http::{Request, StatusCode, header},
+    middleware,
+    routing::get,
+};
+use http_body_util::BodyExt;
+use serde_json::Value;
+use tower::ServiceExt;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+
+#[test]
+fn success_helpers_use_expected_statuses() {
+    assert_eq!(
+        {{.crate_name}}::response::json(StatusCode::ACCEPTED, "body").0,
+        StatusCode::ACCEPTED
+    );
+    assert_eq!(
+        {{.crate_name}}::response::created("body").0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        {{.crate_name}}::response::no_content(),
+        StatusCode::NO_CONTENT
+    );
+}
+
+#[tokio::test]
+async fn problem_response_has_request_context_and_fields() {
+    let request_id_header = header::HeaderName::from_static("x-request-id");
+    let app = Router::new()
+        .route(
+            "/fail",
+            get(|| async {
+                Err::<StatusCode, {{.crate_name}}::error::AppError>(
+                    {{.crate_name}}::error::AppError::validation(vec![
+                        {{.crate_name}}::response::FieldError::new(
+                            "email",
+                            "Must be a valid email address.",
+                        ),
+                    ]),
+                )
+            }),
+        )
+        .layer(PropagateRequestIdLayer::new(request_id_header.clone()))
+        .layer(middleware::from_fn(
+            {{.crate_name}}::response::finalize_problem,
+        ))
+        .layer(SetRequestIdLayer::new(request_id_header, MakeRequestUuid));
+
+    let response = app
+        .oneshot(
+            Request::get("/fail")
+                .header("x-request-id", "test-request-id")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    assert!(content_type.starts_with("application/problem+json"));
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let problem: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(problem["instance"], "/fail");
+    assert_eq!(problem["request_id"], "test-request-id");
+    assert_eq!(
+        problem["status"].as_u64(),
+        Some(u64::from(StatusCode::UNPROCESSABLE_ENTITY.as_u16()))
+    );
+    assert_eq!(problem["errors"][0]["field"], "email");
+    assert_eq!(
+        problem["errors"][0]["message"],
+        "Must be a valid email address."
+    );
+}

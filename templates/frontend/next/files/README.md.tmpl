@@ -32,6 +32,26 @@ flowchart LR
     Pages --> State[Zustand selectors]
 ```
 
+## Code layout
+
+```text
+src/
+  app/                 App Router pages, layouts, metadata, and route handlers
+    api/               same-origin HTTP handlers; fullstack adds /api/auth/*
+  components/          UI, providers, and feature components
+    ui/                shadcn/ui primitives
+  lib/
+    api/                envelope, validation, and typed fetch helpers
+    query/              TanStack Query client, keys, and auth hooks
+    env.ts              public environment validation
+    site.ts             product/site metadata
+  server/              server-only code: logger, auth, database, email
+  types/               shared TypeScript types
+  validations/         Zod schemas for forms and API boundaries
+public/                static assets and generated images
+docs/                  feature-specific docs added by overlays
+```
+
 ## Quick start
 
 The first install creates the lockfile; commit it afterward.

@@ -44,7 +44,7 @@ pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
-#[utoipa::path(post, path = "/api/v1/auth/register", request_body = RegisterRequest, responses((status = 201, body = TokenResponse), (status = 409, body = crate::error::ProblemDetails)))]
+#[utoipa::path(post, path = "/api/v1/auth/register", request_body = RegisterRequest, responses((status = 201, body = TokenResponse), (status = 409, body = crate::response::ProblemDetails)))]
 async fn register(
     Extension(service): Extension<Arc<AuthService>>,
     Json(input): Json<RegisterRequest>,
@@ -54,7 +54,7 @@ async fn register(
     Ok((StatusCode::CREATED, Json(tokens)))
 }
 
-#[utoipa::path(post, path = "/api/v1/auth/login", request_body = LoginRequest, responses((status = 200, body = TokenResponse), (status = 401, body = crate::error::ProblemDetails)))]
+#[utoipa::path(post, path = "/api/v1/auth/login", request_body = LoginRequest, responses((status = 200, body = TokenResponse), (status = 401, body = crate::response::ProblemDetails)))]
 async fn login(
     Extension(service): Extension<Arc<AuthService>>,
     Json(input): Json<LoginRequest>,
@@ -62,7 +62,7 @@ async fn login(
     Ok(Json(service.login(input.email, input.password).await?))
 }
 
-#[utoipa::path(post, path = "/api/v1/auth/refresh", request_body = RefreshRequest, responses((status = 200, body = TokenResponse), (status = 401, body = crate::error::ProblemDetails)))]
+#[utoipa::path(post, path = "/api/v1/auth/refresh", request_body = RefreshRequest, responses((status = 200, body = TokenResponse), (status = 401, body = crate::response::ProblemDetails)))]
 async fn refresh(
     Extension(service): Extension<Arc<AuthService>>,
     Json(input): Json<RefreshRequest>,
@@ -70,7 +70,7 @@ async fn refresh(
     Ok(Json(service.refresh(input.refresh_token).await?))
 }
 
-#[utoipa::path(post, path = "/api/v1/auth/logout", request_body = RefreshRequest, responses((status = 204), (status = 401, body = crate::error::ProblemDetails)))]
+#[utoipa::path(post, path = "/api/v1/auth/logout", request_body = RefreshRequest, responses((status = 204), (status = 401, body = crate::response::ProblemDetails)))]
 async fn logout(
     Extension(service): Extension<Arc<AuthService>>,
     Json(input): Json<RefreshRequest>,
@@ -80,7 +80,7 @@ async fn logout(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[utoipa::path(get, path = "/api/v1/auth/me", security(("bearerAuth" = [])), responses((status = 200, body = UserResponse), (status = 401, body = crate::error::ProblemDetails)))]
+#[utoipa::path(get, path = "/api/v1/auth/me", security(("bearerAuth" = [])), responses((status = 200, body = UserResponse), (status = 401, body = crate::response::ProblemDetails)))]
 async fn me(
     Extension(service): Extension<Arc<AuthService>>,
     headers: HeaderMap,
@@ -112,7 +112,7 @@ fn bearer(headers: &HeaderMap) -> Result<&str, AppError> {
             RefreshRequest,
             TokenResponse,
             UserResponse,
-            crate::error::ProblemDetails
+            crate::response::ProblemDetails
         )
     ),
     modifiers(&SecurityAddon)

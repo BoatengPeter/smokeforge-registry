@@ -15,11 +15,20 @@ before changing code.
 - Never hold locks across `.await`; move CPU-heavy work to `spawn_blocking`.
 - Do not log secrets, passwords, tokens, or full request bodies.
 - Use parameterized SQL only; never concatenate user input into queries.
-- Return RFC 9457 `application/problem+json` errors.
+- Return RFC 9457 `application/problem+json` errors through `AppError` and
+  `src/response.rs`. Never hand-build an error JSON body.
+- Use `src/response.rs` success helpers (`ok`, `created`, `accepted`, `json`,
+  `no_content`) instead of ad-hoc response construction.
 - Keep `AppState` cheap to clone (`Arc`, pool handles only).
 - Add unit tests beside modules and integration tests under `tests/`.
 - Run `make check` before completion. Run `make test` with `-race`-equivalent
   runtime checks where concurrency changes.
+
+## Code layout
+
+Read `README.md` (Code layout) and `docs/ARCHITECTURE.md` before moving modules
+or adding a new response/error path. `src/error.rs` owns typed errors;
+`src/response.rs` owns HTTP success and RFC 9457 problem responses.
 
 ## Rust skills
 

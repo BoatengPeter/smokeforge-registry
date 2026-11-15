@@ -21,11 +21,13 @@ make build
 src/main.rs        process startup and graceful shutdown
 src/lib.rs         crate composition, router, OpenAPI
 src/config.rs      figment + dotenv configuration
-src/error.rs       RFC 9457 problem details
+src/error.rs       application error type and status mapping
+src/response.rs    success helpers and RFC 9457 problem responses
 src/state.rs       cheaply cloneable AppState and readiness
 src/health/        liveness and readiness routes
 src/db/            sqlx pool and database adapters (overlay)
 src/auth/          JWT auth service and routes (overlay)
+docs/              API contract and architecture map
 tests/             integration tests and shared helpers
 ```
 

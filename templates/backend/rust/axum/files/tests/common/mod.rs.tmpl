@@ -4,7 +4,11 @@ use axum::{Extension, extract::ConnectInfo};
 use {{.crate_name}}::{app, config::Config, state::AppState};
 
 pub fn test_app() -> axum::Router {
-    app(&Config::default(), AppState::new("test-service"))
+    test_app_with_state(AppState::new("test-service"))
+}
+
+pub fn test_app_with_state(state: AppState) -> axum::Router {
+    app(&Config::default(), state)
         .expect("build test router")
         .layer(Extension(ConnectInfo(SocketAddr::from((
             [127, 0, 0, 1],

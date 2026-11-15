@@ -3,6 +3,7 @@
 pub mod config;
 pub mod error;
 pub mod health;
+pub mod response;
 pub mod state;
 pub mod telemetry;
 // smokeforge:anchor lib-modules
@@ -51,7 +52,7 @@ pub struct PingResponse {
         crate::health::routes::ready_check,
         ping
     ),
-    components(schemas(PingResponse, health::routes::HealthResponse, error::ProblemDetails))
+    components(schemas(PingResponse, health::routes::HealthResponse, response::ProblemDetails))
 )]
 pub struct ApiDoc;
 
@@ -116,6 +117,7 @@ pub fn app(config: &Config, state: AppState) -> Result<Router, Box<dyn std::erro
             HeaderValue::from_static("DENY"),
         ))
         .layer(PropagateRequestIdLayer::new(request_id_header.clone()))
+        .layer(axum::middleware::from_fn(response::finalize_problem))
         .layer(SetRequestIdLayer::new(request_id_header, MakeRequestUuid))
         .layer(TraceLayer::new_for_http())
         .layer(CatchPanicLayer::new())
