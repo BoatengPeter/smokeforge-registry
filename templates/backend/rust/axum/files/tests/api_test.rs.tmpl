@@ -120,3 +120,37 @@ async fn readiness_errors_include_request_context() {
     assert_eq!(problem["request_id"], "readiness-test-id");
     assert_eq!(problem["code"], "not_ready");
 }
+
+#[tokio::test]
+async fn security_headers_are_present() {
+    let response = common::test_app()
+        .oneshot(
+            Request::get("/healthz")
+                .header("x-forwarded-for", "127.0.0.1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let headers = response.headers();
+    assert_eq!(
+        headers
+            .get(header::X_CONTENT_TYPE_OPTIONS)
+            .and_then(|value| value.to_str().ok()),
+        Some("nosniff")
+    );
+    assert_eq!(
+        headers
+            .get(header::X_FRAME_OPTIONS)
+            .and_then(|value| value.to_str().ok()),
+        Some("DENY")
+    );
+    assert_eq!(
+        headers
+            .get("referrer-policy")
+            .and_then(|value| value.to_str().ok()),
+        Some("no-referrer")
+    );
+    assert!(headers.get(header::STRICT_TRANSPORT_SECURITY).is_none());
+}

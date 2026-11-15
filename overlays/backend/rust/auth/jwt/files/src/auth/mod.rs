@@ -10,4 +10,4 @@ mod user;
 
 pub use routes::document;
 pub use routes::router;
-pub use service::AuthService;
+pub use service::{AuthService, SecondFactor};

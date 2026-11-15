@@ -151,11 +151,14 @@ pub async fn finalize_problem(request: Request, next: Next) -> Response {
         .map(ToOwned::to_owned);
 
     let response = next.run(request).await;
-    if !is_problem_response(&response) {
+    let status = response.status();
+    let is_problem = is_problem_response(&response);
+    let is_error = status.is_client_error() || status.is_server_error();
+
+    if !is_problem && !is_error {
         return response;
     }
 
-    let status = response.status();
     let (mut parts, body) = response.into_parts();
     let bytes = match to_bytes(body, MAX_PROBLEM_BYTES).await {
         Ok(bytes) => bytes,
@@ -175,6 +178,22 @@ pub async fn finalize_problem(request: Request, next: Next) -> Response {
             return problem_response(problem);
         }
     };
+
+    if !is_problem {
+        if !bytes.is_empty() {
+            return Response::from_parts(parts, Body::from(bytes));
+        }
+
+        let title = status.canonical_reason().unwrap_or("Request failed");
+        let mut problem =
+            ProblemDetails::new(status, problem_code(status), title, title).with_instance(instance);
+
+        if let Some(request_id) = request_id {
+            problem = problem.with_request_id(request_id);
+        }
+
+        return problem_response(problem);
+    }
 
     let Ok(mut value) = serde_json::from_slice::<Value>(&bytes) else {
         return Response::from_parts(parts, Body::from(bytes));
@@ -208,6 +227,25 @@ fn is_problem_response(response: &Response) -> bool {
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.starts_with("application/problem+json"))
+}
+
+fn problem_code(status: StatusCode) -> &'static str {
+    match status.as_u16() {
+        400 => "bad_request",
+        401 => "unauthorized",
+        403 => "forbidden",
+        404 => "not_found",
+        405 => "method_not_allowed",
+        408 => "request_timeout",
+        413 => "request_too_large",
+        422 => "validation_failed",
+        429 => "rate_limited",
+        500 => "internal_error",
+        502 => "bad_gateway",
+        503 => "service_unavailable",
+        504 => "gateway_timeout",
+        _ => "request_failed",
+    }
 }
 
 #[cfg(test)]

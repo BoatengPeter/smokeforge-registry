@@ -28,6 +28,7 @@ ops:
         pub rabbitmq_queue: String,
         pub rabbitmq_dlq: String,
         pub rabbitmq_prefetch: u16,
+        pub rabbitmq_max_retries: u32,
         pub scheduler_interval_seconds: u64,
   - insertAfter:
       file: src/config.rs
@@ -38,6 +39,7 @@ ops:
         rabbitmq_queue: "smokeforge.jobs".to_owned(),
         rabbitmq_dlq: "smokeforge.jobs.dlq".to_owned(),
         rabbitmq_prefetch: 10,
+        rabbitmq_max_retries: 3,
         scheduler_interval_seconds: 60,
   - insertAfter:
       file: src/config.rs
@@ -85,4 +87,5 @@ ops:
   - env: {key: RABBITMQ_QUEUE, example: smokeforge.jobs}
   - env: {key: RABBITMQ_DLQ, example: smokeforge.jobs.dlq}
   - env: {key: RABBITMQ_PREFETCH, example: "10"}
+  - env: {key: RABBITMQ_MAX_RETRIES, example: "3"}
   - env: {key: SCHEDULER_INTERVAL_SECONDS, example: "60"}

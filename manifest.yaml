@@ -212,11 +212,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/scheduler/leader
           go/gin-layered: overlays/backend/go/scheduler/leader
           go/gin-hexagonal: overlays/backend/go/scheduler/leader
           go/gin-ddd: overlays/backend/go/scheduler/leader
+          rust/axum: overlays/backend/rust/scheduler/leader
 
   - id: dedupe
     name: Job deduplication
@@ -230,11 +232,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/dedupe/redis
           go/gin-layered: overlays/backend/go/dedupe/redis
           go/gin-hexagonal: overlays/backend/go/dedupe/redis
           go/gin-ddd: overlays/backend/go/dedupe/redis
+          rust/axum: overlays/backend/rust/dedupe/redis
 
   - id: compression
     name: Queue compression
@@ -390,11 +394,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/search/sync/rabbitmq
           go/gin-layered: overlays/backend/go/search/sync/rabbitmq
           go/gin-hexagonal: overlays/backend/go/search/sync/rabbitmq
           go/gin-ddd: overlays/backend/go/search/sync/rabbitmq
+          rust/axum: overlays/backend/rust/search/sync/rabbitmq
 
   - id: pagination
     name: Pagination

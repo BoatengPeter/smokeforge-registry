@@ -76,3 +76,42 @@ async fn problem_response_has_request_context_and_fields() {
         "Must be a valid email address."
     );
 }
+
+#[tokio::test]
+async fn empty_framework_errors_become_problem_details() {
+    let request_id_header = header::HeaderName::from_static("x-request-id");
+    let app = Router::new()
+        .route(
+            "/rate-limited",
+            get(|| async { StatusCode::TOO_MANY_REQUESTS }),
+        )
+        .layer(PropagateRequestIdLayer::new(request_id_header.clone()))
+        .layer(middleware::from_fn(response::finalize_problem))
+        .layer(SetRequestIdLayer::new(request_id_header, MakeRequestUuid));
+
+    let response = app
+        .oneshot(
+            Request::get("/rate-limited")
+                .header("x-request-id", "rate-limit-test-id")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(
+        response
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()),
+        Some("application/problem+json; charset=utf-8")
+    );
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let problem: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(problem["code"], "rate_limited");
+    assert_eq!(problem["instance"], "/rate-limited");
+    assert_eq!(problem["request_id"], "rate-limit-test-id");
+}

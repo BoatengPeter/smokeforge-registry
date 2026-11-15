@@ -13,28 +13,14 @@ ops:
       marker: totp-module
       content: 'pub mod totp;'
   - insertAfter:
-      file: src/auth/routes.rs
-      anchor: auth-totp-routes
-      marker: totp-routes
-      content: 'let router = router.merge(super::totp::router());'
-  - insertAfter:
-      file: src/config.rs
-      anchor: config-fields
-      marker: totp-config
-      content: 'pub totp_issuer: String,'
-  - insertAfter:
-      file: src/config.rs
-      anchor: config-defaults
-      marker: totp-defaults
-      content: 'totp_issuer: "smokeforge".to_owned(),'
-  - insertAfter:
-      file: src/config.rs
-      anchor: config-validation
-      marker: totp-validation
+      file: src/main.rs
+      anchor: auth-second-factor
+      marker: totp-second-factor
       content: |-
-        if self.totp_issuer.trim().is_empty() {
-            return Err(ConfigError::Invalid(
-                "TOTP_ISSUER must not be empty".to_owned(),
-            ));
-        }
-  - env: {key: TOTP_ISSUER, example: smokeforge}
+        let totp_service = std::sync::Arc::new(auth::totp::TotpService::new(database.pool().clone()));
+        auth_service.set_second_factor(totp_service);
+  - insertAfter:
+      file: src/auth/routes.rs
+      anchor: auth-openapi-extra
+      marker: totp-openapi
+      content: 'document.merge(super::totp::document());'

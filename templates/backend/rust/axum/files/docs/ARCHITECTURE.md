@@ -20,7 +20,7 @@ modules instead of a shared technical-layer directory.
 | `tests/` | HTTP integration tests and shared test helpers. |
 
 Feature overlays add a self-contained module under the relevant domain:
-`db/`, `auth/`, `cache/`, `queue/`, `media/`, or `search/`. Do not add generic
+`db/`, `auth/`, `cache/`, `queue/`, `media/`, `search/`, or `scheduler/`. Do not add generic
 `handlers/`, `services/`, or `models/` directories.
 
 ## Request flow

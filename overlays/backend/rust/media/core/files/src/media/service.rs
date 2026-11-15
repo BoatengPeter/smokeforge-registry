@@ -3,6 +3,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
+    Transform,
+    imgproxy::Imgproxy,
     repository::{self, Media},
     s3::S3,
 };
@@ -11,6 +13,7 @@ use crate::{config::Config, error::AppError};
 pub struct MediaService {
     pool: PgPool,
     s3: S3,
+    imgproxy: Option<Imgproxy>,
     config: Config,
 }
 
@@ -48,6 +51,7 @@ impl MediaService {
         Ok(Self {
             pool,
             s3: S3::new(config)?,
+            imgproxy: Imgproxy::new(config)?,
             config: config.clone(),
         })
     }
@@ -124,7 +128,12 @@ impl MediaService {
         Ok(repository::get(&self.pool, id, owner_id).await?.into())
     }
 
-    pub async fn url(&self, owner_id: Uuid, id: Uuid) -> Result<String, AppError> {
+    pub async fn url(
+        &self,
+        owner_id: Uuid,
+        id: Uuid,
+        transform: Transform,
+    ) -> Result<String, AppError> {
         let media = repository::get(&self.pool, id, owner_id).await?;
         if media.status != "ready" {
             return Err(AppError::new(
@@ -135,8 +144,22 @@ impl MediaService {
             ));
         }
 
-        self.s3
-            .presign_get(&media.object_key, self.config.media_download_ttl_seconds)
+        if transform.is_zero() {
+            return self
+                .s3
+                .presign_get(&media.object_key, self.config.media_download_ttl_seconds);
+        }
+
+        let imgproxy = self.imgproxy.as_ref().ok_or_else(|| {
+            AppError::new(
+                reqwest::StatusCode::UNPROCESSABLE_ENTITY,
+                "transformations_not_configured",
+                "Transformations not configured",
+                "This media provider does not support image transformations.",
+            )
+        })?;
+
+        imgproxy.build_url(&media.object_key, &transform)
     }
 
     pub fn download_ttl(&self) -> u64 {

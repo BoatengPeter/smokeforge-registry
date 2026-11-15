@@ -59,13 +59,14 @@ test -f "$TMP/base/src/response.rs"
 test -f "$TMP/base/tests/response_test.rs"
 
 echo "== rust/axum api preset with database/auth/docker/ci"
-generate "$TMP/api" api --feature cache:redis --feature pagination --feature totp --feature search:meilisearch --feature media --feature media-provider:minio --feature queue:rabbitmq --feature compression:gzip --feature docker --feature ci:github
+generate "$TMP/api" api --feature cache:redis --feature pagination --feature totp --feature search:meilisearch --feature search-sync:rabbitmq --feature media --feature media-provider:minio --feature queue:rabbitmq --feature scheduler:leader --feature dedupe:redis --feature compression:gzip --feature docker --feature ci:github
 check "$TMP/api"
-for file in migrations/0001_init.sql migrations/0002_auth.sql migrations/0003_totp.sql migrations/0004_media.sql Dockerfile compose.yaml compose.db.yaml compose.cache.yaml compose.queue.yaml .github/workflows/ci.yml docs/QUEUE.md docs/COMPRESSION.md docs/PAGINATION.md docs/CACHE.md docs/TOTP.md docs/SEARCH.md docs/MEDIA.md docs/MEDIA_MINIO.md; do
+for file in migrations/0001_init.sql migrations/0002_auth.sql migrations/0003_totp.sql migrations/0004_media.sql Dockerfile compose.yaml compose.db.yaml compose.cache.yaml compose.queue.yaml .github/workflows/ci.yml docs/QUEUE.md docs/COMPRESSION.md docs/PAGINATION.md docs/CACHE.md docs/TOTP.md docs/SEARCH.md docs/SEARCH_SYNC.md docs/MEDIA.md docs/MEDIA_MINIO.md docs/DEDUPE.md docs/SCHEDULER.md; do
   test -f "$TMP/api/$file"
 done
 if command -v docker >/dev/null 2>&1; then
   (cd "$TMP/api" && docker compose -f compose.yaml -f compose.override.yaml config >/dev/null)
+  (cd "$TMP/api" && docker compose -f compose.yaml -f compose.override.media.yaml -f compose.media.yaml config >/dev/null)
 fi
 
 echo "== rust skills"

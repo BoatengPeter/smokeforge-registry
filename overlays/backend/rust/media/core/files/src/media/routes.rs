@@ -2,14 +2,17 @@ use std::sync::Arc;
 
 use axum::{
     Extension, Json, Router,
-    extract::Path,
+    extract::{Path, Query},
     http::{HeaderMap, StatusCode, header},
     routing::{get, post},
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::service::{MediaResponse, MediaService, UploadResponse};
+use super::{
+    Transform,
+    service::{MediaResponse, MediaService, UploadResponse},
+};
 use crate::{auth::AuthService, error::AppError};
 
 pub fn router(media: Arc<MediaService>, auth: Arc<AuthService>) -> Router {
@@ -70,14 +73,31 @@ async fn get_media(
     Ok(Json(media.get(user.id, id).await?))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UrlQuery {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub fit: Option<String>,
+    pub format: Option<String>,
+    pub quality: Option<u32>,
+}
+
 async fn get_url(
     Extension(auth): Extension<Arc<AuthService>>,
     Extension(media): Extension<Arc<MediaService>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
+    Query(query): Query<UrlQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user = auth.current_user(bearer(&headers)?).await?;
-    let url = media.url(user.id, id).await?;
+    let transform = Transform {
+        width: query.width.unwrap_or_default(),
+        height: query.height.unwrap_or_default(),
+        fit: query.fit.unwrap_or_default(),
+        format: query.format.unwrap_or_default(),
+        quality: query.quality.unwrap_or_default(),
+    };
+    let url = media.url(user.id, id, transform).await?;
 
     Ok(Json(serde_json::json!({
         "url": url,

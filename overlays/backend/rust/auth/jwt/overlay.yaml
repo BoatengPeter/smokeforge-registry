@@ -15,6 +15,7 @@ ops:
   - addDependency: {file: Cargo.toml, module: argon2, version: "0.6.0"}
   - addDependency: {file: Cargo.toml, module: jsonwebtoken, version: "12.0.0", features: ["rust_crypto"]}
   - addDependency: {file: Cargo.toml, module: hex, version: "0.4.3"}
+  - addDependency: {file: Cargo.toml, module: url, version: "2.5.8"}
   - insertAfter:
       file: src/config.rs
       anchor: config-fields
@@ -25,6 +26,13 @@ ops:
         pub jwt_audience: String,
         pub access_token_ttl_seconds: i64,
         pub refresh_token_ttl_seconds: i64,
+        pub require_email_verification: bool,
+        pub google_client_id: String,
+        pub google_client_secret: String,
+        pub google_redirect_url: String,
+        pub oauth_success_redirect: String,
+        pub resend_api_key: String,
+        pub email_from: String,
   - insertAfter:
       file: src/config.rs
       anchor: config-defaults
@@ -35,6 +43,13 @@ ops:
         jwt_audience: "smokeforge-clients".to_owned(),
         access_token_ttl_seconds: 900,
         refresh_token_ttl_seconds: 2_592_000,
+        require_email_verification: false,
+        google_client_id: String::new(),
+        google_client_secret: String::new(),
+        google_redirect_url: String::new(),
+        oauth_success_redirect: String::new(),
+        resend_api_key: String::new(),
+        email_from: String::new(),
   - insertAfter:
       file: src/config.rs
       anchor: config-validation
@@ -68,6 +83,7 @@ ops:
       content: |-
         let auth_service =
             std::sync::Arc::new(auth::AuthService::new(database.pool().clone(), &config));
+        // smokeforge:anchor auth-second-factor
   - insertAfter:
       file: src/lib.rs
       anchor: openapi-merge
@@ -83,3 +99,10 @@ ops:
   - env: {key: JWT_AUDIENCE, example: smokeforge-clients}
   - env: {key: ACCESS_TOKEN_TTL_SECONDS, example: "900"}
   - env: {key: REFRESH_TOKEN_TTL_SECONDS, example: "2592000"}
+  - env: {key: REQUIRE_EMAIL_VERIFICATION, example: "false"}
+  - env: {key: GOOGLE_CLIENT_ID, example: ""}
+  - env: {key: GOOGLE_CLIENT_SECRET, example: "", secret: true}
+  - env: {key: GOOGLE_REDIRECT_URL, example: ""}
+  - env: {key: OAUTH_SUCCESS_REDIRECT, example: ""}
+  - env: {key: RESEND_API_KEY, example: "", secret: true}
+  - env: {key: EMAIL_FROM, example: "no-reply@example.com"}

@@ -30,6 +30,9 @@ services:
     environment:
       MEDIA_S3_ENDPOINT: http://minio:9000
       MEDIA_S3_PUBLIC_ENDPOINT: http://localhost:${MEDIA_MINIO_PORT:-9000}
+      MEDIA_IMGPROXY_BASE_URL: http://localhost:${MEDIA_NGINX_PORT:-8081}
+      MEDIA_IMGPROXY_KEY: ${MEDIA_IMGPROXY_KEY:-0123456789abcdef0123456789abcdef}
+      MEDIA_IMGPROXY_SALT: ${MEDIA_IMGPROXY_SALT:-fedcba9876543210fedcba9876543210}
     depends_on:
       minio-init:
         condition: service_completed_successfully

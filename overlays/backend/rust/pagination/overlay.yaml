@@ -14,7 +14,6 @@ ops:
       anchor: config-modules
       marker: pagination-config-module
       content: 'mod config_pagination;'
-  - addDependency: {file: Cargo.toml, module: base64, version: "0.23.1"}
   - insertAfter:
       file: src/config.rs
       anchor: config-fields

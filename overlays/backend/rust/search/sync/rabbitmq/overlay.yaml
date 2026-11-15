@@ -1,0 +1,36 @@
+# requires: [search:meilisearch, queue:rabbitmq]
+# Feature requirements are declared by the caller in manifest.yaml; the overlay
+# schema only contains id, name, files, and ops.
+id: search-sync:rabbitmq
+name: RabbitMQ search index sync
+files: files
+ops:
+  - addFiles:
+      - {path: src/search/sync.rs, dest: src/search/sync.rs}
+      - {path: src/search/sync/tests.rs, dest: src/search/sync/tests.rs}
+      - {path: src/queue/publisher.rs, dest: src/queue/publisher.rs}
+      - {path: docs/SEARCH_SYNC.md, dest: docs/SEARCH_SYNC.md}
+  - insertAfter:
+      file: src/search/mod.rs
+      anchor: search-modules
+      marker: search-sync-module
+      content: 'pub mod sync;'
+  - insertAfter:
+      file: src/queue/mod.rs
+      anchor: queue-modules
+      marker: search-sync-queue-publisher
+      content: |-
+        pub mod publisher;
+        pub use publisher::Publisher;
+  - insertAfter:
+      file: src/bin/worker.rs
+      anchor: worker-search-import
+      marker: search-sync-worker-import
+      content: 'use {{.crate_name}}::search::{meilisearch::Meilisearch, sync};'
+  - insertAfter:
+      file: src/bin/worker.rs
+      anchor: worker-search
+      marker: search-sync-worker
+      content: |-
+        let search_indexer = Meilisearch::new(&config)?;
+        sync::register(&mut registry, Arc::new(search_indexer));

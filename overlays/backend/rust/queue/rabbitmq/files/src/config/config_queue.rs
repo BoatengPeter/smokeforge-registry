@@ -20,6 +20,12 @@ impl Config {
             ));
         }
 
+        if self.rabbitmq_max_retries > 10 {
+            return Err(ConfigError::Invalid(
+                "RABBITMQ_MAX_RETRIES must be at most 10".to_owned(),
+            ));
+        }
+
         Ok(())
     }
 }

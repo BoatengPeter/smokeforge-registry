@@ -1,0 +1,41 @@
+id: dedupe:redis
+name: Redis job deduplication
+files: files
+ops:
+  - addFiles:
+      - {path: src/queue/dedupe.rs, dest: src/queue/dedupe.rs}
+      - {path: src/config/config_dedupe.rs, dest: src/config/config_dedupe.rs}
+      - {path: docs/DEDUPE.md, dest: docs/DEDUPE.md}
+  - insertAfter:
+      file: src/queue/mod.rs
+      anchor: queue-modules
+      marker: dedupe:redis-module
+      content: 'pub mod dedupe;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: dedupe:redis-config-module
+      content: 'mod config_dedupe;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: dedupe:redis-config
+      content: 'pub dedupe_ttl_seconds: u64,'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: dedupe:redis-defaults
+      content: 'dedupe_ttl_seconds: 86400,'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: dedupe:redis-validation
+      content: 'self.validate_dedupe()?;'
+  - insertAfter:
+      file: src/bin/worker.rs
+      anchor: worker-codec
+      marker: dedupe:redis-worker
+      content: |-
+        let deduplicator = queue::dedupe::RedisDeduplicator::connect(&config).await?;
+        let rabbit = rabbit.with_deduplicator(std::sync::Arc::new(deduplicator));
+  - env: {key: DEDUPE_TTL_SECONDS, example: "86400"}

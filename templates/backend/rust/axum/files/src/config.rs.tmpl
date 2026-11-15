@@ -23,6 +23,11 @@ pub struct Config {
     pub rate_limit_per_second: u64,
     pub rate_limit_burst: u32,
     pub cors_allowed_origins: String,
+    pub cors_allowed_methods: String,
+    pub cors_allowed_headers: String,
+    pub cors_exposed_headers: String,
+    pub cors_allow_credentials: bool,
+    pub cors_max_age_seconds: u64,
     // smokeforge:anchor config-fields
 }
 
@@ -49,6 +54,11 @@ impl Default for Config {
             rate_limit_per_second: 20,
             rate_limit_burst: 40,
             cors_allowed_origins: String::new(),
+            cors_allowed_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS".to_owned(),
+            cors_allowed_headers: "Authorization,Content-Type".to_owned(),
+            cors_exposed_headers: "X-Request-ID".to_owned(),
+            cors_allow_credentials: true,
+            cors_max_age_seconds: 43_200,
             // smokeforge:anchor config-defaults
         }
     }
@@ -110,6 +120,12 @@ impl Config {
         if self.rate_limit_burst == 0 && self.rate_limit_per_second > 0 {
             return Err(ConfigError::Invalid(
                 "RATE_LIMIT_BURST must be at least 1".to_owned(),
+            ));
+        }
+
+        if self.cors_allow_credentials && self.cors_origins().contains(&"*") {
+            return Err(ConfigError::Invalid(
+                "CORS wildcard origins cannot be used with credentials".to_owned(),
             ));
         }
 

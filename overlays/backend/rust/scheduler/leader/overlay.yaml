@@ -1,0 +1,49 @@
+id: scheduler:leader
+name: Redis scheduler leader election
+files: files
+ops:
+  - addFiles:
+      - {path: src/scheduler/mod.rs, dest: src/scheduler/mod.rs}
+      - {path: src/scheduler/leader.rs, dest: src/scheduler/leader.rs}
+      - {path: src/config/config_scheduler_leader.rs, dest: src/config/config_scheduler_leader.rs}
+      - {path: docs/SCHEDULER.md, dest: docs/SCHEDULER.md}
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: scheduler:leader-module
+      content: 'pub mod scheduler;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: scheduler:leader-config-module
+      content: 'mod config_scheduler_leader;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: scheduler:leader-config
+      content: |-
+        pub scheduler_lease_ttl_seconds: u64,
+        pub scheduler_lease_renew_seconds: u64,
+        pub scheduler_lease_retry_seconds: u64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: scheduler:leader-defaults
+      content: |-
+        scheduler_lease_ttl_seconds: 30,
+        scheduler_lease_renew_seconds: 10,
+        scheduler_lease_retry_seconds: 5,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: scheduler:leader-validation
+      content: 'self.validate_scheduler_leader()?;'
+  - insertAfter:
+      file: src/bin/scheduler.rs
+      anchor: scheduler-leader
+      marker: scheduler:leader-main
+      content: |-
+        let _leader = {{.crate_name}}::scheduler::leader::RedisLeader::connect(&config).await?;
+  - env: {key: SCHEDULER_LEASE_TTL_SECONDS, example: "30"}
+  - env: {key: SCHEDULER_LEASE_RENEW_SECONDS, example: "10"}
+  - env: {key: SCHEDULER_LEASE_RETRY_SECONDS, example: "5"}

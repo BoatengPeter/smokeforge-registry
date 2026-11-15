@@ -8,6 +8,8 @@ ops:
       - {path: src/media/s3.rs, dest: src/media/s3.rs}
       - {path: src/media/service.rs, dest: src/media/service.rs}
       - {path: src/media/routes.rs, dest: src/media/routes.rs}
+      - {path: src/media/imgproxy.rs, dest: src/media/imgproxy.rs}
+      - {path: src/media/transform.rs, dest: src/media/transform.rs}
       - {path: src/config/config_media.rs, dest: src/config/config_media.rs}
       - {path: migrations/0004_media.sql, dest: migrations/0004_media.sql}
       - {path: docs/MEDIA.md, dest: docs/MEDIA.md}
@@ -32,6 +34,9 @@ ops:
         pub media_upload_ttl_seconds: u64,
         pub media_download_ttl_seconds: u64,
         pub media_timeout_seconds: u64,
+        pub media_imgproxy_base_url: String,
+        pub media_imgproxy_key: String,
+        pub media_imgproxy_salt: String,
   - insertAfter:
       file: src/config.rs
       anchor: config-defaults
@@ -48,6 +53,9 @@ ops:
         media_upload_ttl_seconds: 900,
         media_download_ttl_seconds: 3600,
         media_timeout_seconds: 5,
+        media_imgproxy_base_url: String::new(),
+        media_imgproxy_key: String::new(),
+        media_imgproxy_salt: String::new(),
   - insertAfter:
       file: src/config.rs
       anchor: config-validation
@@ -86,3 +94,6 @@ ops:
   - env: {key: MEDIA_UPLOAD_TTL_SECONDS, example: "900"}
   - env: {key: MEDIA_DOWNLOAD_TTL_SECONDS, example: "3600"}
   - env: {key: MEDIA_TIMEOUT_SECONDS, example: "5"}
+  - env: {key: MEDIA_IMGPROXY_BASE_URL, example: "http://localhost:8081"}
+  - env: {key: MEDIA_IMGPROXY_KEY, example: "0123456789abcdef0123456789abcdef", secret: true}
+  - env: {key: MEDIA_IMGPROXY_SALT, example: "fedcba9876543210fedcba9876543210", secret: true}

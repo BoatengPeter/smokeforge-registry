@@ -7,10 +7,11 @@ implemented. Go includes PostgreSQL, users/JWT auth, Google OAuth, TOTP, Redis
 cache, RabbitMQ queues, scheduler leadership, dedupe, gzip, image media,
 Meilisearch search, RabbitMQ index sync, signed pagination, Docker, CI, Swagger
 UI, embedded migrations, and project-scoped Go skills. Rust includes Axum,
-SQLx/Postgres, JWT auth, Redis cache, signed pagination, TOTP enrollment,
-Meilisearch search, private S3/MinIO/R2 media, RabbitMQ worker/scheduler, gzip
-queue compression, a Go-parity response/error layer, Docker, CI, and five Rust
-skills.
+SQLx/Postgres, JWT auth with email verification/reset and Google OAuth, Redis
+cache, signed pagination, TOTP enrollment/login/recovery, Meilisearch search
+with RabbitMQ sync, private S3/MinIO/R2 media with imgproxy transforms, RabbitMQ
+worker retries/scheduler, Redis dedupe and leader election, gzip queue
+compression, a Go-parity response/error layer, Docker, CI, and five Rust skills.
 Contract/build-matrix automation is the remaining M3 work.
 
 ## Layout
@@ -26,7 +27,7 @@ templates/
   workspace/fullstack/                # root CONTEXT-MAP, Makefile, env docs
 overlays/
   backend/go/                          # database, auth, cache, queue, media, search, pagination
-  backend/rust/                        # database, auth, docker, ci
+  backend/rust/                        # database, auth, cache, queue, scheduler, dedupe, media, search, sync, pagination
   next/                                # database, auth, bff, state, data, testing, posthog, docker, ci
   workspace/fullstack/                 # root compose and CI aggregation
 tests/                                 # contract/build matrix
@@ -46,13 +47,15 @@ tests/                                 # contract/build matrix
 - Frontend presets: `fullstack` (default) and `frontend`.
 - Fullstack preset: `fullstack-api` (Next.js + Go/Rust API, BFF auth, TanStack Query, Docker, CI).
 - Rust: `rust/axum` single-crate layered base with SQLx/Postgres, JWT auth,
-  Redis cache, signed pagination, TOTP enrollment, Docker, CI, and five
-  project-scoped Rust skills.
+  Redis cache, signed pagination, TOTP login/recovery, RabbitMQ retries/search
+  sync, Redis dedupe/leader election, MinIO/imgproxy media, Meilisearch, Docker,
+  CI, and five project-scoped Rust skills.
 - Overlays: Postgres/pgx/sqlc/goose, optional Redis cache, RabbitMQ worker and
   scheduler, Redis scheduler leadership, dedupe, gzip, users/JWT auth, Google
-  OAuth, TOTP, MinIO/imgproxy/nginx or Cloudflare R2 media, Meilisearch search,
-  RabbitMQ search index sync, signed cursor/offset pagination, Docker, CI,
-  embedded migrations, and optional demo-user seeding.
+  OAuth, email verification/reset, TOTP login/recovery, MinIO/imgproxy/nginx or
+  Cloudflare R2 media, Meilisearch search, RabbitMQ search index sync, signed
+  cursor/offset pagination, Docker, CI, embedded migrations, and optional
+  demo-user seeding.
 - All 17 Go skills plus `sql-optimization-patterns` and `postgresql-optimization` ship in the base; `cache:redis` adds `redis-patterns` and `queue:rabbitmq` adds `rabbitmq-development`.
 
 ## Current Next decisions

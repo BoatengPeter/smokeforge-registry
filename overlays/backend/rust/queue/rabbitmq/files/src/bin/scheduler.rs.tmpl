@@ -1,24 +1,61 @@
+use std::{error::Error, future::Future, sync::Arc, time::Duration};
+
 use {{.crate_name}}::{
     config::Config,
-    queue::{self, Job, rabbitmq::Rabbit},
+    queue::{self, rabbitmq::Rabbit},
     telemetry,
 };
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     let config = Config::load()?;
     telemetry::init(&config)?;
 
     let rabbit = Rabbit::connect(&config).await?;
     // smokeforge:anchor scheduler-codec
-    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(
-        config.scheduler_interval_seconds,
-    ));
+    let rabbit = Arc::new(rabbit);
+    let interval = Duration::from_secs(config.scheduler_interval_seconds);
+    let _leader = AlwaysLeader;
+    // smokeforge:anchor scheduler-leader
+    _leader
+        .run(shutdown_signal(), move || {
+            let rabbit = Arc::clone(&rabbit);
 
-    loop {
-        ticker.tick().await;
-        rabbit
-            .publish(&Job::new("system.heartbeat", serde_json::json!({})))
-            .await?;
+            async move {
+                let mut ticker = tokio::time::interval(interval);
+
+                loop {
+                    ticker.tick().await;
+                    rabbit
+                        .publish(&queue::Job::new("system.heartbeat", serde_json::json!({})))
+                        .await?;
+                }
+            }
+        })
+        .await?;
+
+    Ok(())
+}
+
+struct AlwaysLeader;
+
+#[allow(dead_code)]
+impl AlwaysLeader {
+    async fn run<S, F, Fut>(self, shutdown: S, mut leader: F) -> Result<(), Box<dyn Error>>
+    where
+        S: Future<Output = ()>,
+        F: FnMut() -> Fut,
+        Fut: Future<Output = Result<(), Box<dyn Error>>>,
+    {
+        tokio::select! {
+            result = leader() => result,
+            () = shutdown => Ok(()),
+        }
+    }
+}
+
+async fn shutdown_signal() {
+    if let Err(error) = tokio::signal::ctrl_c().await {
+        tracing::warn!(error = %error, "scheduler shutdown signal failed");
     }
 }

@@ -33,7 +33,8 @@ src/
   media/           private S3 media (media overlay)
   search/          Meilisearch adapter (search overlay)
   cache/           Redis adapter (cache overlay)
-  queue/           RabbitMQ worker/scheduler (queue overlay)
+  queue/           RabbitMQ worker, retries, dedupe (queue/dedupe overlays)
+  scheduler/       Redis scheduler leader election (scheduler overlay)
 docs/
   API.md           endpoint and error contract
   ARCHITECTURE.md  request flow, module boundaries, extension points

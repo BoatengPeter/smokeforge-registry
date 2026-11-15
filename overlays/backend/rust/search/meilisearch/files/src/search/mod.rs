@@ -2,6 +2,7 @@
 
 pub mod http;
 pub mod meilisearch;
+// smokeforge:anchor search-modules
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

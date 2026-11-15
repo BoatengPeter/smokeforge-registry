@@ -5,6 +5,7 @@ ops:
   - addFiles:
       - {path: compose.media.yaml, dest: compose.media.yaml}
       - {path: compose.override.media.yaml, dest: compose.override.media.yaml}
+      - {path: deploy/nginx/nginx.conf, dest: deploy/nginx/nginx.conf}
       - {path: docs/MEDIA_MINIO.md, dest: docs/MEDIA_MINIO.md}
   - insertAfter:
       file: Makefile
@@ -30,3 +31,7 @@ ops:
         	docker compose -f compose.media.yaml down
   - env: {key: MEDIA_MINIO_PORT, example: "9000"}
   - env: {key: MEDIA_MINIO_CONSOLE_PORT, example: "9001"}
+  - env: {key: MEDIA_IMGPROXY_PORT, example: "8080"}
+  - env: {key: MEDIA_NGINX_PORT, example: "8081"}
+  - env: {key: MEDIA_IMGPROXY_KEY, example: "0123456789abcdef0123456789abcdef", secret: true}
+  - env: {key: MEDIA_IMGPROXY_SALT, example: "fedcba9876543210fedcba9876543210", secret: true}

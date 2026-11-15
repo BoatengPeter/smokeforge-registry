@@ -5,6 +5,7 @@ use {{.crate_name}}::{
     queue::{self, rabbitmq::Rabbit},
     telemetry,
 };
+// smokeforge:anchor worker-search-import
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,6 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "system.heartbeat",
         Arc::new(queue::rabbitmq::HeartbeatHandler),
     );
+    // smokeforge:anchor worker-search
 
     rabbit
         .run(Arc::new(registry), config.rabbitmq_prefetch)

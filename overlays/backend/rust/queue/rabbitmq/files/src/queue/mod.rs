@@ -8,7 +8,6 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
-use time::OffsetDateTime;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -17,7 +16,7 @@ pub struct Job {
     pub kind: String,
     pub payload: Value,
     pub attempt: u32,
-    pub created_at: OffsetDateTime,
+    pub created_at: u64,
 }
 
 impl Job {
@@ -27,7 +26,7 @@ impl Job {
             kind: kind.into(),
             payload,
             attempt: 0,
-            created_at: OffsetDateTime::now_utc(),
+            created_at: unix_time(),
         }
     }
 
@@ -46,6 +45,16 @@ pub enum QueueError {
     Message(String),
     #[error("queue codec: {0}")]
     Codec(String),
+}
+
+/// Checks and records successfully processed jobs.
+#[async_trait]
+pub trait Deduplicator: Send + Sync {
+    /// Returns true when the job was already processed successfully.
+    async fn seen(&self, job: &Job) -> Result<bool, QueueError>;
+
+    /// Records a successfully processed job until the marker expires.
+    async fn mark(&self, job: &Job) -> Result<(), QueueError>;
 }
 
 #[async_trait]
@@ -70,4 +79,11 @@ impl Registry {
     pub fn lookup(&self, kind: &str) -> Option<std::sync::Arc<dyn Handler>> {
         self.handlers.get(kind).cloned()
     }
+}
+
+fn unix_time() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default()
 }
