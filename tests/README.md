@@ -1,18 +1,15 @@
 # Registry verification
 
-`verify-templates.sh` builds generated projects from this registry and validates
-them. It requires:
+`verify-templates.sh` builds generated Go projects from this registry and
+validates them.
 
-- `SMOKEFORGE_BIN` pointing to a built smokeforge binary
-- Go 1.26+
-- Python 3 for documentation link checks
-- optional Docker CLI for `docker compose config`
+`verify-rust-templates.sh` builds `rust/axum` with the base and `api` presets,
+runs rustfmt, clippy, tests, and the release build, and checks database, auth,
+Docker, CI, and Rust skill files.
 
-It covers all four Go/Gin architecture bases with `api-custom` (base) and
-`api` plus TOTP, cache, queue, scheduler leadership, dedupe, compression,
-Docker, and CI, the database-only, cache-only, and queue-only overlays, and
-generated code drift.
+Both scripts require `SMOKEFORGE_BIN` pointing to a built smokeforge binary.
+The Rust script also requires `cargo` and a Rust toolchain.
 
 ```bash
-SMOKEFORGE_BIN=../smokeforge/bin/smokeforge ./tests/verify-templates.sh
+SMOKEFORGE_BIN=../smokeforge/bin/smokeforge ./tests/verify-rust-templates.sh
 ```

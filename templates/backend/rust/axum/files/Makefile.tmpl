@@ -1,0 +1,51 @@
+.PHONY: install run dev fmt fmt-check clippy test check build clean
+# smokeforge:anchor db-phony
+# smokeforge:anchor docker-phony
+
+CARGO ?= cargo
+# smokeforge:anchor docker-compose-vars
+
+help:
+	@echo "make install          Fetch dependencies"
+	@echo "make run              Run the API"
+	@echo "make dev              Run with file watching (requires cargo-watch)"
+	@echo "make fmt              Format Rust sources"
+	@echo "make fmt-check        Check formatting"
+	@echo "make clippy           Run clippy with warnings denied"
+	@echo "make test             Run tests"
+	@echo "make check            Run formatting, clippy, and tests"
+	@echo "make build            Build a release binary"
+	@echo "make clean            Remove target artifacts"
+	# smokeforge:anchor db-help
+	# smokeforge:anchor docker-help
+
+install:
+	$(CARGO) fetch
+
+run:
+	$(CARGO) run
+
+dev:
+	$(CARGO) watch -x run
+
+fmt:
+	$(CARGO) fmt
+
+fmt-check:
+	$(CARGO) fmt --check
+
+clippy:
+	$(CARGO) clippy --all-targets --all-features -- -D warnings
+
+test:
+	$(CARGO) test
+
+check: fmt-check clippy test
+
+build:
+	$(CARGO) build --release
+
+clean:
+	$(CARGO) clean
+# smokeforge:anchor db-targets
+# smokeforge:anchor docker-targets

@@ -26,6 +26,11 @@ stacks:
     name: Go (Gin, DDD)
     template: templates/backend/go/gin-ddd
     variables: [module_path, http_port]
+  - id: rust/axum
+    kind: backend
+    name: Rust (axum)
+    template: templates/backend/rust/axum
+    variables: [crate_name, http_port]
   - id: next
     kind: frontend
     name: Next.js
@@ -63,6 +68,7 @@ features:
       go/gin-layered: overlays/backend/go/docker
       go/gin-hexagonal: overlays/backend/go/docker
       go/gin-ddd: overlays/backend/go/docker
+      rust/axum: overlays/backend/rust/docker
       next: overlays/next/docker
   - id: ci
     name: CI
@@ -76,6 +82,7 @@ features:
           go/gin-layered: overlays/backend/go/ci/github
           go/gin-hexagonal: overlays/backend/go/ci/github
           go/gin-ddd: overlays/backend/go/ci/github
+          rust/axum: overlays/backend/rust/ci/github
           next: overlays/next/ci/github
   - id: database
     name: Database
@@ -84,11 +91,19 @@ features:
       - id: postgres
         name: PostgreSQL
         default: true
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+          - rust/axum
+          - next
         overlays:
           go/gin-flat: overlays/backend/go/database/postgres
           go/gin-layered: overlays/backend/go/database/postgres
           go/gin-hexagonal: overlays/backend/go/database/postgres
           go/gin-ddd: overlays/backend/go/database/postgres
+          rust/axum: overlays/backend/rust/database/postgres
           next: overlays/next/database/postgres
   - id: cache
     name: Cache
@@ -227,15 +242,22 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         requires: [database:postgres]
         overlays:
           go/gin-flat: overlays/backend/go/auth/jwt
           go/gin-layered: overlays/backend/go/auth/jwt
           go/gin-hexagonal: overlays/backend/go/auth/jwt
           go/gin-ddd: overlays/backend/go/auth/jwt
+          rust/axum: overlays/backend/rust/auth/jwt
   - id: totp
     name: TOTP two-factor authentication
     kinds: [backend]
+    stacks:
+      - go/gin-flat
+      - go/gin-layered
+      - go/gin-hexagonal
+      - go/gin-ddd
     requires: [auth:jwt]
     overlays:
       go/gin-flat: overlays/backend/go/totp

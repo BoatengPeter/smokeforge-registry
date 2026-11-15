@@ -34,3 +34,33 @@ jobs:
           SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
         run: ./tests/verify-templates.sh
         working-directory: registry
+
+  verify-rust-templates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: registry
+      - uses: actions/checkout@v4
+        with:
+          repository: BoatengPeter/smokeforge
+          ref: v0.1.5
+          path: cli
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+      - name: Build smokeforge
+        run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
+        working-directory: cli
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify Rust templates
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: ./tests/verify-rust-templates.sh
+        working-directory: registry

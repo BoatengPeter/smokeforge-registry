@@ -2,11 +2,12 @@
 
 Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
-**Status:** the Next.js base and the Go/Gin backend (four architectures) are
-implemented, including PostgreSQL, users/JWT auth, Google OAuth, TOTP, Redis
+**Status:** Next.js, the four Go/Gin architectures, and the Rust/Axum backend are
+implemented. Go includes PostgreSQL, users/JWT auth, Google OAuth, TOTP, Redis
 cache, RabbitMQ queues, scheduler leadership, dedupe, gzip, image media,
 Meilisearch search, RabbitMQ index sync, signed pagination, Docker, CI, Swagger
-UI, embedded migrations, and project-scoped Go skills.
+UI, embedded migrations, and project-scoped Go skills. Rust includes Axum,
+SQLx/Postgres, JWT auth, Docker, CI, and five Rust skills.
 Contract/build-matrix automation is the remaining M3 work.
 
 ## Layout
@@ -16,9 +17,12 @@ manifest.yaml
 templates/
   backend/go/
     gin-flat/ gin-layered/ gin-hexagonal/ gin-ddd/
+  backend/rust/
+    axum/
   frontend/next/
 overlays/
-  backend/go/                          # database, auth, totp, docker, ci
+  backend/go/                          # database, auth, cache, queue, media, search, pagination
+  backend/rust/                        # database, auth, docker, ci
   next/                                # database, auth, state, testing, posthog, docker, ci
 tests/                                 # contract/build matrix
 ```
@@ -35,6 +39,8 @@ tests/                                 # contract/build matrix
   shutdown.
 - Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
 - Frontend presets: `fullstack` (default) and `frontend`.
+- Rust: `rust/axum` single-crate layered base with SQLx/Postgres, JWT auth,
+  Docker, CI, and five project-scoped Rust skills.
 - Overlays: Postgres/pgx/sqlc/goose, optional Redis cache, RabbitMQ worker and
   scheduler, Redis scheduler leadership, dedupe, gzip, users/JWT auth, Google
   OAuth, TOTP, MinIO/imgproxy/nginx or Cloudflare R2 media, Meilisearch search,

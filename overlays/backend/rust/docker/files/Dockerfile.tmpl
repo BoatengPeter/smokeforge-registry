@@ -1,0 +1,28 @@
+FROM rust:1.96.1-bookworm AS builder
+
+WORKDIR /app
+COPY Cargo.toml ./
+RUN cargo generate-lockfile
+RUN mkdir src && printf 'fn main() {}\n' > src/main.rs && cargo build --release
+
+COPY . .
+RUN cargo build --release
+RUN mkdir -p /out \
+    && cp target/release/{{.crate_name}} /out/api \
+    && if [ -f target/release/migrate ]; then cp target/release/migrate /out/migrate; fi
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --create-home app
+
+COPY --from=builder /out /usr/local/bin
+USER app
+
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8080/healthz >/dev/null || exit 1
+
+ENTRYPOINT ["/usr/local/bin/api"]

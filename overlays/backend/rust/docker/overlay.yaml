@@ -1,0 +1,42 @@
+id: docker
+name: Docker
+files: files
+ops:
+  - addFiles:
+      - {path: Dockerfile.tmpl, dest: Dockerfile}
+      - {path: .dockerignore, dest: .dockerignore}
+      - {path: compose.yaml, dest: compose.yaml}
+      - {path: docs/DOCKER.md, dest: docs/DOCKER.md}
+  - insertAfter:
+      file: Makefile
+      anchor: docker-compose-vars
+      marker: rust-docker-compose-vars
+      content: |-
+        COMPOSE_OVERRIDES := $(wildcard compose.override.yaml) $(wildcard compose.override.*.yaml)
+        COMPOSE_FILES := -f compose.yaml $(addprefix -f ,$(COMPOSE_OVERRIDES))
+  - insertAfter:
+      file: Makefile
+      anchor: docker-phony
+      marker: rust-docker-phony
+      content: '.PHONY: docker-build docker-up docker-down'
+  - insertAfter:
+      file: Makefile
+      anchor: docker-help
+      marker: rust-docker-help
+      content: |-
+        @echo "make docker-build     Build the API image"
+        @echo "make docker-up        Start the API with Docker Compose"
+        @echo "make docker-down      Stop the Docker Compose stack"
+  - insertAfter:
+      file: Makefile
+      anchor: docker-targets
+      marker: rust-docker-targets
+      content: |-
+        docker-build:
+        	docker build -t {{.crate_name}} .
+
+        docker-up:
+        	docker compose $(COMPOSE_FILES) up -d --build
+
+        docker-down:
+        	docker compose $(COMPOSE_FILES) down

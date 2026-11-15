@@ -1,0 +1,118 @@
+use figment::{
+    Figment,
+    providers::{Env, Serialized},
+};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+/// Runtime configuration loaded from environment variables.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub struct Config {
+    pub app_env: String,
+    pub service_name: String,
+    pub api_title: String,
+    pub http_port: u16,
+    pub public_base_url: String,
+    pub log_level: String,
+    pub request_timeout_seconds: u64,
+    pub shutdown_timeout_seconds: u64,
+    pub max_body_bytes: usize,
+    pub rate_limit_per_second: u64,
+    pub rate_limit_burst: u32,
+    pub cors_allowed_origins: String,
+    // smokeforge:anchor config-fields
+}
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("load configuration: {0}")]
+    Load(Box<figment::Error>),
+    #[error("invalid configuration: {0}")]
+    Invalid(String),
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            app_env: "development".to_owned(),
+            service_name: "{{.project_slug}}".to_owned(),
+            api_title: "{{.project_name}} API".to_owned(),
+            http_port: {{.http_port}},
+            public_base_url: "http://localhost:{{.http_port}}".to_owned(),
+            log_level: "info".to_owned(),
+            request_timeout_seconds: 30,
+            shutdown_timeout_seconds: 10,
+            max_body_bytes: 1_048_576,
+            rate_limit_per_second: 20,
+            rate_limit_burst: 40,
+            cors_allowed_origins: String::new(),
+            // smokeforge:anchor config-defaults
+        }
+    }
+}
+
+impl Config {
+    /// Loads defaults, `.env`, and process environment values, then validates them.
+    pub fn load() -> Result<Self, ConfigError> {
+        let _ = dotenvy::dotenv();
+
+        let config: Self = Figment::new()
+            .merge(Serialized::defaults(Self::default()))
+            .merge(Env::raw().lowercase(false))
+            .extract()
+            .map_err(|error| ConfigError::Load(Box::new(error)))?;
+
+        config.validate()?;
+
+        Ok(config)
+    }
+
+    /// Returns the comma-separated CORS origins as individual values.
+    pub fn cors_origins(&self) -> Vec<&str> {
+        self.cors_allowed_origins
+            .split(',')
+            .map(str::trim)
+            .filter(|origin| !origin.is_empty())
+            .collect()
+    }
+
+    fn validate(&self) -> Result<(), ConfigError> {
+        if !matches!(
+            self.app_env.as_str(),
+            "development" | "staging" | "production"
+        ) {
+            return Err(ConfigError::Invalid(
+                "APP_ENV must be development, staging, or production".to_owned(),
+            ));
+        }
+
+        if self.http_port == 0 {
+            return Err(ConfigError::Invalid(
+                "HTTP_PORT must be between 1 and 65535".to_owned(),
+            ));
+        }
+
+        if self.request_timeout_seconds == 0 || self.shutdown_timeout_seconds == 0 {
+            return Err(ConfigError::Invalid(
+                "request and shutdown timeouts must be positive".to_owned(),
+            ));
+        }
+
+        if self.max_body_bytes == 0 {
+            return Err(ConfigError::Invalid(
+                "MAX_BODY_BYTES must be positive".to_owned(),
+            ));
+        }
+
+        if self.rate_limit_burst == 0 && self.rate_limit_per_second > 0 {
+            return Err(ConfigError::Invalid(
+                "RATE_LIMIT_BURST must be at least 1".to_owned(),
+            ));
+        }
+
+        // smokeforge:anchor config-validation
+
+        Ok(())
+    }
+}

@@ -1,0 +1,75 @@
+mod common;
+
+use axum::{
+    body::Body,
+    http::{Request, StatusCode, header},
+};
+use http_body_util::BodyExt;
+use tower::ServiceExt;
+
+#[tokio::test]
+async fn health_is_available() {
+    let response = common::test_app()
+        .oneshot(
+            Request::get("/healthz")
+                .header("x-forwarded-for", "127.0.0.1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response
+            .headers()
+            .contains_key(header::HeaderName::from_static("x-request-id"))
+    );
+}
+
+#[tokio::test]
+async fn readiness_is_available() {
+    let response = common::test_app()
+        .oneshot(
+            Request::get("/readyz")
+                .header("x-forwarded-for", "127.0.0.1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn ping_returns_json() {
+    let response = common::test_app()
+        .oneshot(
+            Request::get("/api/v1/ping")
+                .header("x-forwarded-for", "127.0.0.1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(String::from_utf8_lossy(&body).contains("pong"));
+}
+
+#[tokio::test]
+async fn unknown_route_is_not_found() {
+    let response = common::test_app()
+        .oneshot(
+            Request::get("/missing")
+                .header("x-forwarded-for", "127.0.0.1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}

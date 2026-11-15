@@ -1,0 +1,96 @@
+id: database:postgres
+name: PostgreSQL with SQLx
+files: files
+ops:
+  - addFiles:
+      - {path: src/db/mod.rs, dest: src/db/mod.rs}
+      - {path: src/db/pool.rs.tmpl, dest: src/db/pool.rs}
+      - {path: src/bin/migrate.rs.tmpl, dest: src/bin/migrate.rs}
+      - {path: migrations/0001_init.sql, dest: migrations/0001_init.sql}
+      - {path: compose.db.yaml, dest: compose.db.yaml}
+      - {path: compose.override.yaml, dest: compose.override.yaml}
+      - {path: docs/DATABASE.md, dest: docs/DATABASE.md}
+  - addDependency: {file: Cargo.toml, module: sqlx, version: "0.9.0", features: ["runtime-tokio", "tls-rustls", "postgres", "uuid", "time", "macros", "migrate"]}
+  - addDependency: {file: Cargo.toml, module: time, version: "0.3.55", features: ["serde", "macros", "serde-well-known"]}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: database:postgres-config
+      content: |-
+        pub database_url: String,
+        pub database_max_connections: u32,
+        pub database_connect_timeout_seconds: u64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: database:postgres-defaults
+      content: |-
+        database_url: "postgres://postgres:postgres@localhost:5432/app".to_owned(),
+        database_max_connections: 10,
+        database_connect_timeout_seconds: 5,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: database:postgres-validation
+      content: |-
+        if !self.database_url.starts_with("postgres://")
+            && !self.database_url.starts_with("postgresql://")
+        {
+            return Err(ConfigError::Invalid(
+                "DATABASE_URL must be a PostgreSQL URL".to_owned(),
+            ));
+        }
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: database:postgres-module
+      content: 'pub mod db;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: import-database
+      marker: database:postgres-import
+      content: 'use {{.crate_name}}::db;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: main-database
+      marker: database:postgres-main
+      content: 'let database = db::Database::connect(&config).await?;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: main-state
+      marker: database:postgres-state
+      content: 'let state = state.with_readiness(std::sync::Arc::new(database.clone()));'
+  - insertAfter:
+      file: Makefile
+      anchor: db-phony
+      marker: database:postgres-phony
+      content: '.PHONY: db-up db-down db-migrate db-shell'
+  - insertAfter:
+      file: Makefile
+      anchor: db-help
+      marker: database:postgres-help
+      content: |-
+        @echo "make db-up           Start PostgreSQL"
+        @echo "make db-down         Stop PostgreSQL"
+        @echo "make db-migrate      Apply SQLx migrations"
+        @echo "make db-shell        Open psql"
+  - insertAfter:
+      file: Makefile
+      anchor: db-targets
+      marker: database:postgres-targets
+      content: |-
+        db-up:
+        	docker compose -f compose.db.yaml up -d --wait
+
+        db-down:
+        	docker compose -f compose.db.yaml down
+
+        db-migrate:
+        	$(CARGO) run --bin migrate
+
+        db-shell:
+        	docker compose -f compose.db.yaml exec db psql -U postgres -d app
+  - env: {key: POSTGRES_PORT, example: "5432"}
+  - env: {key: DATABASE_URL, example: "postgres://postgres:postgres@localhost:5432/app"}
+  - env: {key: DATABASE_MAX_CONNECTIONS, example: "10"}
+  - env: {key: DATABASE_CONNECT_TIMEOUT_SECONDS, example: "5"}

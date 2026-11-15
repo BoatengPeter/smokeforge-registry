@@ -1,0 +1,8 @@
+id: rust/axum
+variables:
+  - name: crate_name
+    prompt: Rust crate name (snake_case)
+    default: example_app
+  - name: http_port
+    prompt: HTTP port
+    default: "8080"

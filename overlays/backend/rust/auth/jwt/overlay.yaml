@@ -1,0 +1,81 @@
+id: auth:jwt
+name: JWT access and rotating refresh tokens
+files: files
+ops:
+  - addFiles:
+      - {path: src/auth/mod.rs, dest: src/auth/mod.rs}
+      - {path: src/auth/user.rs, dest: src/auth/user.rs}
+      - {path: src/auth/password.rs, dest: src/auth/password.rs}
+      - {path: src/auth/token.rs, dest: src/auth/token.rs}
+      - {path: src/auth/repository.rs, dest: src/auth/repository.rs}
+      - {path: src/auth/service.rs, dest: src/auth/service.rs}
+      - {path: src/auth/routes.rs, dest: src/auth/routes.rs}
+      - {path: migrations/0002_auth.sql, dest: migrations/0002_auth.sql}
+      - {path: docs/AUTH.md, dest: docs/AUTH.md}
+  - addDependency: {file: Cargo.toml, module: argon2, version: "0.6.0"}
+  - addDependency: {file: Cargo.toml, module: jsonwebtoken, version: "12.0.0", features: ["rust_crypto"]}
+  - addDependency: {file: Cargo.toml, module: sha2, version: "0.11.1"}
+  - addDependency: {file: Cargo.toml, module: hex, version: "0.4.3"}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: auth:jwt-config
+      content: |-
+        pub jwt_secret: String,
+        pub jwt_issuer: String,
+        pub jwt_audience: String,
+        pub access_token_ttl_seconds: i64,
+        pub refresh_token_ttl_seconds: i64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: auth:jwt-defaults
+      content: |-
+        jwt_secret: "replace-with-a-generated-32-byte-secret".to_owned(),
+        jwt_issuer: "smokeforge-api".to_owned(),
+        jwt_audience: "smokeforge-clients".to_owned(),
+        access_token_ttl_seconds: 900,
+        refresh_token_ttl_seconds: 2_592_000,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: auth:jwt-validation
+      content: |-
+        if self.jwt_secret.len() < 32 {
+            return Err(ConfigError::Invalid(
+                "JWT_SECRET must be at least 32 bytes".to_owned(),
+            ));
+        }
+
+        if self.access_token_ttl_seconds <= 0 || self.refresh_token_ttl_seconds <= 0 {
+            return Err(ConfigError::Invalid(
+                "token TTLs must be positive".to_owned(),
+            ));
+        }
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: auth:jwt-module
+      content: 'pub mod auth;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: import-auth
+      marker: auth:jwt-import
+      content: 'use {{.crate_name}}::auth;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: main-auth
+      marker: auth:jwt-main
+      content: |-
+        let auth_service =
+            std::sync::Arc::new(auth::AuthService::new(database.pool().clone(), &config));
+  - insertAfter:
+      file: src/main.rs
+      anchor: router-auth
+      marker: auth:jwt-router
+      content: 'let application = application.merge(auth::router(auth_service));'
+  - env: {key: JWT_SECRET, example: replace-with-a-generated-32-byte-secret, secret: true}
+  - env: {key: JWT_ISSUER, example: smokeforge-api}
+  - env: {key: JWT_AUDIENCE, example: smokeforge-clients}
+  - env: {key: ACCESS_TOKEN_TTL_SECONDS, example: "900"}
+  - env: {key: REFRESH_TOKEN_TTL_SECONDS, example: "2592000"}

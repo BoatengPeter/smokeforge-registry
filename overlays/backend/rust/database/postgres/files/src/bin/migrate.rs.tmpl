@@ -1,0 +1,12 @@
+use {{.crate_name}}::config::Config;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = Config::load()?;
+    let pool = sqlx::PgPool::connect(&config.database_url).await?;
+
+    sqlx::migrate!("./migrations").run(&pool).await?;
+    pool.close().await;
+
+    Ok(())
+}
