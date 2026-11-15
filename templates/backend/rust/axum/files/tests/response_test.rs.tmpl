@@ -9,21 +9,20 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+#[rustfmt::skip]
+use {{.crate_name}}::{
+    error::AppError,
+    response::{self, FieldError},
+};
 
 #[test]
 fn success_helpers_use_expected_statuses() {
     assert_eq!(
-        {{.crate_name}}::response::json(StatusCode::ACCEPTED, "body").0,
+        response::json(StatusCode::ACCEPTED, "body").0,
         StatusCode::ACCEPTED
     );
-    assert_eq!(
-        {{.crate_name}}::response::created("body").0,
-        StatusCode::CREATED
-    );
-    assert_eq!(
-        {{.crate_name}}::response::no_content(),
-        StatusCode::NO_CONTENT
-    );
+    assert_eq!(response::created("body").0, StatusCode::CREATED);
+    assert_eq!(response::no_content(), StatusCode::NO_CONTENT);
 }
 
 #[tokio::test]
@@ -33,20 +32,14 @@ async fn problem_response_has_request_context_and_fields() {
         .route(
             "/fail",
             get(|| async {
-                Err::<StatusCode, {{.crate_name}}::error::AppError>(
-                    {{.crate_name}}::error::AppError::validation(vec![
-                        {{.crate_name}}::response::FieldError::new(
-                            "email",
-                            "Must be a valid email address.",
-                        ),
-                    ]),
-                )
+                Err::<StatusCode, AppError>(AppError::validation(vec![FieldError::new(
+                    "email",
+                    "Must be a valid email address.",
+                )]))
             }),
         )
         .layer(PropagateRequestIdLayer::new(request_id_header.clone()))
-        .layer(middleware::from_fn(
-            {{.crate_name}}::response::finalize_problem,
-        ))
+        .layer(middleware::from_fn(response::finalize_problem))
         .layer(SetRequestIdLayer::new(request_id_header, MakeRequestUuid));
 
     let response = app

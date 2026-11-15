@@ -10,13 +10,18 @@ use axum::{
 use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
+#[rustfmt::skip]
+use {{.crate_name}}::{
+    error::AppError,
+    state::{AppState, Readiness},
+};
 
 struct FailingReadiness;
 
 #[async_trait]
-impl {{.crate_name}}::state::Readiness for FailingReadiness {
-    async fn ready(&self) -> Result<(), {{.crate_name}}::error::AppError> {
-        Err({{.crate_name}}::error::AppError::new(
+impl Readiness for FailingReadiness {
+    async fn ready(&self) -> Result<(), AppError> {
+        Err(AppError::new(
             StatusCode::SERVICE_UNAVAILABLE,
             "not_ready",
             "Not ready",
@@ -94,8 +99,7 @@ async fn unknown_route_is_not_found() {
 
 #[tokio::test]
 async fn readiness_errors_include_request_context() {
-    let state = {{.crate_name}}::state::AppState::new("test-service")
-        .with_readiness(Arc::new(FailingReadiness));
+    let state = AppState::new("test-service").with_readiness(Arc::new(FailingReadiness));
     let response = common::test_app_with_state(state)
         .oneshot(
             Request::get("/readyz")
