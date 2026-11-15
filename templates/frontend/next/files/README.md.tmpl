@@ -20,6 +20,18 @@ Generated with [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
 Package manager: `{{.package_manager}}` (also supported: pnpm, npm, bun).
 
+## Architecture
+
+```mermaid
+flowchart LR
+    Browser --> Pages[App Router pages]
+    Pages --> Server[Server components and route handlers]
+    Server --> Validation[Zod boundaries]
+    Server --> Auth[Auth/session overlay]
+    Server --> DB[(Postgres/Drizzle)]
+    Pages --> State[Zustand selectors]
+```
+
 ## Quick start
 
 The first install creates the lockfile; commit it afterward.

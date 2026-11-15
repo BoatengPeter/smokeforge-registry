@@ -5,15 +5,15 @@ independent of Gin, the database, and outbound clients.
 
 ## Request flow
 
-```text
-HTTP request
-  → internal/httpapi middleware
-  → generated OpenAPI handler
-  → internal/app facade
-  → internal/port inbound contract
-  → internal/service implementation
-  → internal/domain types
-  → response
+```mermaid
+flowchart LR
+    Request --> Middleware[internal/httpapi middleware]
+    Middleware --> Handler[generated OpenAPI handler]
+    Handler --> App[internal/app facade]
+    App --> Port[inbound port]
+    Port --> Service[service implementation]
+    Service --> Domain[domain types]
+    Domain --> Response
 ```
 
 ## Packages

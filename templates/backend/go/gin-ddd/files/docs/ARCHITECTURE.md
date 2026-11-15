@@ -5,14 +5,14 @@ with a pure domain and an application handler.
 
 ## Request flow
 
-```text
-HTTP request
-  → internal/httpapi middleware
-  → generated OpenAPI handler
-  → internal/app facade
-  → internal/ping/application handler
-  → internal/ping/domain value
-  → response
+```mermaid
+flowchart LR
+    Request --> Middleware[internal/httpapi middleware]
+    Middleware --> Handler[generated OpenAPI handler]
+    Handler --> App[internal/app facade]
+    App --> Application[ping application handler]
+    Application --> Domain[ping domain value]
+    Domain --> Response
 ```
 
 ## Packages

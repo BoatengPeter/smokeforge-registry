@@ -6,12 +6,12 @@ appears.
 
 ## Request flow
 
-```text
-HTTP request
-  → internal/httpapi middleware
-  → generated OpenAPI handler
-  → internal/app behavior
-  → response
+```mermaid
+flowchart LR
+    Request --> Middleware[internal/httpapi middleware]
+    Middleware --> Handler[generated OpenAPI handler]
+    Handler --> App[internal/app behavior]
+    App --> Response
 ```
 
 ## Packages
