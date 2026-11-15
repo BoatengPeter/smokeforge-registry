@@ -6,10 +6,12 @@ RUN cargo generate-lockfile
 RUN mkdir src && printf 'fn main() {}\n' > src/main.rs && cargo build --release
 
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --bins
 RUN mkdir -p /out \
     && cp target/release/{{.crate_name}} /out/api \
-    && if [ -f target/release/migrate ]; then cp target/release/migrate /out/migrate; fi
+    && if [ -f target/release/migrate ]; then cp target/release/migrate /out/migrate; fi \
+    && if [ -f target/release/worker ]; then cp target/release/worker /out/worker; fi \
+    && if [ -f target/release/scheduler ]; then cp target/release/scheduler /out/scheduler; fi
 
 FROM debian:bookworm-slim
 

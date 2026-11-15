@@ -166,11 +166,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/queue/rabbitmq
           go/gin-layered: overlays/backend/go/queue/rabbitmq
           go/gin-hexagonal: overlays/backend/go/queue/rabbitmq
           go/gin-ddd: overlays/backend/go/queue/rabbitmq
+          rust/axum: overlays/backend/rust/queue/rabbitmq
 
   - id: scheduler
     name: Scheduler

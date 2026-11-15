@@ -1,0 +1,23 @@
+use {{.crate_name}}::{
+    config::Config,
+    queue::{Job, rabbitmq::Rabbit},
+    telemetry,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = Config::load()?;
+    telemetry::init(&config)?;
+
+    let rabbit = Rabbit::connect(&config).await?;
+    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(
+        config.scheduler_interval_seconds,
+    ));
+
+    loop {
+        ticker.tick().await;
+        rabbit
+            .publish(&Job::new("system.heartbeat", serde_json::json!({})))
+            .await?;
+    }
+}

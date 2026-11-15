@@ -1,0 +1,45 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    environment:
+      RABBITMQ_DEFAULT_USER: smokeforge
+      RABBITMQ_DEFAULT_PASS: smokeforge
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      RABBITMQ_URL: amqp://smokeforge:smokeforge@rabbitmq:5672/
+    entrypoint: ["/usr/local/bin/worker"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      RABBITMQ_URL: amqp://smokeforge:smokeforge@rabbitmq:5672/
+    entrypoint: ["/usr/local/bin/scheduler"]
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rabbitmq-data:

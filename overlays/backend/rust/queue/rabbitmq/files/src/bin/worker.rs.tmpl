@@ -1,0 +1,26 @@
+use std::sync::Arc;
+
+use {{.crate_name}}::{
+    config::Config,
+    queue::{self, rabbitmq::Rabbit},
+    telemetry,
+};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = Config::load()?;
+    telemetry::init(&config)?;
+
+    let rabbit = Rabbit::connect(&config).await?;
+    let mut registry = queue::Registry::new();
+    registry.register(
+        "system.heartbeat",
+        Arc::new(queue::rabbitmq::HeartbeatHandler),
+    );
+
+    rabbit
+        .run(Arc::new(registry), config.rabbitmq_prefetch)
+        .await?;
+
+    Ok(())
+}

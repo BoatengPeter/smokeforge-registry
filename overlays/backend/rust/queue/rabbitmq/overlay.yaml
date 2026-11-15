@@ -1,0 +1,87 @@
+id: queue:rabbitmq
+name: RabbitMQ worker and scheduler
+files: files
+ops:
+  - addFiles:
+      - {path: src/queue/mod.rs, dest: src/queue/mod.rs}
+      - {path: src/queue/rabbitmq.rs, dest: src/queue/rabbitmq.rs}
+      - {path: src/config/config_queue.rs, dest: src/config/config_queue.rs}
+      - {path: src/bin/worker.rs.tmpl, dest: src/bin/worker.rs}
+      - {path: src/bin/scheduler.rs.tmpl, dest: src/bin/scheduler.rs}
+      - {path: compose.queue.yaml, dest: compose.queue.yaml}
+      - {path: compose.override.queue.yaml, dest: compose.override.queue.yaml}
+      - {path: docs/QUEUE.md, dest: docs/QUEUE.md}
+  - addDependency: {file: Cargo.toml, module: lapin, version: "4.12.3"}
+  - addDependency: {file: Cargo.toml, module: futures-util, version: "0.3.34"}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: queue-config-module
+      content: 'mod config_queue;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: queue-config
+      content: |-
+        pub rabbitmq_url: String,
+        pub rabbitmq_queue: String,
+        pub rabbitmq_dlq: String,
+        pub rabbitmq_prefetch: u16,
+        pub scheduler_interval_seconds: u64,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: queue-defaults
+      content: |-
+        rabbitmq_url: "amqp://smokeforge:smokeforge@localhost:5672/".to_owned(),
+        rabbitmq_queue: "smokeforge.jobs".to_owned(),
+        rabbitmq_dlq: "smokeforge.jobs.dlq".to_owned(),
+        rabbitmq_prefetch: 10,
+        scheduler_interval_seconds: 60,
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: queue-validation
+      content: 'self.validate_queue()?;'
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: queue-module
+      content: 'pub mod queue;'
+  - insertAfter:
+      file: Makefile
+      anchor: queue-phony
+      marker: rust-queue-phony
+      content: '.PHONY: queue-up queue-down worker scheduler'
+  - insertAfter:
+      file: Makefile
+      anchor: queue-help
+      marker: rust-queue-help
+      content: |-
+        @echo "make queue-up         Start RabbitMQ"
+        @echo "make queue-down       Stop RabbitMQ"
+        @echo "make worker           Run the queue worker"
+        @echo "make scheduler        Run the heartbeat scheduler"
+  - insertAfter:
+      file: Makefile
+      anchor: queue-targets
+      marker: rust-queue-targets
+      content: |-
+        queue-up:
+        	docker compose -f compose.queue.yaml up -d --wait
+
+        queue-down:
+        	docker compose -f compose.queue.yaml down
+
+        worker:
+        	$(CARGO) run --bin worker
+
+        scheduler:
+        	$(CARGO) run --bin scheduler
+  - env: {key: RABBITMQ_PORT, example: "5672"}
+  - env: {key: RABBITMQ_MANAGEMENT_PORT, example: "15672"}
+  - env: {key: RABBITMQ_URL, example: "amqp://smokeforge:smokeforge@localhost:5672/"}
+  - env: {key: RABBITMQ_QUEUE, example: smokeforge.jobs}
+  - env: {key: RABBITMQ_DLQ, example: smokeforge.jobs.dlq}
+  - env: {key: RABBITMQ_PREFETCH, example: "10"}
+  - env: {key: SCHEDULER_INTERVAL_SECONDS, example: "60"}
