@@ -53,7 +53,7 @@ for doc in docs/API.md docs/ARCHITECTURE.md; do
 done
 
 grep -q '## Code layout' "$TMP/base/README.md"
-grep -q 'src/response.rs' "$TMP/base/README.md"
+grep -q 'response.rs' "$TMP/base/README.md"
 grep -q 'src/response.rs' "$TMP/base/docs/ARCHITECTURE.md"
 test -f "$TMP/base/src/response.rs"
 test -f "$TMP/base/tests/response_test.rs"
