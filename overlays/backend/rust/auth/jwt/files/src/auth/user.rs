@@ -14,7 +14,7 @@ pub struct User {
 }
 
 /// Public user representation.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct UserResponse {
     pub id: Uuid,
     pub email: String,

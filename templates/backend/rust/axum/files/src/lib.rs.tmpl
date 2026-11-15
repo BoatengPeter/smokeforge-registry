@@ -55,6 +55,14 @@ pub struct PingResponse {
 )]
 pub struct ApiDoc;
 
+/// Builds the merged OpenAPI document.
+#[allow(unused_mut)] // feature overlays merge additional documents
+pub fn openapi() -> utoipa::openapi::OpenApi {
+    let mut document = ApiDoc::openapi();
+    // smokeforge:anchor openapi-merge
+    document
+}
+
 /// Builds the HTTP router with the base middleware stack.
 pub fn app(config: &Config, state: AppState) -> Result<Router, Box<dyn std::error::Error>> {
     let request_id_header = header::HeaderName::from_static("x-request-id");
@@ -90,7 +98,7 @@ pub fn app(config: &Config, state: AppState) -> Result<Router, Box<dyn std::erro
         .route("/healthz", get(health_check))
         .route("/readyz", get(ready_check))
         .route("/api/v1/ping", get(ping))
-        .merge(SwaggerUi::new("/docs").url("/openapi.json", ApiDoc::openapi()))
+        .merge(SwaggerUi::new("/docs").url("/openapi.json", openapi()))
         .layer(GovernorLayer::new(Arc::new(governor)))
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

@@ -19,7 +19,7 @@ pub struct AuthService {
 }
 
 /// Tokens returned by register, login, and refresh.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct TokenResponse {
     pub access_token: String,
     pub refresh_token: String,

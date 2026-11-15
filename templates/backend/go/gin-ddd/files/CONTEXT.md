@@ -182,3 +182,11 @@ claim success without fresh evidence.
 - `docs/README.md` — documentation index.
 - `docs/ARCHITECTURE.md` — package boundaries, lifecycle, middleware, and DI.
 - `docs/API.md` — OpenAPI contract and versioning.
+
+## Environment variables
+
+- `internal/config` is the only package that reads `.env` or process environment variables.
+- Add typed fields with defaults, and validate required and secret values at startup.
+- Never call `os.Getenv` from handlers, services, repositories, or feature packages; inject `config.Config` or typed values.
+- Secrets are server-only, never logged, never serialized into responses, and never committed to `.env.example`.
+- New feature overlays declare variables through the registry `env` operation and config anchors, not ad hoc reads.

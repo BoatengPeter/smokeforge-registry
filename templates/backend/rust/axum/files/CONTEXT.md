@@ -42,3 +42,11 @@ make build
 
 If PostgreSQL or auth is present, run `make db-up`, `make db-migrate`, and the
 database-backed tests before reporting completion.
+
+## Environment variables
+
+- `src/config.rs` is the only place that reads `.env` or process environment variables.
+- Every variable is typed, defaulted where safe, and validated at startup before the server binds.
+- Never call `std::env::var` from handlers, services, repositories, or feature modules; inject `Config` or typed values.
+- Secrets are server-only, never logged, never serialized into responses, and never placed in `.env.example`.
+- New overlays add variables through the declarative registry `env` operation and config anchors, not ad hoc reads.

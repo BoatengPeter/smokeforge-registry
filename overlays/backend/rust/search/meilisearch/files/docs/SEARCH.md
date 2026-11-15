@@ -6,3 +6,17 @@ and `delete`; there is no document CRUD endpoint.
 
 Only public documents belong in the configured index. The API returns `503`
 when Meilisearch is unavailable and an empty result when the index does not exist.
+
+```mermaid
+sequenceDiagram
+    participant App as Domain code
+    participant API as Rust API
+    participant Meili as Meilisearch
+    participant Client as Public client
+    App->>API: upsert/delete indexed documents
+    API->>Meili: POST documents
+    Client->>API: GET /api/v1/search?q=...
+    API->>Meili: POST /indexes/documents/search
+    Meili-->>API: hits + metadata
+    API-->>Client: timed search results
+```

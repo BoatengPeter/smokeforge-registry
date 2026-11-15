@@ -188,3 +188,11 @@ Rules:
 - `AGENTS.md` — agent mindmap and skill routing.
 - `CLAUDE.md` — Claude quick guide.
 - `CONTEXT.md` — this file: style, patterns, and the quality gate.
+
+## Environment variables
+
+- All environment access goes through `src/lib/env.ts` or `src/server/env.ts`; both validate with Zod at startup.
+- Never read `process.env` directly in components, hooks, stores, or route handlers.
+- Only truly public values use `NEXT_PUBLIC_*`. Secrets and server credentials never use that prefix.
+- `.env` stays local; `.env.example` documents keys and safe placeholders. Do not commit `.env` or log values.
+- New features add variables through the registry `env` operation and the appropriate validated schema.

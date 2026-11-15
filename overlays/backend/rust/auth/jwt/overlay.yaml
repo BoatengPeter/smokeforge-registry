@@ -69,6 +69,11 @@ ops:
         let auth_service =
             std::sync::Arc::new(auth::AuthService::new(database.pool().clone(), &config));
   - insertAfter:
+      file: src/lib.rs
+      anchor: openapi-merge
+      marker: auth-openapi-merge
+      content: 'document.merge(auth::document());'
+  - insertAfter:
       file: src/main.rs
       anchor: router-auth
       marker: auth:jwt-router

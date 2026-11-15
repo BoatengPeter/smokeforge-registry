@@ -5,14 +5,14 @@ that is obvious to a new reader and easy to test.
 
 ## Request flow
 
-```text
-HTTP request
-  → internal/httpapi middleware
-  → generated OpenAPI handler
-  → internal/app facade
-  → internal/service use case
-  → feature package or database adapter
-  → response
+```mermaid
+flowchart LR
+    Request --> Middleware[internal/httpapi middleware]
+    Middleware --> Handler[generated OpenAPI handler]
+    Handler --> App[internal/app facade]
+    App --> Service[internal/service use case]
+    Service --> Feature[feature package or database adapter]
+    Feature --> Response
 ```
 
 ## Packages
