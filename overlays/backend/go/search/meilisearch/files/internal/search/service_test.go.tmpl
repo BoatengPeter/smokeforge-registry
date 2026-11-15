@@ -1,0 +1,168 @@
+package search
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+)
+
+type fakeEngine struct {
+	result      Result
+	searchErr   error
+	upsertErr   error
+	deleteErr   error
+	query       string
+	options     Options
+	documents   []Document
+	ids         []string
+	upsertCalls int
+	deleteCalls int
+}
+
+func (e *fakeEngine) Search(
+	_ context.Context,
+	query string,
+	options Options,
+) (Result, error) {
+	e.query = query
+	e.options = options
+
+	return e.result, e.searchErr
+}
+
+func (e *fakeEngine) Upsert(_ context.Context, documents []Document) error {
+	e.upsertCalls++
+	e.documents = documents
+
+	return e.upsertErr
+}
+
+func (e *fakeEngine) Delete(_ context.Context, ids []string) error {
+	e.deleteCalls++
+	e.ids = ids
+
+	return e.deleteErr
+}
+
+func TestServiceSearch(t *testing.T) {
+	t.Parallel()
+
+	engine := &fakeEngine{}
+	service := NewService(engine, 50)
+
+	result, err := service.Search(context.Background(), "  design  ", 0, 0)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	if engine.query != "design" {
+		t.Fatalf("query = %q", engine.query)
+	}
+
+	if engine.options.Limit != 20 || engine.options.Offset != 0 {
+		t.Fatalf("options = %#v", engine.options)
+	}
+
+	if result.Hits == nil {
+		t.Fatal("hits must be initialized")
+	}
+}
+
+func TestServiceSearchValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		query  string
+		limit  int
+		offset int
+	}{
+		{name: "empty query"},
+		{name: "query too long", query: strings.Repeat("a", 201)},
+		{name: "limit too high", query: "design", limit: 51},
+		{name: "negative offset", query: "design", offset: -1},
+		{name: "offset too high", query: "design", offset: 1001},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := NewService(&fakeEngine{}, 50)
+
+			_, err := service.Search(context.Background(), test.query, test.limit, test.offset)
+			if !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("error = %v, want invalid input", err)
+			}
+		})
+	}
+}
+
+func TestServiceSearchUnavailable(t *testing.T) {
+	t.Parallel()
+
+	engine := &fakeEngine{searchErr: ErrUnavailable}
+	service := NewService(engine, 50)
+
+	_, err := service.Search(context.Background(), "design", 20, 0)
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("error = %v, want unavailable", err)
+	}
+}
+
+func TestServiceUpsert(t *testing.T) {
+	t.Parallel()
+
+	engine := &fakeEngine{}
+	service := NewService(engine, 50)
+
+	documents := []Document{
+		{
+			ID:     "doc-1",
+			Fields: map[string]any{"title": "Design"},
+		},
+	}
+	if err := service.Upsert(context.Background(), documents); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	if engine.upsertCalls != 1 || len(engine.documents) != 1 {
+		t.Fatalf("engine calls = %d, documents = %#v", engine.upsertCalls, engine.documents)
+	}
+
+	if err := service.Upsert(context.Background(), []Document{
+		{
+			Fields: map[string]any{},
+		},
+	}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("empty id error = %v, want invalid input", err)
+	}
+
+	if err := service.Upsert(context.Background(), nil); err != nil {
+		t.Fatalf("empty upsert: %v", err)
+	}
+}
+
+func TestServiceDelete(t *testing.T) {
+	t.Parallel()
+
+	engine := &fakeEngine{}
+	service := NewService(engine, 50)
+
+	if err := service.Delete(context.Background(), []string{"doc-1"}); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	if engine.deleteCalls != 1 || len(engine.ids) != 1 {
+		t.Fatalf("engine calls = %d, ids = %#v", engine.deleteCalls, engine.ids)
+	}
+
+	if err := service.Delete(context.Background(), []string{""}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("empty id error = %v, want invalid input", err)
+	}
+
+	if err := service.Delete(context.Background(), nil); err != nil {
+		t.Fatalf("empty delete: %v", err)
+	}
+}

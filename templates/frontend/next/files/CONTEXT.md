@@ -75,6 +75,10 @@ If a change crosses areas, invoke every relevant skill. Read the skill's
   when informative, and `sizes` appropriate to the layout.
 - Interactive targets must be at least 44×44px on touch screens.
 - Respect `prefers-reduced-motion`; motion is enhancement, never required.
+- Use loading skeletons for asynchronous content and route-level loading states.
+  Match the final layout and dimensions, keep them accessible with `aria-busy` or
+  a live status where appropriate, and reserve spinners for short inline actions
+  rather than content regions.
 - Run `impeccable adapt <target>` for responsive changes and
   `impeccable optimize <target>` for performance-sensitive changes. Do both
   before claiming the UI is complete.

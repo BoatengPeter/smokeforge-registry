@@ -1,0 +1,74 @@
+package config
+
+import (
+	"testing"
+	"time"
+)
+
+const searchFixtureValue = "smokeforge-dev-search-key"
+
+func validSearchConfig() Config {
+	config := validConfig()
+	config.SearchURL = "http://localhost:7700"
+	config.SearchIndex = "documents"
+	config.SearchAPIKey = searchFixtureValue
+	config.SearchTimeout = 5 * time.Second
+	config.SearchMaxLimit = 50
+
+	return config
+}
+
+func TestConfigValidateSearch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr bool
+	}{
+		{name: "valid", mutate: func(*Config) {}},
+		{
+			name:    "invalid url",
+			mutate:  func(config *Config) { config.SearchURL = "ftp://localhost:7700" },
+			wantErr: true,
+		},
+		{
+			name:    "invalid index",
+			mutate:  func(config *Config) { config.SearchIndex = "bad index" },
+			wantErr: true,
+		},
+		{
+			name:    "empty api key",
+			mutate:  func(config *Config) { config.SearchAPIKey = "" },
+			wantErr: true,
+		},
+		{
+			name:    "zero timeout",
+			mutate:  func(config *Config) { config.SearchTimeout = 0 },
+			wantErr: true,
+		},
+		{
+			name:    "limit too high",
+			mutate:  func(config *Config) { config.SearchMaxLimit = 101 },
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := validSearchConfig()
+			test.mutate(&config)
+
+			err := config.Validate()
+			if test.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+
+			if !test.wantErr && err != nil {
+				t.Fatalf("validate: %v", err)
+			}
+		})
+	}
+}

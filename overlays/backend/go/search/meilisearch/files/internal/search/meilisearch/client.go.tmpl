@@ -1,0 +1,220 @@
+// Package meilisearch implements search using Meilisearch's HTTP API.
+package meilisearch
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"maps"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/search"
+)
+
+const maxResponseBytes = 1 << 20
+
+// Client is a Meilisearch-backed search engine.
+type Client struct {
+	baseURL string
+	index   string
+	apiKey  string
+	http    *http.Client
+}
+
+var _ search.Engine = (*Client)(nil)
+
+// New constructs a Meilisearch client. It does not make a network request.
+func New(cfg config.Config) (*Client, error) {
+	parsed, err := url.ParseRequestURI(cfg.SearchURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse search url: %w", err)
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return nil, fmt.Errorf("search url %q must use http or https", cfg.SearchURL)
+	}
+
+	return &Client{
+		baseURL: strings.TrimRight(cfg.SearchURL, "/"),
+		index:   cfg.SearchIndex,
+		apiKey:  cfg.SearchAPIKey,
+		http:    &http.Client{Timeout: cfg.SearchTimeout},
+	}, nil
+}
+
+// Search executes a query against the configured index.
+func (c *Client) Search(
+	ctx context.Context,
+	query string,
+	options search.Options,
+) (search.Result, error) {
+	payload := searchRequest{
+		Query:  query,
+		Limit:  options.Limit,
+		Offset: options.Offset,
+	}
+
+	status, body, err := c.do(ctx, http.MethodPost, c.indexPath("/search"), payload)
+	if err != nil {
+		return search.Result{}, fmt.Errorf("%w: %w", search.ErrUnavailable, err)
+	}
+
+	if status == http.StatusNotFound && isIndexNotFound(body) {
+		return emptyResult(query, options), nil
+	}
+
+	if status < http.StatusOK || status >= http.StatusMultipleChoices {
+		return search.Result{}, fmt.Errorf("%w: status %d", search.ErrUnavailable, status)
+	}
+
+	var response searchResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return search.Result{}, fmt.Errorf("%w: decode response: %w", search.ErrUnavailable, err)
+	}
+
+	return search.Result{
+		Query:              query,
+		Hits:               response.Hits,
+		EstimatedTotalHits: response.EstimatedTotalHits,
+		Limit:              response.Limit,
+		Offset:             response.Offset,
+		ProcessingTimeMs:   response.ProcessingTimeMs,
+	}, nil
+}
+
+// Upsert adds or replaces documents in the configured index.
+func (c *Client) Upsert(ctx context.Context, documents []search.Document) error {
+	payload := make([]map[string]any, 0, len(documents))
+
+	for _, document := range documents {
+		fields := make(map[string]any, len(document.Fields)+1)
+		maps.Copy(fields, document.Fields)
+
+		fields["id"] = document.ID
+		payload = append(payload, fields)
+	}
+
+	status, _, err := c.do(ctx, http.MethodPost, c.indexPath("/documents?primaryKey=id"), payload)
+	if err != nil {
+		return fmt.Errorf("%w: %w", search.ErrUnavailable, err)
+	}
+
+	if status < http.StatusOK || status >= http.StatusMultipleChoices {
+		return fmt.Errorf("%w: status %d", search.ErrUnavailable, status)
+	}
+
+	return nil
+}
+
+// Delete removes documents by ID.
+func (c *Client) Delete(ctx context.Context, ids []string) error {
+	status, body, err := c.do(
+		ctx,
+		http.MethodPost,
+		c.indexPath("/documents/delete-batch"),
+		ids,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %w", search.ErrUnavailable, err)
+	}
+
+	if status == http.StatusNotFound && isIndexNotFound(body) {
+		return nil
+	}
+
+	if status < http.StatusOK || status >= http.StatusMultipleChoices {
+		return fmt.Errorf("%w: status %d", search.ErrUnavailable, status)
+	}
+
+	return nil
+}
+
+func (c *Client) indexPath(suffix string) string {
+	return "/indexes/" + url.PathEscape(c.index) + suffix
+}
+
+func (c *Client) do(
+	ctx context.Context,
+	method, path string,
+	payload any,
+) (int, []byte, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return 0, nil, fmt.Errorf("encode request: %w", err)
+	}
+
+	request, err := http.NewRequestWithContext(
+		ctx,
+		method,
+		c.baseURL+path,
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return 0, nil, fmt.Errorf("build request: %w", err)
+	}
+
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("User-Agent", "smokeforge-search")
+
+	if c.apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	response, err := c.http.Do(request)
+	if err != nil {
+		return 0, nil, fmt.Errorf("request search engine: %w", err)
+	}
+
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	responseBody, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes))
+	if err != nil {
+		return 0, nil, fmt.Errorf("read search response: %w", err)
+	}
+
+	return response.StatusCode, responseBody, nil
+}
+
+func isIndexNotFound(body []byte) bool {
+	var response meiliError
+	if err := json.Unmarshal(body, &response); err != nil {
+		return false
+	}
+
+	return response.Code == "index_not_found"
+}
+
+func emptyResult(query string, options search.Options) search.Result {
+	return search.Result{
+		Query:  query,
+		Hits:   []json.RawMessage{},
+		Limit:  options.Limit,
+		Offset: options.Offset,
+	}
+}
+
+type searchRequest struct {
+	Query  string `json:"q"`
+	Limit  int    `json:"limit"`
+	Offset int    `json:"offset"`
+}
+
+type searchResponse struct {
+	Hits               []json.RawMessage `json:"hits"`
+	EstimatedTotalHits int               `json:"estimatedTotalHits"`
+	Limit              int               `json:"limit"`
+	Offset             int               `json:"offset"`
+	ProcessingTimeMs   int               `json:"processingTimeMs"`
+}
+
+type meiliError struct {
+	Code string `json:"code"`
+}

@@ -1,0 +1,207 @@
+package meilisearch
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"{{.module_path}}/internal/config"
+	"{{.module_path}}/internal/search"
+)
+
+func TestClientSearch(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(searchHandler(t))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL)
+
+	result, err := client.Search(context.Background(), "design", search.Options{
+		Limit:  10,
+		Offset: 5,
+	})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	if result.EstimatedTotalHits != 12 || len(result.Hits) != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+
+	if result.Query != "design" || result.Limit != 10 || result.Offset != 5 {
+		t.Fatalf("result metadata = %#v", result)
+	}
+}
+
+func TestClientSearchMissingIndex(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNotFound)
+		_, _ = writer.Write([]byte(`{"code":"index_not_found","message":"Index not found"}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL)
+
+	result, err := client.Search(context.Background(), "design", search.Options{
+		Limit:  20,
+		Offset: 0,
+	})
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	if len(result.Hits) != 0 || result.Limit != 20 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestClientSearchUnavailable(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL)
+	_, err := client.Search(context.Background(), "design", search.Options{
+		Limit: 20,
+	})
+
+	if !errors.Is(err, search.ErrUnavailable) {
+		t.Fatalf("error = %v, want unavailable", err)
+	}
+}
+
+func TestClientUpsert(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/indexes/documents/documents" {
+			t.Errorf("path = %s", request.URL.Path)
+		}
+
+		if request.URL.Query().Get("primaryKey") != "id" {
+			t.Errorf("primary key = %q", request.URL.Query().Get("primaryKey"))
+		}
+
+		var payload []map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Errorf("decode request: %v", err)
+
+			return
+		}
+
+		if len(payload) != 1 || payload[0]["id"] != "doc-1" || payload[0]["title"] != "Design" {
+			t.Errorf("payload = %#v", payload)
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"taskUid":1,"status":"enqueued"}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL)
+
+	err := client.Upsert(context.Background(), []search.Document{
+		{
+			ID:     "doc-1",
+			Fields: map[string]any{"title": "Design"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+}
+
+func TestClientDelete(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/indexes/documents/documents/delete-batch" {
+			t.Errorf("path = %s", request.URL.Path)
+		}
+
+		var payload []string
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Errorf("decode request: %v", err)
+
+			return
+		}
+
+		if len(payload) != 2 || payload[0] != "doc-1" || payload[1] != "doc-2" {
+			t.Errorf("payload = %#v", payload)
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{"taskUid":2,"status":"enqueued"}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(t, server.URL)
+	if err := client.Delete(context.Background(), []string{"doc-1", "doc-2"}); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+}
+
+func newTestClient(t *testing.T, serverURL string) *Client {
+	t.Helper()
+
+	client, err := New(config.Config{
+		SearchURL:      serverURL,
+		SearchIndex:    "documents",
+		SearchAPIKey:   "test-key",
+		SearchTimeout:  5 * time.Second,
+		SearchMaxLimit: 50,
+	})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	return client
+}
+
+func searchHandler(t *testing.T) http.Handler {
+	t.Helper()
+
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", request.Method)
+		}
+
+		if request.URL.Path != "/indexes/documents/search" {
+			t.Errorf("path = %s", request.URL.Path)
+		}
+
+		if got := request.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Errorf("authorization = %q", got)
+		}
+
+		var payload searchRequest
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Errorf("decode request: %v", err)
+
+			return
+		}
+
+		if payload.Query != "design" || payload.Limit != 10 || payload.Offset != 5 {
+			t.Errorf("payload = %#v", payload)
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+			"hits": [{"id":"doc-1","title":"Design systems"}],
+			"estimatedTotalHits": 12,
+			"limit": 10,
+			"offset": 5,
+			"processingTimeMs": 3
+		}`))
+	})
+}

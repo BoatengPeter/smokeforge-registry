@@ -51,7 +51,7 @@ presets:
     features: [database:postgres, auth:jwt]
   - id: api-custom
     name: Custom Go API
-    description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, media, Docker, and CI
+    description: Choose database, cache, queue, scheduler, dedupe, compression, auth, TOTP, media, search, Docker, and CI
     kinds: [backend]
     features: []
 features:
@@ -288,3 +288,21 @@ features:
           go/gin-layered: overlays/backend/go/media/r2
           go/gin-hexagonal: overlays/backend/go/media/r2
           go/gin-ddd: overlays/backend/go/media/r2
+
+  - id: search
+    name: Search
+    kinds: [backend]
+    variants:
+      - id: meilisearch
+        name: Meilisearch
+        default: true
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+        overlays:
+          go/gin-flat: overlays/backend/go/search/meilisearch
+          go/gin-layered: overlays/backend/go/search/meilisearch
+          go/gin-hexagonal: overlays/backend/go/search/meilisearch
+          go/gin-ddd: overlays/backend/go/search/meilisearch

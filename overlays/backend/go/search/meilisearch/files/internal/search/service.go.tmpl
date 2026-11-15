@@ -1,0 +1,97 @@
+package search
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"unicode/utf8"
+)
+
+const (
+	defaultLimit   = 20
+	maxQueryLength = 200
+	maxOffset      = 1000
+)
+
+// Service validates search input and delegates to the configured engine.
+type Service struct {
+	engine   Engine
+	maxLimit int
+}
+
+// NewService constructs the search service.
+func NewService(engine Engine, maxLimit int) *Service {
+	return &Service{
+		engine:   engine,
+		maxLimit: maxLimit,
+	}
+}
+
+// Search validates and executes a public search query.
+func (s *Service) Search(
+	ctx context.Context,
+	query string,
+	limit, offset int,
+) (Result, error) {
+	query = strings.TrimSpace(query)
+	if query == "" || utf8.RuneCountInString(query) > maxQueryLength {
+		return Result{}, fmt.Errorf("%w: query must contain 1 to %d characters", ErrInvalidInput, maxQueryLength)
+	}
+
+	if limit == 0 {
+		limit = defaultLimit
+	}
+
+	if limit < 1 || limit > s.maxLimit {
+		return Result{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrInvalidInput, s.maxLimit)
+	}
+
+	if offset < 0 || offset > maxOffset {
+		return Result{}, fmt.Errorf("%w: offset must be between 0 and %d", ErrInvalidInput, maxOffset)
+	}
+
+	result, err := s.engine.Search(ctx, query, Options{
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return Result{}, err
+	}
+
+	if result.Hits == nil {
+		result.Hits = []json.RawMessage{}
+	}
+
+	return result, nil
+}
+
+// Upsert indexes documents. It is intended for server-side domain code.
+func (s *Service) Upsert(ctx context.Context, documents []Document) error {
+	for _, document := range documents {
+		if strings.TrimSpace(document.ID) == "" {
+			return fmt.Errorf("%w: document id must not be empty", ErrInvalidInput)
+		}
+	}
+
+	if len(documents) == 0 {
+		return nil
+	}
+
+	return s.engine.Upsert(ctx, documents)
+}
+
+// Delete removes documents by ID. It is intended for server-side domain code.
+func (s *Service) Delete(ctx context.Context, ids []string) error {
+	for _, id := range ids {
+		if strings.TrimSpace(id) == "" {
+			return fmt.Errorf("%w: document id must not be empty", ErrInvalidInput)
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	return s.engine.Delete(ctx, ids)
+}

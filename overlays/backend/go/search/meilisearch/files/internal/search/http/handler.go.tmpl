@@ -1,0 +1,107 @@
+// Package searchhttp implements the public search HTTP contract.
+package searchhttp
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"{{.module_path}}/internal/response"
+	"{{.module_path}}/internal/search"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+)
+
+// ServiceContract is the search behavior consumed by the HTTP handler.
+type ServiceContract interface {
+	Search(ctx context.Context, query string, limit, offset int) (search.Result, error)
+}
+
+// Handler implements the public search endpoint.
+type Handler struct {
+	service ServiceContract
+	logger  *zap.Logger
+}
+
+// NewHandler constructs the search handler.
+func NewHandler(service ServiceContract, logger *zap.Logger) *Handler {
+	return &Handler{
+		service: service,
+		logger:  logger,
+	}
+}
+
+// RegisterRoutes adds the public search route.
+func (h *Handler) RegisterRoutes(router gin.IRouter) {
+	router.GET("/api/v1/search", h.Search)
+}
+
+// Search returns one page of matching documents.
+func (h *Handler) Search(c *gin.Context) {
+	limit, err := optionalInt(c, "limit")
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	offset, err := optionalInt(c, "offset")
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	result, err := h.service.Search(c.Request.Context(), c.Query("q"), limit, offset)
+	if err != nil {
+		h.writeError(c, err)
+
+		return
+	}
+
+	response.OK(c, SearchResponse{
+		Query:              result.Query,
+		Hits:               result.Hits,
+		EstimatedTotalHits: result.EstimatedTotalHits,
+		Limit:              result.Limit,
+		Offset:             result.Offset,
+		ProcessingTimeMs:   result.ProcessingTimeMs,
+	})
+}
+
+func (h *Handler) writeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, search.ErrInvalidInput):
+		response.WriteError(c, response.NewError(
+			http.StatusUnprocessableEntity,
+			"validation_failed",
+			"Validation failed",
+			err.Error(),
+		))
+	case errors.Is(err, search.ErrUnavailable):
+		response.WriteError(c, response.NewError(
+			http.StatusServiceUnavailable,
+			"search_unavailable",
+			"Search unavailable",
+			"The search service is unavailable.",
+		))
+	default:
+		response.WriteInternalError(c, h.logger, err)
+	}
+}
+
+func optionalInt(c *gin.Context, name string) (int, error) {
+	raw := c.Query(name)
+	if raw == "" {
+		return 0, nil
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s must be an integer", search.ErrInvalidInput, name)
+	}
+
+	return value, nil
+}

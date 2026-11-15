@@ -1,0 +1,52 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"net/url"
+	"regexp"
+	"strings"
+)
+
+var searchIndexPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+func (c Config) validateSearch() error {
+	if err := validateSearchURL(c.SearchURL); err != nil {
+		return err
+	}
+
+	if !searchIndexPattern.MatchString(c.SearchIndex) {
+		return fmt.Errorf("search index %q must contain only letters, numbers, underscores, or hyphens", c.SearchIndex)
+	}
+
+	if strings.TrimSpace(c.SearchAPIKey) == "" {
+		return errors.New("search api key must not be empty")
+	}
+
+	if c.SearchTimeout <= 0 {
+		return errors.New("search timeout must be positive")
+	}
+
+	if c.SearchMaxLimit < 1 || c.SearchMaxLimit > 100 {
+		return errors.New("search max limit must be between 1 and 100")
+	}
+
+	return nil
+}
+
+func validateSearchURL(raw string) error {
+	parsed, err := url.ParseRequestURI(raw)
+	if err != nil {
+		return fmt.Errorf("search url %q: %w", raw, err)
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("search url %q must use http or https", raw)
+	}
+
+	if parsed.Host == "" {
+		return fmt.Errorf("search url %q must include a host", raw)
+	}
+
+	return nil
+}

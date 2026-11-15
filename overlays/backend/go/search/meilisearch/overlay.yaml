@@ -1,0 +1,106 @@
+id: search:meilisearch
+name: Meilisearch full-text search
+files: files
+ops:
+  - addFiles:
+      - {path: internal/search/models.go, dest: internal/search/models.go}
+      - {path: internal/search/ports.go, dest: internal/search/ports.go}
+      - {path: internal/search/service.go.tmpl, dest: internal/search/service.go}
+      - {path: internal/search/service_test.go.tmpl, dest: internal/search/service_test.go}
+      - {path: internal/search/http/api_types.go, dest: internal/search/http/api_types.go}
+      - {path: internal/search/http/handler.go.tmpl, dest: internal/search/http/handler.go}
+      - {path: internal/search/http/handler_test.go.tmpl, dest: internal/search/http/handler_test.go}
+      - {path: internal/search/http/spec.go, dest: internal/search/http/spec.go}
+      - {path: internal/search/http/openapi.yaml, dest: internal/search/http/openapi.yaml}
+      - {path: internal/search/meilisearch/client.go.tmpl, dest: internal/search/meilisearch/client.go}
+      - {path: internal/search/meilisearch/client_test.go.tmpl, dest: internal/search/meilisearch/client_test.go}
+      - {path: internal/config/config_search.go.tmpl, dest: internal/config/config_search.go}
+      - {path: internal/config/config_search_test.go.tmpl, dest: internal/config/config_search_test.go}
+      - {path: compose.search.yaml, dest: compose.search.yaml}
+      - {path: compose.override.search.yaml, dest: compose.override.search.yaml}
+      - {path: docs/SEARCH.md, dest: docs/SEARCH.md}
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-fields
+      marker: search:meilisearch-config
+      content: |-
+        SearchURL      string        `env:"SEARCH_URL" envDefault:"http://localhost:7700"`
+        SearchIndex    string        `env:"SEARCH_INDEX" envDefault:"documents"`
+        SearchAPIKey   string        `env:"SEARCH_API_KEY" envDefault:"smokeforge-dev-search-key"`
+        SearchTimeout  time.Duration `env:"SEARCH_TIMEOUT" envDefault:"5s"`
+        SearchMaxLimit int           `env:"SEARCH_MAX_LIMIT" envDefault:"50"`
+  - insertAfter:
+      file: internal/config/config_test.go
+      anchor: config-test-fields
+      marker: search:meilisearch-config-test
+      content: |-
+        SearchURL:      "http://localhost:7700",
+        SearchIndex:    "documents",
+        SearchAPIKey:   searchFixtureValue,
+        SearchTimeout:  5 * time.Second,
+        SearchMaxLimit: 50,
+  - insertAfter:
+      file: internal/config/config.go
+      anchor: config-validation-body
+      marker: search:meilisearch-validation
+      content: |-
+        if err := c.validateSearch(); err != nil {
+        	return err
+        }
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-search
+      marker: search:meilisearch-import
+      content: |
+        search "{{.module_path}}/internal/search"
+        searchhttp "{{.module_path}}/internal/search/http"
+        searchmeili "{{.module_path}}/internal/search/meilisearch"
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: main-search
+      marker: search:meilisearch-main
+      content: |-
+        searchClient, err := searchmeili.New(cfg)
+        if err != nil {
+        	return fmt.Errorf("configure search: %w", err)
+        }
+
+        searchService := search.NewService(searchClient, cfg.SearchMaxLimit)
+        searchHandler := searchhttp.NewHandler(searchService, logger)
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: http-options
+      marker: search:meilisearch-http
+      content: 'httpapi.WithRegistrar(searchHandler),'
+  - insertAfter:
+      file: Makefile
+      anchor: search-phony
+      marker: search:meilisearch-phony
+      content: '.PHONY: search-up search-down search-logs'
+  - insertAfter:
+      file: Makefile
+      anchor: search-help
+      marker: search:meilisearch-help
+      content: |-
+        @echo "make search-up        Start Meilisearch with Docker"
+        @echo "make search-down      Stop Meilisearch"
+        @echo "make search-logs      Follow Meilisearch logs"
+  - insertAfter:
+      file: Makefile
+      anchor: search-targets
+      marker: search:meilisearch-targets
+      content: |-
+        search-up:
+        	docker compose -f compose.search.yaml up -d
+
+        search-down:
+        	docker compose -f compose.search.yaml down
+
+        search-logs:
+        	docker compose -f compose.search.yaml logs -f
+  - env: {key: SEARCH_PORT, example: "7700"}
+  - env: {key: SEARCH_URL, example: "http://localhost:7700"}
+  - env: {key: SEARCH_INDEX, example: documents}
+  - env: {key: SEARCH_API_KEY, example: smokeforge-dev-search-key, secret: true}
+  - env: {key: SEARCH_TIMEOUT, example: 5s}
+  - env: {key: SEARCH_MAX_LIMIT, example: "50"}

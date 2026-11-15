@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: Search
+  version: 0.1.0
+  description: Public full-text search over the configured Meilisearch index.
+tags:
+  - name: search
+    description: Search queries.
+paths:
+  /api/v1/search:
+    get:
+      operationId: search
+      tags: [search]
+      summary: Search indexed documents
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 1000
+            default: 0
+      responses:
+        '200':
+          description: Search result page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Search engine unavailable.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    SearchResponse:
+      type: object
+      required: [query, hits, estimated_total_hits, limit, offset, processing_time_ms]
+      properties:
+        query:
+          type: string
+        hits:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        estimated_total_hits:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        processing_time_ms:
+          type: integer
+    ErrorResponse:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+        request_id:
+          type: string

@@ -111,6 +111,7 @@ for stack in "${stacks[@]}"; do
     --feature compression:gzip \
     --feature media \
     --feature media-provider:minio \
+    --feature search:meilisearch \
     --feature docker \
     --feature ci:github \
     --var "module_path=example.com/verify/$slug/full" \
@@ -128,13 +129,17 @@ for stack in "${stacks[@]}"; do
       fi
     done
     services="$(cd "$target" && docker compose "${compose_files[@]}" config --services)"
-    for service in api db migrate redis rabbitmq worker scheduler minio minio-init imgproxy nginx; do
+    for service in api db migrate redis rabbitmq worker scheduler minio minio-init imgproxy nginx search; do
       if ! grep -qx "$service" <<<"$services"; then
         echo "  compose stack is missing service: $service" >&2
         exit 1
       fi
     done
     (cd "$target" && docker compose "${compose_files[@]}" config >/dev/null)
+  fi
+  if [[ ! -f "$target/docs/SEARCH.md" ]]; then
+    echo "  search documentation is missing" >&2
+    exit 1
   fi
 done
 
