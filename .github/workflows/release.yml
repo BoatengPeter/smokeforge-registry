@@ -28,4 +28,4 @@ jobs:
             dist/registry.tar.gz \
             dist/registry.sha256 \
             --title "smokeforge-registry $GITHUB_REF_NAME" \
-            --notes "Go/Gin backends with Postgres, JWT auth, TOTP, Redis cache, RabbitMQ worker/scheduler, scheduler leadership, dedupe, gzip, authenticated image media with MinIO/imgproxy/nginx or Cloudflare R2, Meilisearch search, RabbitMQ search index sync, signed cursor/offset pagination, Docker, CI, Swagger, embedded migrations, and project-scoped Go skills."
+            --notes "Adds the Rust/Axum backend with SQLx/Postgres, JWT auth, Docker, CI, and five Rust skills. Go/Gin backends retain Postgres, JWT auth, TOTP, Redis cache, RabbitMQ worker/scheduler, scheduler leadership, dedupe, gzip, authenticated image media with MinIO/imgproxy/nginx or Cloudflare R2, Meilisearch search, RabbitMQ search index sync, signed cursor/offset pagination, Docker, CI, Swagger, embedded migrations, and project-scoped Go skills."
