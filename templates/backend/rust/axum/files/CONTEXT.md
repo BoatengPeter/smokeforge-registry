@@ -50,3 +50,11 @@ database-backed tests before reporting completion.
 - Never call `std::env::var` from handlers, services, repositories, or feature modules; inject `Config` or typed values.
 - Secrets are server-only, never logged, never serialized into responses, and never placed in `.env.example`.
 - New overlays add variables through the declarative registry `env` operation and config anchors, not ad hoc reads.
+
+## Input validation
+
+- Validate every untrusted boundary: request bodies, query parameters, path parameters, headers, cookies, uploads, environment values, and external responses.
+- Reject invalid input before business logic, SQL, filesystem, network, or rendering work; return the app's typed validation error.
+- Use allow-lists for enums, content types, sizes, sort fields, and redirect/origin values. Never concatenate untrusted input into SQL, shell commands, paths, or URLs.
+- Validate at the closest boundary and keep domain invariants enforced by types. Client-side checks are UX only, never the security boundary.
+- Validate content type and size for uploads, and validate the final stored object before marking it ready.

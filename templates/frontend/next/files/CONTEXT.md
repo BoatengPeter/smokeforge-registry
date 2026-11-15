@@ -196,3 +196,11 @@ Rules:
 - Only truly public values use `NEXT_PUBLIC_*`. Secrets and server credentials never use that prefix.
 - `.env` stays local; `.env.example` documents keys and safe placeholders. Do not commit `.env` or log values.
 - New features add variables through the registry `env` operation and the appropriate validated schema.
+
+## Input validation
+
+- Validate every external input at the boundary: request bodies, query/path parameters, headers, cookies, form values, URL parameters, server responses, and environment values.
+- Use Zod schemas for API routes, server actions, forms, and external API responses. Parse before use; never trust `unknown`, `any`, or raw `process.env`.
+- Keep client validation for UX and repeat validation on the server. Client checks are never the security boundary.
+- Allow-list enums, redirects, origins, sort/filter fields, upload types, and sizes. Never interpolate untrusted values into SQL, shell commands, paths, or HTML.
+- Reject invalid input before side effects and return the standard typed error shape.
