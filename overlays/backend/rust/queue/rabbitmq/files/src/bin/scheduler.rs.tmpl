@@ -1,6 +1,6 @@
 use {{.crate_name}}::{
     config::Config,
-    queue::{Job, rabbitmq::Rabbit},
+    queue::{self, Job, rabbitmq::Rabbit},
     telemetry,
 };
 
@@ -10,6 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     telemetry::init(&config)?;
 
     let rabbit = Rabbit::connect(&config).await?;
+    // smokeforge:anchor scheduler-codec
     let mut ticker = tokio::time::interval(std::time::Duration::from_secs(
         config.scheduler_interval_seconds,
     ));

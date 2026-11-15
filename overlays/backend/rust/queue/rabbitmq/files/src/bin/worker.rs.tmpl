@@ -12,6 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     telemetry::init(&config)?;
 
     let rabbit = Rabbit::connect(&config).await?;
+    // smokeforge:anchor worker-codec
     let mut registry = queue::Registry::new();
     registry.register(
         "system.heartbeat",

@@ -1,6 +1,8 @@
 //! Durable job queue used by worker and scheduler binaries.
 
+pub mod codec;
 pub mod rabbitmq;
+// smokeforge:anchor queue-modules
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

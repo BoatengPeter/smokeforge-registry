@@ -222,11 +222,13 @@ features:
           - go/gin-layered
           - go/gin-hexagonal
           - go/gin-ddd
+          - rust/axum
         overlays:
           go/gin-flat: overlays/backend/go/compression/gzip
           go/gin-layered: overlays/backend/go/compression/gzip
           go/gin-hexagonal: overlays/backend/go/compression/gzip
           go/gin-ddd: overlays/backend/go/compression/gzip
+          rust/axum: overlays/backend/rust/compression/gzip
 
   - id: auth
     name: Authentication

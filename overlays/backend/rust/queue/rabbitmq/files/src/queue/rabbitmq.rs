@@ -14,13 +14,17 @@ use lapin::{
 use crate::{
     config::Config,
     error::AppError,
-    queue::{Handler, Job, QueueError, Registry},
+    queue::{
+        Handler, Job, QueueError, Registry,
+        codec::{Codec, JsonCodec},
+    },
 };
 
 pub struct Rabbit {
     channel: lapin::Channel,
     queue: String,
     dlq: String,
+    codec: Arc<dyn Codec>,
 }
 
 impl Rabbit {
@@ -51,11 +55,17 @@ impl Rabbit {
             channel,
             queue: config.rabbitmq_queue.clone(),
             dlq: config.rabbitmq_dlq.clone(),
+            codec: Arc::new(JsonCodec),
         })
     }
 
+    pub fn with_codec(mut self, codec: Arc<dyn Codec>) -> Self {
+        self.codec = codec;
+        self
+    }
+
     pub async fn publish(&self, job: &Job) -> Result<(), QueueError> {
-        let body = job.encode()?;
+        let body = self.codec.encode(job)?;
         self.channel
             .basic_publish(
                 "".into(),
@@ -91,7 +101,7 @@ impl Rabbit {
 
         while let Some(delivery) = consumer.next().await {
             let delivery = delivery.map_err(|_| AppError::internal("RabbitMQ delivery failed"))?;
-            let job = Job::decode(&delivery.data);
+            let job = self.codec.decode(&delivery.data);
 
             let result = match job {
                 Ok(job) => match registry.lookup(&job.kind) {

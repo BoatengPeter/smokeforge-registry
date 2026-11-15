@@ -1,0 +1,51 @@
+id: compression:gzip
+name: Gzip queue compression
+files: files
+ops:
+  - addFiles:
+      - {path: src/queue/gzip.rs, dest: src/queue/gzip.rs}
+      - {path: src/config/config_compression.rs, dest: src/config/config_compression.rs}
+      - {path: docs/COMPRESSION.md, dest: docs/COMPRESSION.md}
+  - insertAfter:
+      file: src/queue/mod.rs
+      anchor: queue-modules
+      marker: compression-queue-module
+      content: 'pub mod gzip;'
+  - addDependency: {file: Cargo.toml, module: flate2, version: "1.1.5"}
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-modules
+      marker: compression-config-module
+      content: 'mod config_compression;'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-fields
+      marker: compression-config
+      content: 'pub queue_compression_min_bytes: usize,'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-defaults
+      marker: compression-defaults
+      content: 'queue_compression_min_bytes: 1024,'
+  - insertAfter:
+      file: src/config.rs
+      anchor: config-validation
+      marker: compression-validation
+      content: 'self.validate_compression()?;'
+  - insertAfter:
+      file: src/bin/worker.rs
+      anchor: worker-codec
+      marker: compression-worker-codec
+      content: |-
+        let rabbit = rabbit.with_codec(std::sync::Arc::new(queue::gzip::GzipCodec::new(
+            config.queue_compression_min_bytes,
+        )));
+  - insertAfter:
+      file: src/bin/scheduler.rs
+      anchor: scheduler-codec
+      marker: compression-scheduler-codec
+      content: |-
+        let rabbit = rabbit.with_codec(std::sync::Arc::new(queue::gzip::GzipCodec::new(
+            config.queue_compression_min_bytes,
+        )));
+  - env: {key: QUEUE_COMPRESSION_MIN_BYTES, example: "1024"}

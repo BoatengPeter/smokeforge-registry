@@ -4,6 +4,7 @@ files: files
 ops:
   - addFiles:
       - {path: src/queue/mod.rs, dest: src/queue/mod.rs}
+      - {path: src/queue/codec.rs, dest: src/queue/codec.rs}
       - {path: src/queue/rabbitmq.rs, dest: src/queue/rabbitmq.rs}
       - {path: src/config/config_queue.rs, dest: src/config/config_queue.rs}
       - {path: src/bin/worker.rs.tmpl, dest: src/bin/worker.rs}
