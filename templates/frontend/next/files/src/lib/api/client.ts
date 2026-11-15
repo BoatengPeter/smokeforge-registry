@@ -20,6 +20,10 @@ export async function apiFetch<T>(
     },
   });
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {

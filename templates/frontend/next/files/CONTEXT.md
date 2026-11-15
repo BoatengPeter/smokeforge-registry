@@ -204,3 +204,10 @@ Rules:
 - Keep client validation for UX and repeat validation on the server. Client checks are never the security boundary.
 - Allow-list enums, redirects, origins, sort/filter fields, upload types, and sizes. Never interpolate untrusted values into SQL, shell commands, paths, or HTML.
 - Reject invalid input before side effects and return the standard typed error shape.
+
+## Server state
+
+- TanStack Query owns client-side server state. Do not copy fetched server data into Zustand or component-local state.
+- Use the typed hooks in `src/lib/query/hooks.ts`; keep query keys in `src/lib/query/keys.ts`.
+- Invalidate or update the correct query keys after mutations. Never refetch the world after every write.
+- Client hooks are not the security boundary; server route handlers and API endpoints still validate and authorize every request.

@@ -42,7 +42,7 @@ presets:
     description: Postgres, Better Auth, and Zustand
     kinds: [frontend]
     default: true
-    features: [database:postgres, auth:session, state:zustand]
+    features: [database:postgres, auth:session, state:zustand, data:tanstack-query]
   - id: frontend
     name: Frontend only
     description: The base app without backend or client state
@@ -154,6 +154,17 @@ features:
         default: true
         overlays:
           next: overlays/next/analytics/posthog
+
+  - id: data
+    name: Data fetching
+    kinds: [frontend]
+    variants:
+      - id: tanstack-query
+        name: TanStack Query
+        default: true
+        stacks: [next]
+        overlays:
+          next: overlays/next/data/tanstack-query
   - id: queue
     name: Queue
     kinds: [backend]

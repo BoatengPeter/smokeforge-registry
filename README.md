@@ -59,8 +59,9 @@ tests/                                 # contract/build matrix
 - App Router; `route.ts` Route Handlers are the backend.
 - Tailwind 4, Jest, Zod, Pino.
 - Metadata API, OpenGraph image, sitemap, robots.
-- Overlays: Postgres/Drizzle, Better Auth/RHF, Zustand, Playwright E2E,
-  PostHog, Docker, CI. CI runs E2E only when the E2E overlay is present.
+- Overlays: Postgres/Drizzle, Better Auth/RHF, Zustand, TanStack Query,
+  Playwright E2E, PostHog, Docker, CI. CI runs E2E only when the E2E overlay is
+  present.
 - Required overlays are auto-added; removal is guarded unless `--cascade`.
 
 Full stack and version details: [STACKS.md](https://github.com/BoatengPeter/smokeforge/blob/main/STACKS.md).
