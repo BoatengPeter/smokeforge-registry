@@ -72,7 +72,7 @@ ops:
       file: src/main.rs
       anchor: router-auth
       marker: auth:jwt-router
-      content: 'let application = application.merge(auth::router(auth_service));'
+      content: 'let application = application.merge(auth::router(auth_service.clone()));'
   - env: {key: JWT_SECRET, example: replace-with-a-generated-32-byte-secret, secret: true}
   - env: {key: JWT_ISSUER, example: smokeforge-api}
   - env: {key: JWT_AUDIENCE, example: smokeforge-clients}
