@@ -1,0 +1,47 @@
+use std::error::Error;
+
+use sqlx::postgres::PgPoolOptions;
+use uuid::Uuid;
+#[rustfmt::skip]
+use {{.crate_name}}::{
+    auth::{AuthService, LoginOutcome},
+    config::Config,
+};
+
+#[tokio::test]
+async fn auth_round_trip() -> Result<(), Box<dyn Error>> {
+    let Ok(database_url) = std::env::var("TEST_DATABASE_URL") else {
+        return Ok(());
+    };
+
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&database_url)
+        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
+
+    let service = AuthService::new(pool.clone(), &Config::default());
+    let email = format!("db-test-{}@example.com", Uuid::new_v4());
+    let password = "password-1234".to_owned();
+
+    let user = service.register(email.clone(), password.clone()).await?;
+    let tokens = match service.login(email, password).await? {
+        LoginOutcome::Tokens(tokens) => tokens,
+        LoginOutcome::Challenge { .. } => {
+            return Err("unexpected MFA challenge in database test".into());
+        }
+    };
+
+    let current = service.current_user(&tokens.access_token).await?;
+    assert_eq!(current.id, user.id);
+
+    let refreshed = service.refresh(tokens.refresh_token).await?;
+    assert!(!refreshed.access_token.is_empty());
+
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(user.id)
+        .execute(&pool)
+        .await?;
+
+    Ok(())
+}

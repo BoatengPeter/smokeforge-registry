@@ -70,8 +70,7 @@ impl TotpService {
     }
 
     async fn status(&self, user_id: Uuid) -> Result<bool, AppError> {
-        sqlx::query_scalar::<_, bool>("SELECT enabled FROM user_totp WHERE user_id = $1")
-            .bind(user_id)
+        sqlx::query_scalar!("SELECT enabled FROM user_totp WHERE user_id = $1", user_id)
             .fetch_optional(&self.pool)
             .await
             .map(|value| value.unwrap_or(false))
@@ -93,13 +92,13 @@ impl TotpService {
             "otpauth://totp/{ISSUER}:{email}?secret={secret}&issuer={ISSUER}&digits={DIGITS}&period={PERIOD}"
         );
 
-        sqlx::query(
+        sqlx::query!(
             "INSERT INTO user_totp (user_id, secret, enabled)
              VALUES ($1, $2, false)
              ON CONFLICT (user_id) DO UPDATE SET secret = EXCLUDED.secret, enabled = false",
+            user_id,
+            &secret
         )
-        .bind(user_id)
-        .bind(&secret)
         .execute(&self.pool)
         .await
         .map_err(|_| AppError::internal("could not store TOTP secret"))?;
@@ -113,12 +112,14 @@ impl TotpService {
     }
 
     async fn enable(&self, user_id: Uuid, code: &str) -> Result<Vec<String>, AppError> {
-        let state: Option<(String, bool)> =
-            sqlx::query_as("SELECT secret, enabled FROM user_totp WHERE user_id = $1")
-                .bind(user_id)
-                .fetch_optional(&self.pool)
-                .await
-                .map_err(|_| AppError::internal("could not load TOTP state"))?;
+        let state = sqlx::query!(
+            "SELECT secret, enabled FROM user_totp WHERE user_id = $1",
+            user_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|_| AppError::internal("could not load TOTP state"))?
+        .map(|row| (row.secret, row.enabled));
 
         let (secret, enabled) = state.ok_or_else(|| {
             AppError::new(
@@ -193,10 +194,10 @@ impl TotpService {
     }
 
     async fn verify(&self, user_id: Uuid, code: &str) -> Result<(), AppError> {
-        let secret: Option<String> = sqlx::query_scalar(
+        let secret = sqlx::query_scalar!(
             "SELECT secret FROM user_totp WHERE user_id = $1 AND enabled = true",
+            user_id
         )
-        .bind(user_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|_| AppError::internal("could not load TOTP secret"))?;
@@ -353,12 +354,14 @@ async fn set_enabled(
     user_id: Uuid,
     enabled: bool,
 ) -> Result<(), AppError> {
-    sqlx::query("UPDATE user_totp SET enabled = $2, updated_at = now() WHERE user_id = $1")
-        .bind(user_id)
-        .bind(enabled)
-        .execute(&mut **tx)
-        .await
-        .map_err(|_| AppError::internal("could not update TOTP state"))?;
+    sqlx::query!(
+        "UPDATE user_totp SET enabled = $2, updated_at = now() WHERE user_id = $1",
+        user_id,
+        enabled
+    )
+    .execute(&mut **tx)
+    .await
+    .map_err(|_| AppError::internal("could not update TOTP state"))?;
 
     Ok(())
 }
@@ -367,11 +370,13 @@ async fn clear_recovery_codes(
     tx: &mut Transaction<'_, Postgres>,
     user_id: Uuid,
 ) -> Result<(), AppError> {
-    sqlx::query("DELETE FROM user_totp_recovery_codes WHERE user_id = $1")
-        .bind(user_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(|_| AppError::internal("could not clear recovery codes"))?;
+    sqlx::query!(
+        "DELETE FROM user_totp_recovery_codes WHERE user_id = $1",
+        user_id
+    )
+    .execute(&mut **tx)
+    .await
+    .map_err(|_| AppError::internal("could not clear recovery codes"))?;
 
     Ok(())
 }
@@ -382,13 +387,13 @@ async fn store_recovery_codes(
     codes: &[String],
 ) -> Result<(), AppError> {
     for code in codes {
-        sqlx::query(
+        sqlx::query!(
             "INSERT INTO user_totp_recovery_codes (id, user_id, code_hash)
              VALUES ($1, $2, $3)",
+            Uuid::new_v4(),
+            user_id,
+            hash_recovery_code(code)
         )
-        .bind(Uuid::new_v4())
-        .bind(user_id)
-        .bind(hash_recovery_code(code))
         .execute(&mut **tx)
         .await
         .map_err(|_| AppError::internal("could not store recovery code"))?;
@@ -402,14 +407,14 @@ async fn consume_recovery_code(
     user_id: Uuid,
     code: &str,
 ) -> Result<Option<Uuid>, AppError> {
-    sqlx::query_scalar(
+    sqlx::query_scalar!(
         "UPDATE user_totp_recovery_codes
          SET used_at = now()
          WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL
          RETURNING id",
+        user_id,
+        hash_recovery_code(code)
     )
-    .bind(user_id)
-    .bind(hash_recovery_code(code))
     .fetch_optional(pool)
     .await
     .map_err(|_| AppError::internal("could not consume recovery code"))

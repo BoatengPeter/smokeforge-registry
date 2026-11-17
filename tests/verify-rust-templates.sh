@@ -9,6 +9,7 @@ export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$TMP/target}"
 export CARGO_PROFILE_DEV_DEBUG="${CARGO_PROFILE_DEV_DEBUG:-0}"
 export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-0}"
 export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-0}"
+export SQLX_OFFLINE="${SQLX_OFFLINE:-true}"
 trap 'rm -rf "$TMP"' EXIT
 
 if [[ -z "$CLI_BIN" || ! -x "$CLI_BIN" ]]; then
@@ -57,10 +58,14 @@ grep -q 'response.rs' "$TMP/base/README.md"
 grep -q 'src/response.rs' "$TMP/base/docs/ARCHITECTURE.md"
 test -f "$TMP/base/src/response.rs"
 test -f "$TMP/base/tests/response_test.rs"
+test -d "$TMP/base/.sqlx"
 
 echo "== rust/axum api preset with database/auth/docker/ci"
 generate "$TMP/api" api --feature cache:redis --feature pagination --feature totp --feature search:meilisearch --feature search-sync:rabbitmq --feature media --feature media-provider:minio --feature queue:rabbitmq --feature scheduler:leader --feature dedupe:redis --feature compression:gzip --feature docker --feature ci:github
 check "$TMP/api"
+test -f "$TMP/api/tests/auth_db_test.rs"
+test -f "$TMP/api/tests/database_test.rs"
+test -d "$TMP/api/.sqlx"
 for file in migrations/0001_init.sql migrations/0002_auth.sql migrations/0003_totp.sql migrations/0004_media.sql Dockerfile compose.yaml compose.db.yaml compose.cache.yaml compose.queue.yaml .github/workflows/ci.yml docs/QUEUE.md docs/COMPRESSION.md docs/PAGINATION.md docs/CACHE.md docs/TOTP.md docs/SEARCH.md docs/SEARCH_SYNC.md docs/MEDIA.md docs/MEDIA_MINIO.md docs/DEDUPE.md docs/SCHEDULER.md; do
   test -f "$TMP/api/$file"
 done

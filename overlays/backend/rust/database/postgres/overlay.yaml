@@ -10,6 +10,7 @@ ops:
       - {path: compose.db.yaml, dest: compose.db.yaml}
       - {path: compose.override.yaml, dest: compose.override.yaml}
       - {path: docs/DATABASE.md, dest: docs/DATABASE.md}
+      - {path: tests/database_test.rs, dest: tests/database_test.rs}
   - addDependency: {file: Cargo.toml, module: sqlx, version: "0.9.0", features: ["runtime-tokio", "tls-rustls", "postgres", "uuid", "time", "macros", "migrate"]}
   - addDependency: {file: Cargo.toml, module: time, version: "0.3.55", features: ["serde", "macros", "serde-well-known"]}
   - insertAfter:
