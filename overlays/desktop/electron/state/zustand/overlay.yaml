@@ -1,0 +1,24 @@
+id: state:zustand
+name: Zustand client state
+files: files
+ops:
+  - addFiles:
+      - {path: src/renderer/src/lib/stores/app-store.ts, dest: src/renderer/src/lib/stores/app-store.ts}
+      - {path: src/renderer/src/lib/stores/app-store-provider.tsx, dest: src/renderer/src/lib/stores/app-store-provider.tsx}
+      - {path: docs/STATE.md, dest: docs/STATE.md}
+  - addDependency: {file: package.json, module: zustand, version: 5.1.0}
+  - insertAfter:
+      file: src/renderer/src/app/providers.tsx
+      anchor: state-imports
+      marker: state:zustand-import
+      content: 'import { AppStoreProvider } from "@renderer/lib/stores/app-store-provider";'
+  - insertAfter:
+      file: src/renderer/src/app/providers.tsx
+      anchor: state-begin
+      marker: state:zustand-begin
+      content: '<AppStoreProvider>'
+  - insertBefore:
+      file: src/renderer/src/app/providers.tsx
+      anchor: state-end
+      marker: state:zustand-end
+      content: '</AppStoreProvider>'

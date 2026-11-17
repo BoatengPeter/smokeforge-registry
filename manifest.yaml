@@ -7,6 +7,8 @@ kinds:
     max: 1
   fullstack:
     max: 1
+  desktop:
+    max: 1
 stacks:
   - id: go/gin-flat
     kind: backend
@@ -43,6 +45,11 @@ stacks:
     name: Fullstack workspace
     template: templates/workspace/fullstack
     variables: [package_manager]
+  - id: desktop/electron
+    kind: desktop
+    name: Electron
+    template: templates/desktop/electron
+    variables: [bundle_id, package_manager, api_url]
 presets:
   - id: fullstack
     name: Fullstack SaaS
@@ -55,6 +62,12 @@ presets:
     description: The base app without backend or client state
     kinds: [frontend]
     features: []
+  - id: desktop
+    name: Desktop app
+    description: Secure Electron + React desktop app with TanStack Query, Zustand, and SQLite
+    kinds: [desktop]
+    default: true
+    features: [data:tanstack-query, state:zustand, storage:sqlite]
   - id: api
     name: Backend API
     description: Postgres and JWT authentication for any backend stack
@@ -86,7 +99,7 @@ features:
       workspace/fullstack: overlays/workspace/fullstack/docker
   - id: ci
     name: CI
-    kinds: [backend, frontend, fullstack]
+    kinds: [backend, frontend, fullstack, desktop]
     variants:
       - id: github
         name: GitHub Actions
@@ -99,6 +112,7 @@ features:
           rust/axum: overlays/backend/rust/ci/github
           next: overlays/next/ci/github
           workspace/fullstack: overlays/workspace/fullstack/ci
+          desktop/electron: overlays/desktop/electron/ci/github
   - id: database
     name: Database
     kinds: [backend, frontend]
@@ -142,24 +156,26 @@ features:
 
   - id: state
     name: Client state
-    kinds: [frontend]
+    kinds: [frontend, desktop]
     variants:
       - id: zustand
         name: Zustand
         default: true
-        stacks: [next]
+        stacks: [next, desktop/electron]
         overlays:
           next: overlays/next/state/zustand
+          desktop/electron: overlays/desktop/electron/state/zustand
   - id: testing
     name: End-to-end testing
-    kinds: [frontend]
+    kinds: [frontend, desktop]
     variants:
       - id: e2e
         name: Playwright
         default: true
-        stacks: [next]
+        stacks: [next, desktop/electron]
         overlays:
           next: overlays/next/testing/e2e
+          desktop/electron: overlays/desktop/electron/testing/e2e
   - id: analytics
     name: Analytics
     kinds: [frontend]
@@ -170,16 +186,27 @@ features:
         overlays:
           next: overlays/next/analytics/posthog
 
+  - id: storage
+    name: Local storage
+    kinds: [desktop]
+    variants:
+      - id: sqlite
+        name: SQLite
+        default: true
+        stacks: [desktop/electron]
+        overlays:
+          desktop/electron: overlays/desktop/electron/storage/sqlite
   - id: data
     name: Data fetching
-    kinds: [frontend]
+    kinds: [frontend, desktop]
     variants:
       - id: tanstack-query
         name: TanStack Query
         default: true
-        stacks: [next]
+        stacks: [next, desktop/electron]
         overlays:
           next: overlays/next/data/tanstack-query
+          desktop/electron: overlays/desktop/electron/data/tanstack-query
   - id: queue
     name: Queue
     kinds: [backend]

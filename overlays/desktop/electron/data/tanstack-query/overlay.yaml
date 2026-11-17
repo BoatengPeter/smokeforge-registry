@@ -1,0 +1,26 @@
+id: data:tanstack-query
+name: TanStack Query
+files: files
+ops:
+  - addFiles:
+      - {path: src/renderer/src/lib/query/client.ts, dest: src/renderer/src/lib/query/client.ts}
+      - {path: src/renderer/src/lib/query/keys.ts, dest: src/renderer/src/lib/query/keys.ts}
+      - {path: src/renderer/src/lib/query/hooks.ts, dest: src/renderer/src/lib/query/hooks.ts}
+      - {path: src/renderer/src/components/query-provider.tsx, dest: src/renderer/src/components/query-provider.tsx}
+      - {path: docs/QUERY.md, dest: docs/QUERY.md}
+  - addDependency: {file: package.json, module: "@tanstack/react-query", version: 5.107.1}
+  - insertAfter:
+      file: src/renderer/src/app/providers.tsx
+      anchor: state-imports
+      marker: data:tanstack-query-import
+      content: 'import { QueryProvider } from "@renderer/components/query-provider";'
+  - insertBefore:
+      file: src/renderer/src/app/providers.tsx
+      anchor: state-begin
+      marker: data:tanstack-query-open
+      content: '<QueryProvider>'
+  - insertAfter:
+      file: src/renderer/src/app/providers.tsx
+      anchor: state-end
+      marker: data:tanstack-query-close
+      content: '</QueryProvider>'

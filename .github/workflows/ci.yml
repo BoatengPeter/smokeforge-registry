@@ -137,3 +137,56 @@ jobs:
           pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
           pnpm typecheck
           pnpm test --runInBand
+
+  verify-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: registry
+      - uses: actions/checkout@v4
+        with:
+          repository: BoatengPeter/smokeforge
+          ref: v0.2.0
+          path: cli
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Build smokeforge
+        run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
+        working-directory: cli
+      - name: Generate desktop app
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: |
+          "$SMOKEFORGE_BIN" new /tmp/desktop \
+            --registry "$GITHUB_WORKSPACE/registry" \
+            --kind desktop --stack desktop/electron \
+            --name "Verify Desktop" --preset desktop \
+            --feature testing:e2e --feature ci:github \
+            --var bundle_id=com.example.desktopci \
+            --var package_manager=pnpm \
+            --var api_url=http://localhost:8080 \
+            --no-input --no-git
+      - name: Install desktop dependencies
+        working-directory: /tmp/desktop
+        run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+      - name: Desktop quality gate
+        working-directory: /tmp/desktop
+        run: |
+          make lint
+          make typecheck
+          make test
+          make build
+      - name: Desktop Playwright smoke
+        working-directory: /tmp/desktop
+        run: xvfb-run --auto-servernum -- make e2e

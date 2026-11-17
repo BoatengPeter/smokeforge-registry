@@ -2,8 +2,9 @@
 
 Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
-**Status:** Next.js, the four Go/Gin architectures, and the Rust/Axum backend are
-implemented. Go includes PostgreSQL, users/JWT auth, Google OAuth, TOTP, Redis
+**Status:** Next.js, the four Go/Gin architectures, the Rust/Axum backend, and
+the standalone Electron desktop base are implemented. Go includes PostgreSQL,
+users/JWT auth, Google OAuth, TOTP, Redis
 cache, RabbitMQ queues, scheduler leadership, dedupe, gzip, image media,
 Meilisearch search, RabbitMQ index sync, signed pagination, Docker, CI, Swagger
 UI, embedded migrations, and project-scoped Go skills. Rust includes Axum,
@@ -24,11 +25,13 @@ templates/
   backend/rust/
     axum/
   frontend/next/
+  desktop/electron/                   # secure TypeScript Electron base
   workspace/fullstack/                # root CONTEXT-MAP, Makefile, env docs
 overlays/
   backend/go/                          # database, auth, cache, queue, media, search, pagination
   backend/rust/                        # database, auth, cache, queue, scheduler, dedupe, media, search, sync, pagination
   next/                                # database, auth, bff, state, data, testing, posthog, docker, ci
+  desktop/electron/                    # data, state, storage:sqlite, testing, CI
   workspace/fullstack/                 # root compose and CI aggregation
 tests/                                 # contract/build matrix
 ```
@@ -45,6 +48,9 @@ tests/                                 # contract/build matrix
   shutdown.
 - Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
 - Frontend presets: `fullstack` (default) and `frontend`.
+- Desktop preset: `desktop` (Electron + React + TypeScript, TanStack Query,
+  Zustand, SQLite); `testing:e2e` and `ci:github` are optional. Package manager
+  is selectable (pnpm, npm, or bun).
 - Fullstack preset: `fullstack-api` (Next.js + Go/Rust API, BFF auth, TanStack Query, Docker, CI).
 - Rust: `rust/axum` single-crate layered base with SQLx/Postgres, JWT auth,
   Redis cache, signed pagination, TOTP login/recovery, RabbitMQ retries/search

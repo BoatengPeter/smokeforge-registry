@@ -1,0 +1,65 @@
+{{if eq .package_manager "pnpm"}}
+RUN := pnpm
+INSTALL := pnpm install
+{{else if eq .package_manager "npm"}}
+RUN := npm run
+INSTALL := npm install
+{{else}}
+RUN := bun run
+INSTALL := bun install
+{{end}}
+
+.PHONY: help install dev build start package package-dir lint typecheck test test-watch ci clean
+# smokeforge:anchor test-phony
+
+help:
+	@echo "make install      Install dependencies"
+	@echo "make dev          Start Electron with HMR"
+	@echo "make build        Build main, preload, and renderer"
+	@echo "make start        Preview the production build"
+	@echo "make package      Build an installer for the current platform"
+	@echo "make package-dir  Build an unpacked app for inspection"
+	@echo "make lint         Run ESLint"
+	@echo "make typecheck    Type-check main, preload, and renderer"
+	@echo "make test         Run Vitest"
+	@echo "make test-watch   Run Vitest in watch mode"
+	# smokeforge:anchor test-help
+	@echo "make ci           Install, lint, typecheck, test, and build"
+	@echo "make clean        Remove build output"
+
+install:
+	$(INSTALL)
+
+dev:
+	$(RUN) dev
+
+build:
+	$(RUN) build
+
+start:
+	$(RUN) start
+
+package:
+	$(RUN) package
+
+package-dir:
+	$(RUN) package:dir
+
+lint:
+	$(RUN) lint
+
+typecheck:
+	$(RUN) typecheck
+
+test:
+	$(RUN) test
+
+test-watch:
+	$(RUN) test:watch
+
+# smokeforge:anchor test-targets
+
+ci: install lint typecheck test build
+
+clean:
+	rm -rf out dist coverage playwright-report test-results

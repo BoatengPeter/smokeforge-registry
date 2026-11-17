@@ -1,0 +1,31 @@
+id: storage:sqlite
+name: SQLite local storage
+files: files
+ops:
+  - addFiles:
+      - {path: src/main/storage/database.ts, dest: src/main/storage/database.ts}
+      - {path: src/main/storage/local-store.ts, dest: src/main/storage/local-store.ts}
+      - {path: src/main/features/local-data/local-data.ipc.ts, dest: src/main/features/local-data/local-data.ipc.ts}
+      - {path: src/shared/ipc/local-data.ts, dest: src/shared/ipc/local-data.ts}
+      - {path: docs/STORAGE.md, dest: docs/STORAGE.md}
+  - addDependency: {file: package.json, module: better-sqlite3, version: 13.2.0}
+  - patchJSON:
+      file: package.json
+      op: set
+      path: devDependencies.@types/better-sqlite3
+      value: 9.6.0
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.postinstall
+      value: electron-builder install-app-deps
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-imports
+      marker: storage:sqlite-import
+      content: 'import { registerLocalDataHandlers } from "../features/local-data/local-data.ipc";'
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-registrations
+      marker: storage:sqlite-register
+      content: 'registerLocalDataHandlers();'

@@ -1,0 +1,34 @@
+id: testing:e2e
+name: Playwright Electron E2E
+files: files
+ops:
+  - addFiles:
+      - {path: playwright.config.ts, dest: playwright.config.ts}
+      - {path: tests/e2e/app.spec.ts, dest: tests/e2e/app.spec.ts}
+  - patchJSON:
+      file: package.json
+      op: set
+      path: devDependencies.@playwright/test
+      value: 1.65.1
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.test:e2e
+      value: electron-vite build && playwright test
+  - insertAfter:
+      file: Makefile
+      anchor: test-phony
+      marker: testing:e2e-phony
+      content: '.PHONY: e2e'
+  - insertAfter:
+      file: Makefile
+      anchor: test-help
+      marker: testing:e2e-help
+      content: '@echo "make e2e          Run Playwright Electron tests"'
+  - insertAfter:
+      file: Makefile
+      anchor: test-targets
+      marker: testing:e2e-targets
+      content: |-
+        e2e:
+        	$(RUN) test:e2e

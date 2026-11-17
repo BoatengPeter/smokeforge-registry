@@ -1,0 +1,40 @@
+name: desktop-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+{{if eq .package_manager "pnpm"}}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.1
+{{end}}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+{{if eq .package_manager "pnpm"}}
+      - run: pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+{{else if eq .package_manager "npm"}}
+      - run: npm ci || npm install
+{{else}}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile || bun install
+{{end}}
+      - run: make lint
+      - run: make typecheck
+      - run: make test
+      - run: make build
+      - run: xvfb-run --auto-servernum -- make e2e
+        if: hashFiles('playwright.config.ts') != ''

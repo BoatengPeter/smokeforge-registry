@@ -1,0 +1,12 @@
+id: desktop/electron
+variables:
+  - name: package_manager
+    prompt: Package manager
+    default: pnpm
+    choices: [pnpm, npm, bun]
+  - name: bundle_id
+    prompt: Bundle identifier
+    default: com.example.app
+  - name: api_url
+    prompt: API URL
+    default: http://localhost:8080
