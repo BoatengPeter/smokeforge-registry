@@ -55,12 +55,11 @@ test("persists dashboard card order", async () => {
   await page.waitForTimeout(500);
   await page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: "Home" }).click();
   const active = page.getByTestId("stat-active");
-  await active.focus();
-  await page.keyboard.press("Space");
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("Space");
-  await page.waitForTimeout(600);
+  const archived = page.getByTestId("stat-archived");
+  await active.dragTo(archived);
+  await page.waitForTimeout(800);
+  const order = await page.evaluate(async () => (await window.desktopApi.settings.get()).data?.dashboardOrder);
+  expect(order).not.toEqual(["active", "total", "archived"]);
   await page.reload();
   await page.waitForTimeout(600);
   await page.getByRole("navigation", { name: "Workspace" }).getByRole("link", { name: "Home" }).click();
