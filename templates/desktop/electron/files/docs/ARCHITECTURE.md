@@ -43,7 +43,8 @@ flowchart LR
 | New shell command | `src/shared/commands.ts` + native menu and renderer palette |
 | New renderer feature | `src/renderer/src/features/<feature>/` |
 | Typed preferences | `src/main/infra/settings.ts` |
-| Durable local data | `src/main/storage/` (SQLite overlay) |
+| Durable local data | `src/main/storage/` (Drizzle, migrations, outbox) |
+| Offline sync | `src/main/features/sync/` + `storage/sync-bridge.ts` |
 | New system adapter | `src/main/infra/` |
 | New heavy job | `src/main/workers/` through `utilityProcess` |
 | Native window | `src/main/windows/` |

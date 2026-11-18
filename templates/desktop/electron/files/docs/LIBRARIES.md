@@ -47,7 +47,7 @@ library only when a screen or a main-process capability needs it.
 
 | Concern | Choice | Notes |
 | --- | --- | --- |
-| Local database | better-sqlite3 + Drizzle ORM | Typed relational data with explicit migrations. |
+| Local database | better-sqlite3 + Drizzle ORM | Typed relational data with explicit migrations. Fullstack desktop adds a sync outbox, cursor, and conflict table. |
 | Migrations | drizzle-kit | Read the project-scoped `drizzle` skill. Generate SQL with `pnpm db:generate`; review and commit it. Never use `push` against user data. |
 | Migrations at runtime | drizzle migrator | Bundled under `drizzle/` and applied from the main process at startup. |
 | Settings | typed atomic JSON store | Deliberate replacement for `electron-store`: no ESM-only runtime dependency, Zod validation, atomic writes, and corrupt-file quarantine. Use it for non-sensitive preferences only. |

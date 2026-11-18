@@ -6,7 +6,8 @@ Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smo
 full Electron app shell, and optional fullstack desktop composition are
 implemented. The desktop shell includes React Router, shadcn/ui, Drizzle SQLite,
 Library CRUD, utility-process Activity, Settings/Diagnostics, auto-update
-wiring, OAuth PKCE, and an optional tray. Go includes PostgreSQL,
+wiring, OAuth PKCE, offline Library sync with idempotency/retries/manual
+conflicts, and an optional tray. Go includes PostgreSQL,
 users/JWT auth, Google OAuth, TOTP, Redis
 cache, RabbitMQ queues, scheduler leadership, dedupe, gzip, image media,
 Meilisearch search, RabbitMQ index sync, signed pagination, Docker, CI, Swagger
@@ -55,7 +56,7 @@ tests/                                 # contract/build matrix
   Zustand, SQLite); `testing:e2e` and `ci:github` are optional. Package manager
   is selectable (pnpm, npm, or bun).
 - Fullstack desktop: opt in with `--desktop electron`; adds the same desktop
-  base with main-process auth and SQLite. Offline outbox is planned separately.
+  base with main-process auth, SQLite, and the offline Library sync outbox.
 - Fullstack preset: `fullstack-api` (Next.js + Go/Rust API, BFF auth, TanStack Query, Docker, CI).
 - Rust: `rust/axum` single-crate layered base with SQLx/Postgres, JWT auth,
   Redis cache, signed pagination, TOTP login/recovery, RabbitMQ retries/search

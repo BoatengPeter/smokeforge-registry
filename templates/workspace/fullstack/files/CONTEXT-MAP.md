@@ -37,6 +37,10 @@ flowchart LR
   `apps/web/src/lib/query/hooks.ts`.
 - TanStack Query owns client-side server state. Zustand is only for local UI
   state.
+- Desktop Library mutations are local-first: SQLite + outbox in one transaction,
+  then idempotent API sync in the main process. The renderer never calls the API.
+- Desktop sync conflicts default to manual resolution; never silently overwrite
+  a local edit.
 - Cross-app changes require checking both context files and updating this map.
 
 <!-- smokeforge:anchor desktop-context -->

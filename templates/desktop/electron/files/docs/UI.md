@@ -64,3 +64,5 @@ The Library uses a resizable list/detail layout:
 6. A dropped JSON export or the import action adds records; duplicate titles are
    skipped.
 7. A detached window can open one record without duplicating state ownership.
+8. Fullstack-mode rows show local, pending, synced, failed, or conflicted state.
+   Conflict rows open a manual inspector panel with Keep local and Use server.

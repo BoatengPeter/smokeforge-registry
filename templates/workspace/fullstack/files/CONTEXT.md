@@ -35,3 +35,14 @@ forms, and presentation. Refresh it with:
 ```bash
 npx skills add https://github.com/addyosmani/agent-skills --skill frontend-ui-engineering
 ```
+
+## Desktop sync
+
+Fullstack desktop projects sync Library records through the API. Local mutations
+write the SQLite item and outbox row in one transaction. The main process pushes
+idempotent operations with `If-Match`, pulls changes by cursor, retries transient
+failures, and keeps conflicts for manual resolution by default.
+
+Read `docs/SYNC.md`, `docs/CONFLICTS.md`, and `docs/IDEMPOTENCY.md` before
+changing the API contract, local schema, or sync state machine. The renderer
+must never call the API or write the outbox directly.
