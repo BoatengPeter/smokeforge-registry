@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.2
+          ref: v0.2.3
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.2
+          ref: v0.2.3
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.2
+          ref: v0.2.3
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -148,7 +148,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.2
+          ref: v0.2.3
           path: cli
       - uses: actions/setup-go@v5
         with:
