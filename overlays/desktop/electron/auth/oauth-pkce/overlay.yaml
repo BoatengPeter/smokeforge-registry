@@ -1,0 +1,78 @@
+id: auth:oauth-pkce
+name: OAuth PKCE account
+files: files
+ops:
+  - addFiles:
+      - {path: src/shared/ipc/oauth.ts, dest: src/shared/ipc/oauth.ts}
+      - {path: src/main/features/oauth/oauth-service.ts, dest: src/main/features/oauth/oauth-service.ts}
+      - {path: src/main/features/oauth/oauth.ipc.ts, dest: src/main/features/oauth/oauth.ipc.ts}
+      - {path: src/main/app/deep-link.ts, dest: src/main/app/deep-link.ts}
+      - {path: src/renderer/src/features/account/oauth-view.tsx, dest: src/renderer/src/features/account/oauth-view.tsx}
+      - {path: docs/OAUTH.md, dest: docs/OAUTH.md}
+  - addDependency: {file: package.json, module: oauth4webapi, version: 3.8.8}
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-imports
+      marker: oauth:api-import
+      content: 'import type { OAuthApi } from "../ipc/oauth";'
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-properties
+      marker: oauth:api-property
+      content: 'oauth: OAuthApi;'
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-imports
+      marker: oauth:preload-import
+      content: 'import { oauthChannels } from "../shared/ipc/oauth";'
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-properties
+      marker: oauth:preload-property
+      content: |-
+        oauth: {
+          login: () => ipcRenderer.invoke(oauthChannels.login),
+          logout: () => ipcRenderer.invoke(oauthChannels.logout),
+          status: () => ipcRenderer.invoke(oauthChannels.status),
+          onEvent: (listener) => {
+            const handler = (_event: Electron.IpcRendererEvent, state: Parameters<typeof listener>[0]) => listener(state);
+            ipcRenderer.on(oauthChannels.event, handler);
+
+            return () => ipcRenderer.removeListener(oauthChannels.event, handler);
+          },
+        },
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-imports
+      marker: oauth:register-import
+      content: 'import { registerOAuthHandlers } from "../features/oauth/oauth.ipc";'
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-registrations
+      marker: oauth:register
+      content: 'registerOAuthHandlers();'
+  - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: deep-link-import
+      marker: oauth:deep-link-import
+      content: 'import { handleDeepLink, registerDeepLink } from "./app/deep-link";'
+  - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: deep-link-register
+      marker: oauth:deep-link-register
+      content: 'registerDeepLink();'
+  - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: deep-link-second-instance
+      marker: oauth:deep-link-second-instance
+      content: 'handleDeepLink(process.argv);'
+  - insertAfter:
+      file: src/renderer/src/features/account/account-page.tsx
+      anchor: auth-imports
+      marker: oauth:view-import
+      content: 'import { OAuthView } from "@renderer/features/account/oauth-view";'
+  - insertAfter:
+      file: src/renderer/src/features/account/account-page.tsx
+      anchor: auth-view
+      marker: oauth:view
+      content: '<OAuthView />'

@@ -50,12 +50,12 @@ ops:
       marker: auth:electron-register
       content: 'registerAuthHandlers();'
   - insertAfter:
-      file: src/renderer/src/app/app.tsx
+      file: src/renderer/src/features/account/account-page.tsx
       anchor: auth-imports
       marker: auth:electron-view-import
       content: 'import { AuthView } from "@renderer/features/auth/auth-view";'
   - insertAfter:
-      file: src/renderer/src/app/app.tsx
+      file: src/renderer/src/features/account/account-page.tsx
       anchor: auth-view
       marker: auth:electron-view
       content: '<AuthView />'

@@ -1,3 +1,5 @@
+import { net } from "electron";
+
 import type { AuthUser } from "../../../shared/ipc/auth";
 import type { AppConfig } from "../../infra/config";
 import { userDataPath } from "../../infra/paths";
@@ -142,7 +144,7 @@ export class AuthClient {
   }
 
   private async request(path: string, init: RequestInit): Promise<Response> {
-    return fetch(`${this.baseUrl}${path}`, {
+    return net.fetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
         Accept: "application/json",

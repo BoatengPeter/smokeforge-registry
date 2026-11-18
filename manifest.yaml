@@ -186,6 +186,15 @@ features:
         overlays:
           next: overlays/next/analytics/posthog
 
+  - id: shell
+    name: Native shell integration
+    kinds: [desktop]
+    variants:
+      - id: tray
+        name: Tray icon
+        stacks: [desktop/electron]
+        overlays:
+          desktop/electron: overlays/desktop/electron/shell/tray
   - id: storage
     name: Local storage
     kinds: [desktop]
@@ -325,6 +334,12 @@ features:
         requires: [data:tanstack-query]
         overlays:
           desktop/electron: overlays/desktop/electron/auth/electron
+      - id: oauth-pkce
+        name: OAuth PKCE through the system browser
+        stacks: [desktop/electron]
+        requires: [data:tanstack-query]
+        overlays:
+          desktop/electron: overlays/desktop/electron/auth/oauth-pkce
   - id: totp
     name: TOTP two-factor authentication
     kinds: [backend]

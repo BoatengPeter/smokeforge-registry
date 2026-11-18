@@ -9,7 +9,7 @@ export class TokenStore {
   constructor(private readonly filePath: string) {}
 
   async load(): Promise<string | null> {
-    if (this.refreshToken || !safeStorage.isEncryptionAvailable()) {
+    if (this.refreshToken || !(await safeStorage.isAsyncEncryptionAvailable())) {
       return this.refreshToken;
     }
 
@@ -26,7 +26,7 @@ export class TokenStore {
   async set(refreshToken: string): Promise<void> {
     this.refreshToken = refreshToken;
 
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!(await safeStorage.isAsyncEncryptionAvailable())) {
       return;
     }
 

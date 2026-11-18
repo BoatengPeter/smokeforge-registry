@@ -1,0 +1,22 @@
+id: shell:tray
+name: Native tray icon
+files: files
+ops:
+  - addFiles:
+      - {path: src/main/app/tray.ts, dest: src/main/app/tray.ts}
+      - {path: docs/TRAY.md, dest: docs/TRAY.md}
+  - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: tray-import
+      marker: tray:import
+      content: 'import { hasTray, installTray } from "./app/tray";'
+  - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: tray-install
+      marker: tray:install
+      content: 'installTray();'
+  - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: tray-window-all-closed
+      marker: tray:window-all-closed
+      content: 'if (hasTray()) return;'
