@@ -41,9 +41,10 @@ export class TokenStore {
         mode: 0o600,
       });
       await rename(temporary, this.filePath);
-    } catch (error) {
+    } catch {
+      // Keep the refresh token in memory when the OS keychain is unavailable
+      // (for example headless Linux CI). It will not survive a restart.
       await unlink(temporary).catch(() => undefined);
-      throw error;
     }
   }
 

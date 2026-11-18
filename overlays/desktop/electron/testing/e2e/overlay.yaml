@@ -5,6 +5,7 @@ ops:
   - addFiles:
       - {path: playwright.config.ts, dest: playwright.config.ts}
       - {path: tests/e2e/app.spec.ts, dest: tests/e2e/app.spec.ts}
+      - {path: tests/e2e/sync.spec.ts, dest: tests/e2e/sync.spec.ts}
   - patchJSON:
       file: package.json
       op: set
