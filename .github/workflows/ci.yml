@@ -198,7 +198,6 @@ jobs:
             --registry "$GITHUB_WORKSPACE/registry" \
             --kind fullstack --backend go/gin-layered --desktop electron \
             --feature state:zustand \
-            --feature sync:library --feature sync:library-client \
             --name "Verify Fullstack Desktop" --preset fullstack-api \
             --var module_path=example.com/fullstackdesktop \
             --var bundle_id=com.example.fullstackdesktop \
