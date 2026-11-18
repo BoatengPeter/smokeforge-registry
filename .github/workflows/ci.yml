@@ -140,7 +140,7 @@ jobs:
 
   verify-desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -197,6 +197,7 @@ jobs:
           "$SMOKEFORGE_BIN" new /tmp/fullstack-desktop \
             --registry "$GITHUB_WORKSPACE/registry" \
             --kind fullstack --backend go/gin-layered --desktop electron \
+            --feature state:zustand \
             --name "Verify Fullstack Desktop" --preset fullstack-api \
             --var module_path=example.com/fullstackdesktop \
             --var bundle_id=com.example.fullstackdesktop \
@@ -213,3 +214,22 @@ jobs:
           cd apps/desktop
           pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
           make lint typecheck test build
+      - name: Generate optional desktop features
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: |
+          "$SMOKEFORGE_BIN" new /tmp/desktop-optional \
+            --registry "$GITHUB_WORKSPACE/registry" \
+            --kind desktop --stack desktop/electron --preset desktop \
+            --feature auth:oauth-pkce --feature shell:tray \
+            --name "Verify Optional Desktop" \
+            --var bundle_id=com.example.optionalci \
+            --var package_manager=pnpm \
+            --var api_url=http://localhost:8080 \
+            --no-input --no-git
+      - name: Optional desktop features build
+        working-directory: /tmp/desktop-optional
+        run: |
+          pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+          make typecheck
+          make build

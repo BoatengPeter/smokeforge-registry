@@ -3,8 +3,10 @@
 Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
 **Status:** Next.js, the four Go/Gin architectures, the Rust/Axum backend, the
-standalone Electron desktop base, and optional fullstack desktop composition are
-implemented. Go includes PostgreSQL,
+full Electron app shell, and optional fullstack desktop composition are
+implemented. The desktop shell includes React Router, shadcn/ui, Drizzle SQLite,
+Library CRUD, utility-process Activity, Settings/Diagnostics, auto-update
+wiring, OAuth PKCE, and an optional tray. Go includes PostgreSQL,
 users/JWT auth, Google OAuth, TOTP, Redis
 cache, RabbitMQ queues, scheduler leadership, dedupe, gzip, image media,
 Meilisearch search, RabbitMQ index sync, signed pagination, Docker, CI, Swagger
