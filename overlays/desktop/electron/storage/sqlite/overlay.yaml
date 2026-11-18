@@ -7,13 +7,55 @@ ops:
       - {path: src/main/storage/local-store.ts, dest: src/main/storage/local-store.ts}
       - {path: src/main/features/local-data/local-data.ipc.ts, dest: src/main/features/local-data/local-data.ipc.ts}
       - {path: src/shared/ipc/local-data.ts, dest: src/shared/ipc/local-data.ts}
+      - {path: tests/unit/library-schema.test.ts, dest: tests/unit/library-schema.test.ts}
       - {path: docs/STORAGE.md, dest: docs/STORAGE.md}
+      - {path: src/main/storage/schema.ts, dest: src/main/storage/schema.ts}
+      - {path: src/main/storage/library-repository.ts, dest: src/main/storage/library-repository.ts}
+      - {path: src/main/storage/maintenance-scheduler.ts, dest: src/main/storage/maintenance-scheduler.ts}
+      - {path: docs/SCHEDULER.md, dest: docs/SCHEDULER.md}
+      - {path: src/main/features/library/library.ipc.ts, dest: src/main/features/library/library.ipc.ts}
+      - {path: src/shared/ipc/library.ts, dest: src/shared/ipc/library.ts}
+      - {path: src/renderer/src/features/library/library-page.tsx, dest: src/renderer/src/features/library/library-page.tsx}
+      - {path: src/renderer/src/features/library/library-form.tsx, dest: src/renderer/src/features/library/library-form.tsx}
+      - {path: src/renderer/src/features/library/library-hooks.ts, dest: src/renderer/src/features/library/library-hooks.ts}
+      - {path: drizzle.config.ts, dest: drizzle.config.ts}
+      - {path: drizzle/0000_thick_xorn.sql, dest: drizzle/0000_thick_xorn.sql}
+      - {path: drizzle/meta/_journal.json, dest: drizzle/meta/_journal.json}
+      - {path: drizzle/meta/0000_snapshot.json, dest: drizzle/meta/0000_snapshot.json}
   - addDependency: {file: package.json, module: better-sqlite3, version: 13.2.0}
+  - addDependency: {file: package.json, module: drizzle-orm, version: 0.45.4}
+  - addDependency: {file: package.json, module: "@tanstack/react-table", version: 8.21.3}
+  - addDependency: {file: package.json, module: "@tanstack/react-virtual", version: 3.14.26}
+  - addDependency: {file: package.json, module: fs-extra, version: 11.4.1}
+  - addDependency: {file: package.json, module: node-cron, version: 4.6.0}
+  - patchJSON:
+      file: package.json
+      op: set
+      path: devDependencies.@types/fs-extra
+      value: 11.0.4
   - patchJSON:
       file: package.json
       op: set
       path: devDependencies.@types/better-sqlite3
       value: 9.6.0
+  - patchJSON:
+      file: package.json
+      op: set
+      path: devDependencies.drizzle-kit
+      value: 0.31.11
+  - patchJSON:
+      file: package.json
+      op: set
+      path: scripts.db:generate
+      value: drizzle-kit generate
+  - insertAfter:
+      file: electron-builder.yml
+      anchor: extra-resources
+      marker: storage:drizzle-resources
+      content: |-
+        extraResources:
+          - from: drizzle
+            to: drizzle
   - patchJSON:
       file: package.json
       op: set
@@ -23,9 +65,55 @@ ops:
       file: src/main/ipc/register.ts
       anchor: ipc-feature-imports
       marker: storage:sqlite-import
-      content: 'import { registerLocalDataHandlers } from "../features/local-data/local-data.ipc";'
+      content: |-
+        import { registerLibraryHandlers } from "../features/library/library.ipc";
+        import { registerLocalDataHandlers } from "../features/local-data/local-data.ipc";
   - insertAfter:
       file: src/main/ipc/register.ts
       anchor: ipc-feature-registrations
       marker: storage:sqlite-register
-      content: 'registerLocalDataHandlers();'
+      content: |-
+        registerLocalDataHandlers();
+        registerLibraryHandlers();
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-imports
+      marker: library:api-import
+      content: 'import type { LibraryApi } from "../ipc/library";'
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-properties
+      marker: library:api-property
+      content: 'library: LibraryApi;'
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-imports
+      marker: library:preload-import
+      content: |-
+        import { libraryChannels } from "../shared/ipc/library";
+        import type { LibraryCreateInput, LibraryListInput, LibraryUpdateInput } from "../shared/ipc/library";
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-properties
+      marker: library:preload-property
+      content: |-
+        library: {
+          list: (input: LibraryListInput) => ipcRenderer.invoke(libraryChannels.list, input),
+          get: (id: string) => ipcRenderer.invoke(libraryChannels.get, { id }),
+          create: (input: LibraryCreateInput) => ipcRenderer.invoke(libraryChannels.create, input),
+          update: (input: LibraryUpdateInput) => ipcRenderer.invoke(libraryChannels.update, input),
+          delete: (id: string) => ipcRenderer.invoke(libraryChannels.delete, { id }),
+          restore: (id: string) => ipcRenderer.invoke(libraryChannels.restore, { id }),
+          stats: () => ipcRenderer.invoke(libraryChannels.stats),
+          exportAll: () => ipcRenderer.invoke(libraryChannels.exportAll),
+          importAll: () => ipcRenderer.invoke(libraryChannels.importAll),
+          importPath: (path: string) => ipcRenderer.invoke(libraryChannels.importPath, { path }),
+          backup: () => ipcRenderer.invoke(libraryChannels.backup),
+          setMaintenance: (enabled: boolean) => ipcRenderer.invoke(libraryChannels.maintenance, { enabled }),
+          onChanged: (listener) => {
+            const handler = () => listener();
+            ipcRenderer.on(libraryChannels.changed, handler);
+
+            return () => ipcRenderer.removeListener(libraryChannels.changed, handler);
+          },
+        },

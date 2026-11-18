@@ -7,7 +7,7 @@ export type AppState = {
 
 export function createAppStore() {
   return createStore<AppState>()((set) => ({
-    sidebarOpen: false,
+    sidebarOpen: true,
     setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   }));
 }

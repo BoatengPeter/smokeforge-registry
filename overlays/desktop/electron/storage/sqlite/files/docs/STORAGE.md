@@ -6,14 +6,22 @@ main process; the renderer accesses it through validated IPC.
 ```mermaid
 flowchart LR
     Renderer[Renderer query hooks] -->|typed IPC| Main[Main process]
-    Main --> Local[LocalStore]
-    Local --> SQLite[(SQLite WAL)]
+    Main --> Drizzle[Drizzle repositories]
+    Drizzle --> SQLite[(SQLite WAL)]
 ```
 
-- `better-sqlite3` runs in the main process.
+- `better-sqlite3` is the driver; Drizzle owns the typed schema and queries.
+- Read the project-scoped `drizzle` skill before changing schema or migrations.
 - WAL mode, foreign keys, and a 5s busy timeout are enabled.
-- `PRAGMA user_version` drives migrations.
-- The generic `local-data:*` IPC channels store JSON values by key.
+- drizzle-kit generates SQL migrations in `drizzle/`; the runtime migrator
+  applies them once in the main process.
+- `library_items` is the demo relational table. The generic `local-data:*`
+  channels remain available for small JSON values.
+- Generated migrations must be committed and included in the packaged app.
+- Settings > Data can export/import Library JSON and create a SQLite backup with
+  `better-sqlite3`'s backup API.
+- Settings > Advanced can enable a daily 03:00 WAL checkpoint. It is off by
+  default and never touches user records.
 - Do not store tokens, passwords, or secrets here; use `safeStorage`.
 - Settings belong in `infra/settings.ts`; SQLite is for app data and future
   offline/outbox records.
