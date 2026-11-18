@@ -4,6 +4,7 @@ import type { ZodType } from "zod";
 import { isTrustedRendererUrl } from "../../shared/security";
 import { fail, ok, type Result } from "../../shared/types/result";
 import { log } from "../infra/logger";
+import { PublicError } from "../infra/public-error";
 
 const devRendererUrl = process.env.ELECTRON_RENDERER_URL;
 
@@ -44,6 +45,10 @@ export function handle<TInput, TOutput>(
     try {
       return ok(await handler(parsed.data, event));
     } catch (error) {
+      if (error instanceof PublicError) {
+        return fail(error.code, error.message);
+      }
+
       log("error", "ipc handler failed", {
         channel,
         error: error instanceof Error ? error.message : "unknown error",

@@ -18,7 +18,7 @@ ops:
       file: package.json
       op: set
       path: scripts.postinstall
-      value: electron-builder install-app-deps
+      value: install-electron && electron-builder install-app-deps
   - insertAfter:
       file: src/main/ipc/register.ts
       anchor: ipc-feature-imports

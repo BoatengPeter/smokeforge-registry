@@ -1,0 +1,61 @@
+id: auth:electron
+name: Electron API auth session
+files: files
+ops:
+  - addFiles:
+      - {path: src/shared/ipc/auth-channels.ts, dest: src/shared/ipc/auth-channels.ts}
+      - {path: src/shared/ipc/auth.ts, dest: src/shared/ipc/auth.ts}
+      - {path: src/main/features/auth/token-store.ts, dest: src/main/features/auth/token-store.ts}
+      - {path: src/main/features/auth/auth-client.ts, dest: src/main/features/auth/auth-client.ts}
+      - {path: src/main/features/auth/auth.ipc.ts, dest: src/main/features/auth/auth.ipc.ts}
+      - {path: src/renderer/src/features/auth/auth-hooks.ts, dest: src/renderer/src/features/auth/auth-hooks.ts}
+      - {path: src/renderer/src/features/auth/auth-view.tsx, dest: src/renderer/src/features/auth/auth-view.tsx}
+      - {path: docs/AUTH.md, dest: docs/AUTH.md}
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-imports
+      marker: auth:electron-api-import
+      content: 'import type { AuthApi } from "../ipc/auth";'
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-properties
+      marker: auth:electron-api-property
+      content: 'auth: AuthApi;'
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-imports
+      marker: auth:electron-preload-import
+      content: |-
+        import { authChannels } from "../shared/ipc/auth-channels";
+        import type { LoginInput, RegisterInput } from "../shared/ipc/auth";
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-properties
+      marker: auth:electron-preload-property
+      content: |-
+        auth: {
+          login: (input: LoginInput) => ipcRenderer.invoke(authChannels.login, input),
+          register: (input: RegisterInput) => ipcRenderer.invoke(authChannels.register, input),
+          logout: () => ipcRenderer.invoke(authChannels.logout),
+          me: () => ipcRenderer.invoke(authChannels.me),
+        },
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-imports
+      marker: auth:electron-import
+      content: 'import { registerAuthHandlers } from "../features/auth/auth.ipc";'
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-registrations
+      marker: auth:electron-register
+      content: 'registerAuthHandlers();'
+  - insertAfter:
+      file: src/renderer/src/app/app.tsx
+      anchor: auth-imports
+      marker: auth:electron-view-import
+      content: 'import { AuthView } from "@renderer/features/auth/auth-view";'
+  - insertAfter:
+      file: src/renderer/src/app/app.tsx
+      anchor: auth-view
+      marker: auth:electron-view
+      content: '<AuthView />'

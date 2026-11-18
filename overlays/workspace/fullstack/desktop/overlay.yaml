@@ -1,0 +1,102 @@
+id: desktop
+name: Fullstack desktop wiring
+files: files
+ops:
+  - addFiles:
+      - {path: docs/OFFLINE.md, dest: docs/OFFLINE.md}
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-phony
+      marker: desktop:make-phony
+      content: |
+        .PHONY: desktop-dev desktop-test desktop-build desktop-package
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-help
+      marker: desktop:make-help
+      content: |
+        @echo "make desktop-dev     Run the Electron app"
+        @echo "make desktop-test    Run desktop checks"
+        @echo "make desktop-build   Build the Electron app"
+        @echo "make desktop-package Package the Electron app"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-targets
+      marker: desktop:make-targets
+      content: |-
+        desktop-dev:
+        	$(MAKE) -C apps/desktop dev
+
+        desktop-test:
+        	$(MAKE) -C apps/desktop test
+
+        desktop-build:
+        	$(MAKE) -C apps/desktop build
+
+        desktop-package:
+        	$(MAKE) -C apps/desktop package
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-install
+      marker: desktop:make-install
+      content: "\t$(MAKE) -C apps/desktop install"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-test
+      marker: desktop:make-test
+      content: "\t$(MAKE) -C apps/desktop test"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-ci
+      marker: desktop:make-ci
+      content: "\t$(MAKE) -C apps/desktop ci"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-clean
+      marker: desktop:make-clean
+      content: "\t$(MAKE) -C apps/desktop clean"
+  - insertAfter:
+      file: README.md
+      anchor: desktop-readme
+      marker: desktop:readme
+      content: |-
+        ## Desktop client
+
+        When generated with `--desktop electron`, the workspace also contains
+        `apps/desktop`: an Electron renderer with a typed preload IPC bridge, a
+        main-process API session, SQLite local storage, and TanStack Query.
+
+        ```bash
+        make desktop-dev
+        make desktop-test
+        make desktop-build
+        ```
+
+        The desktop renderer never receives API tokens. See
+        [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md) and
+        [`docs/OFFLINE.md`](docs/OFFLINE.md) for the planned offline outbox.
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: desktop-context
+      marker: desktop:context
+      content: |-
+        ## Desktop target
+
+        When `apps/desktop` exists:
+
+        - Renderer: `apps/desktop/src/renderer`
+        - Preload bridge: `apps/desktop/src/preload`
+        - Trusted main process: `apps/desktop/src/main`
+        - Local data: SQLite through `LocalStore`
+        - API/session: Electron main process only
+
+        ```mermaid
+        flowchart LR
+            Desktop[Electron renderer] -->|typed IPC| Preload[preload bridge]
+            Preload --> Main[main process]
+            Main --> Local[(SQLite)]
+            Main -->|Bearer access token| API[Go or Rust API]
+        ```
+
+        The API remains the source of truth. SQLite is local storage/cache;
+        offline write outbox is a separate feature.

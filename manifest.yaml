@@ -289,7 +289,7 @@ features:
 
   - id: auth
     name: Authentication
-    kinds: [backend, frontend]
+    kinds: [backend, frontend, desktop]
     variants:
       - id: session
         name: Email + OTP sessions
@@ -319,6 +319,12 @@ features:
         requires: [data:tanstack-query]
         overlays:
           next: overlays/next/auth/bff
+      - id: electron
+        name: Electron main-process API session
+        stacks: [desktop/electron]
+        requires: [data:tanstack-query]
+        overlays:
+          desktop/electron: overlays/desktop/electron/auth/electron
   - id: totp
     name: TOTP two-factor authentication
     kinds: [backend]

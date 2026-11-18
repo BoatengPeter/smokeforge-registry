@@ -1,6 +1,6 @@
 # Context map
 
-This workspace has three context boundaries. Read the closest `CONTEXT.md`
+This workspace can have up to four context boundaries. Read the closest `CONTEXT.md`
 before changing code in that area.
 
 | Area | Context | Responsibility |
@@ -38,3 +38,5 @@ flowchart LR
 - TanStack Query owns client-side server state. Zustand is only for local UI
   state.
 - Cross-app changes require checking both context files and updating this map.
+
+<!-- smokeforge:anchor desktop-context -->

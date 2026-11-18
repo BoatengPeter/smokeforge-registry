@@ -1,4 +1,5 @@
 import type { Result } from "./result";
+// smokeforge:anchor desktop-api-imports
 import type { SystemInfo, SystemPing } from "../ipc/system";
 
 export type SystemApi = {
@@ -8,4 +9,5 @@ export type SystemApi = {
 
 export type DesktopApi = {
   system: SystemApi;
+  // smokeforge:anchor desktop-api-properties
 };

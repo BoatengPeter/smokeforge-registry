@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { SystemInfo } from "@shared/ipc/system";
 import { DesktopApiError, invoke } from "@renderer/lib/desktop-api";
+// smokeforge:anchor auth-imports
 
 export function App() {
   const [info, setInfo] = useState<SystemInfo | null>(null);
@@ -56,6 +57,8 @@ export function App() {
           {error}
         </p>
       ) : null}
+
+      {/* smokeforge:anchor auth-view */}
     </main>
   );
 }

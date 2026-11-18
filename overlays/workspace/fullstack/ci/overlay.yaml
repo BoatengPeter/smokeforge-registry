@@ -3,5 +3,5 @@ name: Fullstack GitHub Actions
 files: files
 ops:
   - addFiles:
-      - path: .github/workflows/ci.yml
+      - path: .github/workflows/ci.yml.tmpl
         dest: .github/workflows/ci.yml
