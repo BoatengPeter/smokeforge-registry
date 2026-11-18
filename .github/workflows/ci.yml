@@ -198,6 +198,7 @@ jobs:
             --registry "$GITHUB_WORKSPACE/registry" \
             --kind fullstack --backend go/gin-layered --desktop electron \
             --feature state:zustand \
+            --feature sync:library --feature sync:library-client \
             --name "Verify Fullstack Desktop" --preset fullstack-api \
             --var module_path=example.com/fullstackdesktop \
             --var bundle_id=com.example.fullstackdesktop \
@@ -214,6 +215,9 @@ jobs:
           cd apps/desktop
           pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
           make lint typecheck test build
+          cd ../api
+          go mod tidy
+          go test ./internal/library/...
       - name: Generate optional desktop features
         env:
           SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
