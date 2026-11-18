@@ -186,6 +186,30 @@ features:
         overlays:
           next: overlays/next/analytics/posthog
 
+  - id: sync
+    name: Offline sync
+    kinds: [backend, desktop]
+    variants:
+      - id: library
+        name: Library resource + changefeed
+        requires: [database:postgres, auth:jwt]
+        stacks:
+          - go/gin-flat
+          - go/gin-layered
+          - go/gin-hexagonal
+          - go/gin-ddd
+          - rust/axum
+        overlays:
+          go/gin-flat: overlays/backend/go/sync/library
+          go/gin-layered: overlays/backend/go/sync/library
+          go/gin-hexagonal: overlays/backend/go/sync/library
+          go/gin-ddd: overlays/backend/go/sync/library
+          rust/axum: overlays/backend/rust/sync/library
+      - id: library-client
+        name: Library sync UI
+        stacks: [desktop/electron]
+        overlays:
+          desktop/electron: overlays/desktop/electron/sync/library-client
   - id: shell
     name: Native shell integration
     kinds: [desktop]

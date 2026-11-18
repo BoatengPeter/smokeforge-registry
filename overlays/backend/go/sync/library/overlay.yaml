@@ -1,0 +1,31 @@
+id: sync:library
+name: Library offline sync API
+files: files
+ops:
+  - addFiles:
+      - {path: internal/database/migrator/migrations/00006_library_sync.sql, dest: internal/database/migrator/migrations/00006_library_sync.sql}
+      - {path: internal/library/service.go, dest: internal/library/service.go}
+      - {path: internal/library/service_test.go, dest: internal/library/service_test.go}
+      - {path: internal/library/http/handler.go.tmpl, dest: internal/library/http/handler.go}
+      - {path: internal/library/http/spec.go, dest: internal/library/http/spec.go}
+      - {path: internal/library/http/openapi.yaml, dest: internal/library/http/openapi.yaml}
+      - {path: docs/LIBRARY_SYNC.md, dest: docs/LIBRARY_SYNC.md}
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: import-auth
+      marker: sync:library-import
+      content: |-
+        library "{{.module_path}}/internal/library"
+        libraryhttp "{{.module_path}}/internal/library/http"
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: main-media
+      marker: sync:library-main
+      content: |-
+        libraryService := library.NewService(db.Pool())
+        libraryHandler := libraryhttp.NewHandler(libraryService, authService, logger)
+  - insertAfter:
+      file: cmd/api/main.go
+      anchor: http-options
+      marker: sync:library-http
+      content: 'httpapi.WithRegistrar(libraryHandler),'

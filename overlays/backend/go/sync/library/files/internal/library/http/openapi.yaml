@@ -1,0 +1,81 @@
+openapi: 3.0.3
+info:
+  title: Library sync
+  version: 0.1.0
+  description: Versioned, idempotent Library resource for desktop offline sync.
+tags:
+  - name: library
+    description: User-scoped library records.
+paths:
+  /api/v1/library/snapshot:
+    get:
+      operationId: getLibrarySnapshot
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Initial items and the next change cursor.
+  /api/v1/library/changes:
+    get:
+      operationId: getLibraryChanges
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: cursor, in: query, schema: {type: integer, format: int64}}
+        - {name: limit, in: query, schema: {type: integer, maximum: 500}}
+      responses:
+        '200':
+          description: Ordered changes after the cursor.
+  /api/v1/library:
+    post:
+      operationId: createLibraryItem
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '201': {description: Created}
+        '409': {description: Duplicate ID or conflicting state}
+  /api/v1/library/{id}:
+    get:
+      operationId: getLibraryItem
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: Item}
+    patch:
+      operationId: updateLibraryItem
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: If-Match, in: header, required: true, schema: {type: string}}
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Updated}
+        '409': {description: Version conflict}
+        '412': {description: Version required}
+    delete:
+      operationId: deleteLibraryItem
+      tags: [library]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: If-Match, in: header, required: true, schema: {type: string}}
+        - {name: Idempotency-Key, in: header, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Deleted tombstone}
+        '409': {description: Version conflict}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

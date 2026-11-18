@@ -1,0 +1,34 @@
+id: sync:library
+name: Library offline sync API
+files: files
+ops:
+  - addFiles:
+      - {path: migrations/0005_library_sync.sql, dest: migrations/0005_library_sync.sql}
+      - {path: src/library/mod.rs, dest: src/library/mod.rs}
+      - {path: src/library/service.rs, dest: src/library/service.rs}
+      - {path: src/library/routes.rs, dest: src/library/routes.rs}
+      - {path: docs/LIBRARY_SYNC.md, dest: docs/LIBRARY_SYNC.md}
+  - insertAfter:
+      file: src/lib.rs
+      anchor: lib-modules
+      marker: sync:library-module
+      content: 'pub mod library;'
+  - insertAfter:
+      file: src/lib.rs
+      anchor: openapi-merge
+      marker: sync:library-openapi
+      content: 'document.merge(library::document());'
+  - insertAfter:
+      file: src/main.rs
+      anchor: import-auth
+      marker: sync:library-import
+      content: 'use {{.crate_name}}::library;'
+  - insertAfter:
+      file: src/main.rs
+      anchor: router-auth
+      marker: sync:library-router
+      content: |-
+        let application = application.merge(library::router(
+            database.pool().clone(),
+            auth_service.clone(),
+        ));

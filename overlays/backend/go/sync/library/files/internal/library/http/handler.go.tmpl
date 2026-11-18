@@ -1,0 +1,222 @@
+package http
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"{{.module_path}}/internal/auth"
+	authhttp "{{.module_path}}/internal/auth/http"
+	"{{.module_path}}/internal/library"
+	"{{.module_path}}/internal/response"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+type Handler struct {
+	service  *library.Service
+	verifier auth.TokenVerifier
+	logger   *zap.Logger
+}
+
+func NewHandler(service *library.Service, verifier auth.TokenVerifier, logger *zap.Logger) *Handler {
+	return &Handler{service: service, verifier: verifier, logger: logger}
+}
+
+func (h *Handler) RegisterRoutes(router gin.IRouter) {
+	group := router.Group("/api/v1/library", authhttp.RequireAuth(h.verifier))
+	group.GET("/snapshot", h.snapshot)
+	group.GET("/changes", h.changes)
+	group.GET("/:id", h.get)
+	group.POST("", h.create)
+	group.PATCH("/:id", h.update)
+	group.DELETE("/:id", h.delete)
+}
+
+func (h *Handler) snapshot(c *gin.Context) {
+	identity, ok := authhttp.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+		return
+	}
+	snapshot, err := h.service.Snapshot(c.Request.Context(), identity.UserID)
+	if err != nil {
+		response.WriteInternalError(c, h.logger, err)
+		return
+	}
+	response.OK(c, snapshot)
+}
+
+func (h *Handler) changes(c *gin.Context) {
+	identity, ok := authhttp.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+		return
+	}
+	cursor, _ := strconv.ParseInt(c.DefaultQuery("cursor", "0"), 10, 64)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "200"))
+	changes, err := h.service.Changes(c.Request.Context(), identity.UserID, cursor, limit)
+	if err != nil {
+		response.WriteInternalError(c, h.logger, err)
+		return
+	}
+	response.OK(c, changes)
+}
+
+func (h *Handler) get(c *gin.Context) {
+	identity, ok := authhttp.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+		return
+	}
+	itemID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.WriteNotFound(c, "The requested resource does not exist.")
+		return
+	}
+	item, err := h.service.Get(c.Request.Context(), identity.UserID, itemID)
+	if err != nil {
+		h.writeServiceError(c, err)
+		return
+	}
+	response.OK(c, item)
+}
+
+func (h *Handler) create(c *gin.Context) {
+	identity, ok := authhttp.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+		return
+	}
+	raw, err := c.GetRawData()
+	if err != nil {
+		response.WriteError(c, response.NewError(http.StatusBadRequest, "invalid_request", "Invalid request", "The request body could not be read."))
+		return
+	}
+	var input struct {
+		ID          uuid.UUID `json:"id"`
+		Title       string    `json:"title"`
+		Description string    `json:"description"`
+		Status      string    `json:"status"`
+		Tags        []string  `json:"tags"`
+	}
+	if err := json.Unmarshal(raw, &input); err != nil || input.ID == uuid.Nil || !validInput(input.Title, input.Status, input.Tags) {
+		response.WriteError(c, response.NewError(http.StatusUnprocessableEntity, "validation_failed", "Validation failed", "The item is invalid."))
+		return
+	}
+	result, err := h.service.Create(c.Request.Context(), identity.UserID, library.CreateInput{
+		ID: input.ID, Title: strings.TrimSpace(input.Title), Description: input.Description, Status: input.Status, Tags: input.Tags,
+	}, c.GetHeader("Idempotency-Key"), library.RequestHash(c.Request.Method, c.Request.URL.Path, raw))
+	if err != nil {
+		h.writeServiceError(c, err)
+		return
+	}
+	h.writeResult(c, result)
+}
+
+func (h *Handler) update(c *gin.Context) {
+	identity, ok := authhttp.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+		return
+	}
+	itemID, err := uuid.Parse(c.Param("id"))
+	version, versionErr := parseVersion(c.GetHeader("If-Match"))
+	if err != nil || versionErr != nil {
+		response.WriteError(c, response.NewError(http.StatusPreconditionRequired, "version_required", "Version required", "Send a valid If-Match version."))
+		return
+	}
+	raw, err := c.GetRawData()
+	if err != nil {
+		response.WriteError(c, response.NewError(http.StatusBadRequest, "invalid_request", "Invalid request", "The request body could not be read."))
+		return
+	}
+	var input struct {
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		Status      string   `json:"status"`
+		Tags        []string `json:"tags"`
+	}
+	if err := json.Unmarshal(raw, &input); err != nil || !validInput(input.Title, input.Status, input.Tags) {
+		response.WriteError(c, response.NewError(http.StatusUnprocessableEntity, "validation_failed", "Validation failed", "The item is invalid."))
+		return
+	}
+	result, err := h.service.Update(c.Request.Context(), identity.UserID, itemID, version, library.UpdateInput{
+		Title: strings.TrimSpace(input.Title), Description: input.Description, Status: input.Status, Tags: input.Tags,
+	}, c.GetHeader("Idempotency-Key"), library.RequestHash(c.Request.Method, c.Request.URL.Path, raw))
+	if err != nil {
+		h.writeServiceError(c, err)
+		return
+	}
+	h.writeResult(c, result)
+}
+
+func (h *Handler) delete(c *gin.Context) {
+	identity, ok := authhttp.IdentityFromContext(c)
+	if !ok {
+		response.WriteUnauthorized(c, "A valid access token is required.")
+		return
+	}
+	itemID, err := uuid.Parse(c.Param("id"))
+	version, versionErr := parseVersion(c.GetHeader("If-Match"))
+	if err != nil || versionErr != nil {
+		response.WriteError(c, response.NewError(http.StatusPreconditionRequired, "version_required", "Version required", "Send a valid If-Match version."))
+		return
+	}
+	result, err := h.service.Delete(c.Request.Context(), identity.UserID, itemID, version, c.GetHeader("Idempotency-Key"), library.RequestHash(c.Request.Method, c.Request.URL.Path, nil))
+	if err != nil {
+		h.writeServiceError(c, err)
+		return
+	}
+	h.writeResult(c, result)
+}
+
+func (h *Handler) writeResult(c *gin.Context, result library.Result) {
+	if result.Replayed {
+		c.Header("Idempotent-Replayed", "true")
+	}
+	c.Data(result.Status, "application/json; charset=utf-8", result.Body)
+}
+
+func (h *Handler) writeServiceError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, library.ErrNotFound):
+		response.WriteNotFound(c, "The requested library item does not exist.")
+	case errors.Is(err, library.ErrConflict):
+		response.WriteConflict(c, "version_conflict", "The item was updated by another client.")
+	case errors.Is(err, library.ErrDuplicate):
+		response.WriteConflict(c, "item_exists", "An item with that identifier already exists.")
+	case errors.Is(err, library.ErrIdempotencyMismatch):
+		response.WriteConflict(c, "idempotency_key_reused", "The idempotency key was reused with a different request.")
+	case errors.Is(err, library.ErrIdempotencyKey):
+		response.WriteError(c, response.NewError(http.StatusBadRequest, "idempotency_key_required", "Idempotency key required", "Send an Idempotency-Key header."))
+	default:
+		response.WriteInternalError(c, h.logger, err)
+	}
+}
+
+func validInput(title, status string, tags []string) bool {
+	if strings.TrimSpace(title) == "" || len(title) > 160 {
+		return false
+	}
+	if status != "draft" && status != "active" && status != "archived" {
+		return false
+	}
+	if len(tags) > 12 {
+		return false
+	}
+	for _, tag := range tags {
+		if strings.TrimSpace(tag) == "" || len(tag) > 32 {
+			return false
+		}
+	}
+	return true
+}
+
+func parseVersion(value string) (int64, error) {
+	return strconv.ParseInt(strings.Trim(strings.TrimSpace(value), `"`), 10, 64)
+}
