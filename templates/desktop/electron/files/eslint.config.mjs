@@ -3,7 +3,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["out", "dist", "node_modules", "coverage", "playwright-report", "test-results", "scripts"] },
+  { ignores: ["out", "dist", "node_modules", "coverage", "playwright-report", "test-results", "scripts", "src/renderer/src/components/ui/**", "src/renderer/src/hooks/use-mobile.ts"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

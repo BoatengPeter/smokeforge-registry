@@ -62,6 +62,27 @@
       "skillPath": "skills/tech/development/tooling/electron-best-practices/SKILL.md",
       "computedHash": "bfc171ab876b7557be90822a1fc59f2788434a26ab6b2bd15beb20bc527e34c0",
       "installMode": "copy"
+    },
+    "react-router": {
+      "source": "remix-run/react-router",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/react-router/SKILL.md",
+      "computedHash": "06bbe1a320650078d6ad064c38ebe71589bde0775fe2d4417c38929a198c4d60",
+      "installMode": "copy"
+    },
+    "frontend-ui-engineering": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-ui-engineering/SKILL.md",
+      "computedHash": "1bea3daa371bfb466445f5a33ee063f2aadf27469b2308a340e803398bcb4251",
+      "installMode": "copy"
+    },
+    "drizzle": {
+      "source": "lobehub/lobehub",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/drizzle/SKILL.md",
+      "computedHash": "bc89b81dbe1ebc2f4d0d22a573cd19c6c9f5063ec4143c1af72dd4884932484a",
+      "installMode": "copy"
     }
   }
 }

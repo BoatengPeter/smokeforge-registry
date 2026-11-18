@@ -1,6 +1,24 @@
+import { app } from "electron";
+import electronLog from "electron-log/main";
+
 type Level = "debug" | "info" | "warn" | "error";
 
 const redactKeys = new Set(["token", "access_token", "refresh_token", "password", "secret"]);
+
+export const logger = electronLog;
+
+export function configureLogging(level: Level = "info"): void {
+  electronLog.initialize();
+  electronLog.transports.file.level = level;
+  electronLog.transports.file.maxSize = 5 * 1024 * 1024;
+  electronLog.transports.file.resolvePathFn = () => `${app.getPath("logs")}/main.log`;
+  electronLog.transports.console.level = level;
+}
+
+export function setLogLevel(level: Level): void {
+  electronLog.transports.file.level = level;
+  electronLog.transports.console.level = level;
+}
 
 function sanitize(value: unknown): unknown {
   if (!value || typeof value !== "object") {
@@ -22,22 +40,5 @@ function sanitize(value: unknown): unknown {
 export function log(level: Level, message: string, context: Record<string, unknown> = {}): void {
   const safeContext = sanitize(context);
 
-  const entry = JSON.stringify({
-    level,
-    message,
-    time: new Date().toISOString(),
-    ...(safeContext && typeof safeContext === "object" ? safeContext : {}),
-  });
-
-  if (level === "error") {
-    console.error(entry);
-    return;
-  }
-
-  if (level === "warn") {
-    console.warn(entry);
-    return;
-  }
-
-  console.log(entry);
+  electronLog[level](message, safeContext && typeof safeContext === "object" ? safeContext : {});
 }

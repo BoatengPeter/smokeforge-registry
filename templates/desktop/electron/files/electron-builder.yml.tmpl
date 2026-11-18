@@ -4,7 +4,9 @@ directories:
   output: dist
 files:
   - out/**/*
+  # smokeforge:anchor files-entry
   - package.json
+# smokeforge:anchor extra-resources
 asar: true
 afterPack: scripts/after-pack.cjs
 mac:

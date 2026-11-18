@@ -96,6 +96,20 @@
       "skillPath": ".agents/skills/zustand/SKILL.md",
       "computedHash": "7d6e5d45a951b842bcd6bc227580bcbc6244dfcb7b830254dfa2688d5aaf58d3",
       "installMode": "copy"
+    },
+    "frontend-ui-engineering": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-ui-engineering/SKILL.md",
+      "computedHash": "1bea3daa371bfb466445f5a33ee063f2aadf27469b2308a340e803398bcb4251",
+      "installMode": "copy"
+    },
+    "drizzle": {
+      "source": "lobehub/lobehub",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/drizzle/SKILL.md",
+      "computedHash": "bc89b81dbe1ebc2f4d0d22a573cd19c6c9f5063ec4143c1af72dd4884932484a",
+      "installMode": "copy"
     }
   }
 }

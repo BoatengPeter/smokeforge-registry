@@ -38,11 +38,16 @@ flowchart LR
 | --- | --- |
 | New window | `src/main/windows/` + a factory |
 | New IPC feature | `src/main/features/<feature>/` and `src/shared/ipc/<feature>.ts` |
+| New renderer route | `src/renderer/src/app/router.tsx` + a feature page |
+| Renderer colors | `src/renderer/src/styles/globals.css`; native chrome in `src/shared/design-tokens.ts` |
+| New shell command | `src/shared/commands.ts` + native menu and renderer palette |
 | New renderer feature | `src/renderer/src/features/<feature>/` |
 | Typed preferences | `src/main/infra/settings.ts` |
 | Durable local data | `src/main/storage/` (SQLite overlay) |
 | New system adapter | `src/main/infra/` |
 | New heavy job | `src/main/workers/` through `utilityProcess` |
+| Native window | `src/main/windows/` |
+| Update behavior | `src/main/features/updates/` |
 | CSP/permissions | `src/main/security/` |
 | Packaging | `electron-builder.yml`, `scripts/after-pack.cjs` |
 

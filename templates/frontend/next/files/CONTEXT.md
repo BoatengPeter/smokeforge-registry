@@ -51,6 +51,7 @@ Invoke the relevant project skill before starting the work:
 | --- | --- |
 | App Router pages, layouts, route handlers | `nextjs-app-router-patterns` |
 | React components, data fetching, performance | `vercel-react-best-practices` |
+| Component architecture, modularity, UI quality | `frontend-ui-engineering` |
 | Component APIs, composition, providers | `vercel-composition-patterns` |
 | Visual direction and layout | `frontend-design` |
 | Any visual design, redesign, responsive change, or polish | `impeccable` |
@@ -59,6 +60,7 @@ Invoke the relevant project skill before starting the work:
 | Tailwind tokens and components | `tailwind-design-system` |
 | State management | `zustand` |
 | Forms and schemas | `zod` |
+| Database schema, queries, migrations | `drizzle` |
 | Auth | `better-auth-best-practices`, `better-auth-security-best-practices` |
 | GitHub Actions | `github-actions-templates` |
 | robots/sitemap/crawlers | `robots-txt` |
@@ -82,6 +84,21 @@ If a change crosses areas, invoke every relevant skill. Read the skill's
 - Run `impeccable adapt <target>` for responsive changes and
   `impeccable optimize <target>` for performance-sensitive changes. Do both
   before claiming the UI is complete.
+
+## UI component engineering
+
+Use `frontend-ui-engineering` for every new or substantially changed component.
+Add or refresh it with:
+
+```bash
+npx skills add https://github.com/addyosmani/agent-skills --skill frontend-ui-engineering
+```
+
+Keep each file focused on one responsibility and colocate feature code. Separate
+data/container logic from presentation, avoid prop drilling deeper than three
+levels, prefer composition over configuration, and do not let a single file own
+routing, data fetching, forms, and rendering. No barrel files or generic
+`utils/` dumps. Extract a component when a file becomes hard to scan or test.
 
 ## UI components: shadcn first
 

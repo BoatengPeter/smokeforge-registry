@@ -84,6 +84,8 @@ relevant `SKILL.md` before changing that area:
 - `better-auth-best-practices` — Better Auth sessions, adapters, and TOTP
 - `better-auth-security-best-practices` — auth hardening, cookies, CSRF, secrets, and attack prevention
 - `github-actions-templates` — CI workflow patterns, caching, permissions, and Docker publishing
+- `frontend-ui-engineering` — component architecture, modularity, and production UI quality
+- `drizzle` — schema, queries, migrations, and database access patterns
 - `vercel-react-best-practices` — React/Next.js performance rules
 - `vercel-composition-patterns` — component composition and state providers
 - `animation-vocabulary` — precise names for motion effects (scroll reveal, stagger, spring, easing)
@@ -96,7 +98,15 @@ relevant `SKILL.md` before changing that area:
 - `robots-txt` — crawl directives, sitemap, AI crawler rules
 
 `skills-lock.json` records sources and hashes. Update it with the skills CLI when
-changing skills; do not edit skill copies by hand.
+changing skills; do not edit skill copies by hand. Refresh the component
+engineering skill with:
+
+```bash
+npx skills add https://github.com/addyosmani/agent-skills --skill frontend-ui-engineering
+```
+
+Read it before writing components; keep feature files focused, modular, and free
+of one-file routing/data/form/presentation mixes.
 
 ## Conventions
 

@@ -23,3 +23,15 @@ make web-test
 make ci
 make docker-up
 ```
+
+## Frontend component engineering
+
+For renderer work in `apps/web` or `apps/desktop`, read and invoke
+`frontend-ui-engineering` in that app. It is installed in both frontend
+templates and is the required standard for modular component architecture,
+clear file boundaries, and avoiding one-file screens that mix routing, data,
+forms, and presentation. Refresh it with:
+
+```bash
+npx skills add https://github.com/addyosmani/agent-skills --skill frontend-ui-engineering
+```

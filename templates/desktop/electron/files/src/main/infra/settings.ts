@@ -6,8 +6,21 @@ import { z } from "zod";
 const settingsSchema = z.object({
   schemaVersion: z.literal(1),
   theme: z.enum(["system", "light", "dark"]).default("system"),
-  sidebarOpen: z.boolean().default(false),
+  language: z.string().default("en"),
+  sidebarOpen: z.boolean().default(true),
   lastRoute: z.string().default("/"),
+  launchAtLogin: z.boolean().default(false),
+  logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  updateChannel: z.enum(["stable", "beta"]).default("stable"),
+  autoCheckUpdates: z.boolean().default(true),
+  onboardingComplete: z.boolean().default(false),
+  lastSeenVersion: z.string().default(""),
+  scheduledMaintenance: z.boolean().default(false),
+  dashboardOrder: z
+    .array(z.enum(["active", "total", "archived"]))
+    .length(3)
+    .refine((items) => new Set(items).size === 3, "Dashboard order must contain each card once.")
+    .default(["active", "total", "archived"]),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
@@ -15,8 +28,17 @@ export type Settings = z.infer<typeof settingsSchema>;
 const defaults: Settings = {
   schemaVersion: 1,
   theme: "system",
-  sidebarOpen: false,
+  language: "en",
+  sidebarOpen: true,
   lastRoute: "/",
+  launchAtLogin: false,
+  logLevel: "info",
+  updateChannel: "stable",
+  autoCheckUpdates: true,
+  onboardingComplete: false,
+  lastSeenVersion: "",
+  scheduledMaintenance: false,
+  dashboardOrder: ["active", "total", "archived"],
 };
 
 export class SettingsStore {

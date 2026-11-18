@@ -1,17 +1,33 @@
 import { BrowserWindow, app, shell } from "electron";
+import windowStateKeeper from "electron-window-state";
 import { join } from "node:path";
 
+import { windowChrome } from "../../shared/design-tokens";
 import { isTrustedRendererUrl } from "../../shared/security";
+
+const titleBarOverlay = windowChrome.titleBarOverlay;
 
 export function createMainWindow(): BrowserWindow {
   const devUrl = process.env.ELECTRON_RENDERER_URL;
+  const windowState = windowStateKeeper({
+    defaultWidth: 1180,
+    defaultHeight: 760,
+    file: "window-state.json",
+  });
+
   const window = new BrowserWindow({
-    width: 1180,
-    height: 760,
+    x: windowState.x,
+    y: windowState.y,
+    width: windowState.width,
+    height: windowState.height,
     minWidth: 760,
     minHeight: 520,
     show: false,
-    backgroundColor: "#0f172a",
+    backgroundColor: windowChrome.background,
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 14, y: 14 } }
+      : { titleBarOverlay }),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -21,6 +37,8 @@ export function createMainWindow(): BrowserWindow {
       devTools: !app.isPackaged,
     },
   });
+
+  windowState.manage(window);
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) {

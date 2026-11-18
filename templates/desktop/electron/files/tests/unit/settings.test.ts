@@ -14,7 +14,7 @@ describe("SettingsStore", () => {
     await expect(store.read()).resolves.toMatchObject({
       schemaVersion: 1,
       theme: "system",
-      sidebarOpen: false,
+      sidebarOpen: true,
     });
   });
 
@@ -30,6 +30,25 @@ describe("SettingsStore", () => {
     expect(JSON.parse(await readFile(file, "utf8"))).toMatchObject({ theme: "dark" });
 
     await writeFile(file, "{not-json", "utf8");
-    await expect(store.read()).resolves.toMatchObject({ theme: "system", sidebarOpen: false });
+    await expect(store.read()).resolves.toMatchObject({ theme: "system", sidebarOpen: true });
+  });
+
+  it("persists dashboard order and scheduled maintenance", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "smokeforge-settings-"));
+    const store = new SettingsStore(join(dir, "settings.json"));
+
+    await expect(
+      store.update({
+        dashboardOrder: ["archived", "active", "total"],
+        scheduledMaintenance: true,
+      }),
+    ).resolves.toMatchObject({
+      dashboardOrder: ["archived", "active", "total"],
+      scheduledMaintenance: true,
+    });
+    await expect(store.read()).resolves.toMatchObject({
+      dashboardOrder: ["archived", "active", "total"],
+      scheduledMaintenance: true,
+    });
   });
 });
