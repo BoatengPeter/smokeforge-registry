@@ -102,6 +102,26 @@ export class AuthClient {
     return this.body<AuthUser>(response);
   }
 
+  async apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+    if (!this.accessToken && !(await this.refresh())) {
+      throw new PublicError("unauthorized", "Sign in is required.");
+    }
+
+    const send = () => this.request(path, {
+      ...init,
+      headers: {
+        ...init.headers,
+        Authorization: `Bearer ${this.accessToken ?? ""}`,
+      },
+    });
+    let response = await send();
+    if (response.status === 401 && (await this.refresh())) {
+      response = await send();
+    }
+
+    return response;
+  }
+
   async logout(): Promise<void> {
     const refreshToken = await this.tokens.load();
     if (refreshToken) {

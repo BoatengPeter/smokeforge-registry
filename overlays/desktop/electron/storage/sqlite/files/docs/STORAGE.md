@@ -15,8 +15,9 @@ flowchart LR
 - WAL mode, foreign keys, and a 5s busy timeout are enabled.
 - drizzle-kit generates SQL migrations in `drizzle/`; the runtime migrator
   applies them once in the main process.
-- `library_items` is the demo relational table. The generic `local-data:*`
-  channels remain available for small JSON values.
+- `library_items` is the relational Library table. Fullstack desktop also has
+  `sync_outbox`, `sync_cursor`, and `sync_conflicts` for offline sync.
+- The generic `local-data:*` channels remain available for small JSON values.
 - Generated migrations must be committed and included in the packaged app.
 - Settings > Data can export/import Library JSON and create a SQLite backup with
   `better-sqlite3`'s backup API.

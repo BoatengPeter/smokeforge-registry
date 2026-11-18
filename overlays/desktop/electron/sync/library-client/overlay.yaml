@@ -1,0 +1,27 @@
+id: sync:library-client
+name: Library sync UI
+files: files
+ops:
+  - addFiles:
+      - {path: src/renderer/src/features/sync/sync-conflict-panel.tsx, dest: src/renderer/src/features/sync/sync-conflict-panel.tsx}
+      - {path: src/renderer/src/features/sync/sync-row-status.tsx, dest: src/renderer/src/features/sync/sync-row-status.tsx}
+  - insertAfter:
+      file: src/renderer/src/features/library/library-page.tsx
+      anchor: sync-conflict
+      marker: sync:conflict-panel
+      content: '{selected ? <SyncConflictPanel item={selected} /> : null}'
+  - insertAfter:
+      file: src/renderer/src/features/library/library-page.tsx
+      anchor: sync-row-status
+      marker: sync:row-status
+      content: '<SyncRowStatus item={item} />'
+  - insertAfter:
+      file: src/renderer/src/features/library/library-page.tsx
+      anchor: library-sync-imports
+      marker: sync:conflict-import
+      content: 'import { SyncConflictPanel } from "@renderer/features/sync/sync-conflict-panel";'
+  - insertAfter:
+      file: src/renderer/src/features/library/library-page.tsx
+      anchor: library-sync-imports
+      marker: sync:row-status-import
+      content: 'import { SyncRowStatus } from "@renderer/features/sync/sync-row-status";'

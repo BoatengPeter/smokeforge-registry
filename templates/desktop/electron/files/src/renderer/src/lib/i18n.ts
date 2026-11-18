@@ -196,6 +196,18 @@ const resources = {
         body: "The route does not exist in this desktop app.",
         home: "Go home",
       },
+      sync: {
+        conflictTitle: "Sync conflict",
+        conflictBody: "This record changed locally and on the server. Choose which version to keep.",
+        keepLocal: "Keep local",
+        useServer: "Use server",
+        status: {
+          local: "Local",
+          pending: "Pending",
+          conflict: "Conflict",
+          failed: "Failed",
+        },
+      },
       errors: {
         routeTitle: "This page could not be rendered",
         routeBody: "Try returning home or reloading the app.",

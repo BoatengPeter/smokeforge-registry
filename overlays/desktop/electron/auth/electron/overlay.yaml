@@ -8,6 +8,9 @@ ops:
       - {path: src/main/features/auth/token-store.ts, dest: src/main/features/auth/token-store.ts}
       - {path: src/main/features/auth/auth-client.ts, dest: src/main/features/auth/auth-client.ts}
       - {path: src/main/features/auth/auth.ipc.ts, dest: src/main/features/auth/auth.ipc.ts}
+      - {path: src/main/features/sync/library-sync.ts, dest: src/main/features/sync/library-sync.ts}
+      - {path: src/main/features/sync/library-sync.ipc.ts, dest: src/main/features/sync/library-sync.ipc.ts}
+      - {path: src/shared/ipc/sync.ts, dest: src/shared/ipc/sync.ts}
       - {path: src/renderer/src/features/auth/auth-hooks.ts, dest: src/renderer/src/features/auth/auth-hooks.ts}
       - {path: src/renderer/src/features/auth/auth-view.tsx, dest: src/renderer/src/features/auth/auth-view.tsx}
       - {path: docs/AUTH.md, dest: docs/AUTH.md}
@@ -40,6 +43,26 @@ ops:
           me: () => ipcRenderer.invoke(authChannels.me),
         },
   - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: auth-init
+      marker: auth:initialize-sync
+      content: 'void initializeAuthSession();'
+  - insertAfter:
+      file: src/main/bootstrap.ts
+      anchor: deep-link-import
+      marker: auth:initialize-import
+      content: 'import { initializeAuthSession } from "./features/auth/auth.ipc";'
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-imports
+      marker: sync:library-import
+      content: 'import { registerSyncHandlers } from "../features/sync/library-sync.ipc";'
+  - insertAfter:
+      file: src/main/ipc/register.ts
+      anchor: ipc-feature-registrations
+      marker: sync:library-register
+      content: 'registerSyncHandlers();'
+  - insertAfter:
       file: src/main/ipc/register.ts
       anchor: ipc-feature-imports
       marker: auth:electron-import
@@ -59,3 +82,29 @@ ops:
       anchor: auth-view
       marker: auth:electron-view
       content: '<AuthView />'
+
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-imports
+      marker: sync:api-import
+      content: 'import type { SyncApi } from "../ipc/sync";'
+  - insertAfter:
+      file: src/shared/types/desktop-api.ts
+      anchor: desktop-api-properties
+      marker: sync:api-property
+      content: 'sync: SyncApi;'
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-imports
+      marker: sync:preload-import
+      content: 'import { syncChannels } from "../shared/ipc/sync";'
+  - insertAfter:
+      file: src/preload/index.ts
+      anchor: preload-properties
+      marker: sync:preload-property
+      content: |-
+        sync: {
+          status: () => ipcRenderer.invoke(syncChannels.status),
+          conflicts: () => ipcRenderer.invoke(syncChannels.conflicts),
+          resolve: (input) => ipcRenderer.invoke(syncChannels.resolve, input),
+        },

@@ -4,6 +4,15 @@ files: files
 ops:
   - addFiles:
       - {path: docs/OFFLINE.md, dest: docs/OFFLINE.md}
+      - {path: docs/SYNC.md, dest: docs/SYNC.md}
+      - {path: docs/CONFLICTS.md, dest: docs/CONFLICTS.md}
+      - {path: docs/IDEMPOTENCY.md, dest: docs/IDEMPOTENCY.md}
+      - {path: apps/desktop/src/main/infra/config.ts, dest: apps/desktop/src/main/infra/config.ts, overwrite: true}
+  - insertAfter:
+      file: .env.example
+      anchor: desktop-env
+      marker: desktop:sync-env
+      content: 'DESKTOP_SYNC_ENABLED=true'
   - insertAfter:
       file: Makefile
       anchor: desktop-phony
@@ -72,9 +81,11 @@ ops:
         make desktop-build
         ```
 
-        The desktop renderer never receives API tokens. See
-        [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md) and
-        [`docs/OFFLINE.md`](docs/OFFLINE.md) for the planned offline outbox.
+        The desktop renderer never receives API tokens. Library edits write a
+        local outbox row and sync through the main process. See
+        [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md),
+        [`docs/SYNC.md`](docs/SYNC.md), and
+        [`docs/CONFLICTS.md`](docs/CONFLICTS.md).
   - insertAfter:
       file: CONTEXT-MAP.md
       anchor: desktop-context
@@ -98,5 +109,7 @@ ops:
             Main -->|Bearer access token| API[Go or Rust API]
         ```
 
-        The API remains the source of truth. SQLite is local storage/cache;
-        offline write outbox is a separate feature.
+        The API remains the source of truth. SQLite is the offline working copy;
+        the outbox syncs mutations with idempotency, version checks, retries, and
+        manual conflict resolution. See `docs/SYNC.md`, `docs/CONFLICTS.md`, and
+        `docs/IDEMPOTENCY.md`.

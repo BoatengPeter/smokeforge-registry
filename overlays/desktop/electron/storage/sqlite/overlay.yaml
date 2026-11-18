@@ -12,6 +12,7 @@ ops:
       - {path: src/main/storage/schema.ts, dest: src/main/storage/schema.ts}
       - {path: src/main/storage/library-repository.ts, dest: src/main/storage/library-repository.ts}
       - {path: src/main/storage/maintenance-scheduler.ts, dest: src/main/storage/maintenance-scheduler.ts}
+      - {path: src/main/storage/sync-bridge.ts, dest: src/main/storage/sync-bridge.ts}
       - {path: docs/SCHEDULER.md, dest: docs/SCHEDULER.md}
       - {path: src/main/features/library/library.ipc.ts, dest: src/main/features/library/library.ipc.ts}
       - {path: src/shared/ipc/library.ts, dest: src/shared/ipc/library.ts}
@@ -20,6 +21,7 @@ ops:
       - {path: src/renderer/src/features/library/library-hooks.ts, dest: src/renderer/src/features/library/library-hooks.ts}
       - {path: drizzle.config.ts, dest: drizzle.config.ts}
       - {path: drizzle/0000_thick_xorn.sql, dest: drizzle/0000_thick_xorn.sql}
+      - {path: drizzle/0001_library_sync.sql, dest: drizzle/0001_library_sync.sql}
       - {path: drizzle/meta/_journal.json, dest: drizzle/meta/_journal.json}
       - {path: drizzle/meta/0000_snapshot.json, dest: drizzle/meta/0000_snapshot.json}
   - addDependency: {file: package.json, module: better-sqlite3, version: 13.2.0}

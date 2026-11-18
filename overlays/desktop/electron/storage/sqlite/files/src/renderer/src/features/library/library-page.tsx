@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import type { LibraryItem, LibraryListInput, LibraryStatus } from "@shared/ipc/library";
 import { DesktopApiError, invoke } from "@renderer/lib/desktop-api";
+// smokeforge:anchor library-sync-imports
 import { cn } from "@/lib/utils";
 
 import { LibraryForm } from "./library-form";
@@ -237,6 +238,7 @@ export function LibraryPage() {
                         <div className="min-w-0" role="cell">
                           <p className="truncate font-medium">{item.title}</p>
                           <p className="truncate text-xs text-muted-foreground">{item.description || t("common.noDescription")}</p>
+                          {/* smokeforge:anchor sync-row-status */}
                         </div>
                         <div role="cell"><StatusBadge status={item.status} /></div>
                         <div className="text-xs text-muted-foreground" role="cell">
@@ -255,6 +257,7 @@ export function LibraryPage() {
           <div className="flex h-full min-h-0 flex-col overflow-auto p-5">
             {creating || selected ? (
               <>
+                {/* smokeforge:anchor sync-conflict */}
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold">{creating ? t("library.newItem") : t("library.editItem")}</h2>

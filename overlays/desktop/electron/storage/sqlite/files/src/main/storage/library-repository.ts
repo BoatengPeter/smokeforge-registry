@@ -11,6 +11,8 @@ import type {
 } from "../../shared/ipc/library";
 import { databaseClient, type AppDatabase } from "./database";
 import { libraryItems } from "./schema";
+import { enqueueLocalSync } from "./sync-bridge";
+import { loadConfig } from "../infra/config";
 
 type Row = typeof libraryItems.$inferSelect;
 
@@ -21,6 +23,8 @@ function toItem(row: Row): LibraryItem {
     description: row.description,
     status: row.status,
     tags: row.tags,
+    version: row.version,
+    syncStatus: row.syncStatus,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString(),
   };
@@ -42,6 +46,8 @@ const seedItems = [
 ] as const;
 
 function seed(db: AppDatabase): void {
+  if (loadConfig().syncEnabled) return;
+
   const [{ value }] = db.select({ value: count() }).from(libraryItems).all();
   if (value > 0) return;
 
@@ -119,8 +125,10 @@ export function createLibraryItem(input: LibraryCreateInput): LibraryItem {
   };
 
   db().insert(libraryItems).values(row).run();
+  const item = toItem({ ...row, version: 0, syncStatus: "local", ownerId: null, deletedAt: null });
+  enqueueLocalSync({ operation: "create", item, ownerId: "local" });
 
-  return toItem({ ...row, deletedAt: null });
+  return item;
 }
 
 export function updateLibraryItem(input: LibraryUpdateInput): LibraryItem | null {
@@ -132,16 +140,20 @@ export function updateLibraryItem(input: LibraryUpdateInput): LibraryItem | null
     .set({ ...patch, updatedAt })
     .where(and(eq(libraryItems.id, id), isNull(libraryItems.deletedAt)))
     .run();
+  const item = getLibraryItem(id);
+  if (item) enqueueLocalSync({ operation: "update", item, ownerId: "local" });
 
-  return getLibraryItem(id);
+  return item;
 }
 
 export function deleteLibraryItem(id: string): boolean {
+  const current = getLibraryItem(id);
   const result = db()
     .update(libraryItems)
-    .set({ deletedAt: Date.now(), updatedAt: Date.now() })
+    .set({ deletedAt: Date.now(), updatedAt: Date.now(), syncStatus: "pending" })
     .where(and(eq(libraryItems.id, id), isNull(libraryItems.deletedAt)))
     .run();
+  if (current) enqueueLocalSync({ operation: "delete", item: current, ownerId: "local" });
 
   return result.changes > 0;
 }
@@ -149,11 +161,13 @@ export function deleteLibraryItem(id: string): boolean {
 export function restoreLibraryItem(id: string): LibraryItem | null {
   db()
     .update(libraryItems)
-    .set({ deletedAt: null, updatedAt: Date.now() })
+    .set({ deletedAt: null, updatedAt: Date.now(), syncStatus: "pending" })
     .where(eq(libraryItems.id, id))
     .run();
+  const item = getLibraryItem(id);
+  if (item) enqueueLocalSync({ operation: "update", item, ownerId: "local" });
 
-  return getLibraryItem(id);
+  return item;
 }
 
 export function libraryStats(): LibraryStats {
@@ -195,20 +209,22 @@ export function allLibraryItems(): LibraryItem[] {
     .map(toItem);
 }
 
-export function importLibraryItems(items: Omit<LibraryItem, "id" | "createdAt" | "updatedAt">[]): number {
-  const client = db();
+type ImportItem = Pick<LibraryItem, "title" | "description" | "status" | "tags">;
+
+export function importLibraryItems(items: ImportItem[]): number {
   const existing = new Set(
-    client.select({ title: libraryItems.title }).from(libraryItems).all().map((row) => row.title),
+    db().select({ title: libraryItems.title }).from(libraryItems).all().map((row) => row.title),
   );
-  const now = Date.now();
   let imported = 0;
 
   for (const item of items) {
     if (existing.has(item.title)) continue;
-    client
-      .insert(libraryItems)
-      .values({ ...item, id: randomUUID(), createdAt: now, updatedAt: now })
-      .run();
+    createLibraryItem({
+      title: item.title,
+      description: item.description,
+      status: item.status,
+      tags: item.tags,
+    });
     existing.add(item.title);
     imported += 1;
   }

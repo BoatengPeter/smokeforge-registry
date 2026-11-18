@@ -12,6 +12,8 @@ export const libraryItemSchema = z.object({
   description: z.string(),
   status: libraryStatusSchema,
   tags: z.array(z.string()),
+  version: z.number().int().nonnegative(),
+  syncStatus: z.enum(["local", "pending", "synced", "conflict", "failed"]),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

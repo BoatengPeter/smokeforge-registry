@@ -51,6 +51,7 @@ export async function bootstrap(): Promise<void> {
   installSessionSecurity(session.defaultSession, loadConfig());
   registerIpcHandlers();
   createMainWindow();
+  // smokeforge:anchor auth-init
 
   if (app.isPackaged && settings.autoCheckUpdates) {
     setTimeout(() => void checkForUpdates(), 5_000);
