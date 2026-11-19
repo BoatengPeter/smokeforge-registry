@@ -29,6 +29,10 @@ pub enum StorageError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Settings is a flat persisted preference schema."
+)]
 pub struct Settings {
     pub schema_version: u32,
     pub theme: String,
@@ -38,6 +42,9 @@ pub struct Settings {
     pub sync_policy: String,
     pub locale: String,
     pub high_contrast: bool,
+    pub log_level: String,
+    pub launch_at_login: bool,
+    pub onboarded: bool,
 }
 
 impl Default for Settings {
@@ -51,6 +58,9 @@ impl Default for Settings {
             sync_policy: "manual".to_owned(),
             locale: "en".to_owned(),
             high_contrast: false,
+            log_level: "info".to_owned(),
+            launch_at_login: false,
+            onboarded: false,
         }
     }
 }

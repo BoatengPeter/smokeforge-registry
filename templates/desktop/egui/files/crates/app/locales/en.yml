@@ -42,6 +42,9 @@ settings:
   data: "Local data"
   database: "Database"
   high_contrast: "High contrast"
+  sync_policy: "Sync policy"
+  log_level: "Log level"
+  launch_at_login: "Launch at login"
   backup: "Back up"
 about:
   title: "About"
@@ -71,3 +74,6 @@ activity:
   title: "Activity"
   subtitle: "Background work and sync status."
   empty: "No background jobs are running."
+onboarding:
+  welcome: "Welcome to Smokeforge. Start in the Library."
+  dismiss: "Got it"

@@ -4,6 +4,7 @@ use std::sync::Mutex;
 
 use eframe::egui;
 use egui::{Color32, Key, KeyboardShortcut, Modifiers, RichText};
+use egui_plot::{Bar, BarChart, Plot};
 use egui_tiles::{Behavior, Tile, TileId, Tree, UiResponse};
 use garde::Validate;
 
@@ -596,9 +597,25 @@ impl DesktopApp {
         });
     }
 
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "Chart counts are presentation-only values."
+    )]
     fn dashboard(&mut self, ui: &mut egui::Ui) {
         ui.heading(t("dashboard.title"));
         ui.label(RichText::new(t("dashboard.subtitle")).color(theme::TEXT_SECONDARY));
+        if !self.settings.onboarded {
+            ui.add_space(8.0);
+            egui::Frame::new()
+                .fill(theme::PANEL)
+                .stroke(theme::BORDER_STROKE)
+                .show(ui, |ui| {
+                    ui.label(t("onboarding.welcome"));
+                    if ui.button(t("onboarding.dismiss")).clicked() {
+                        self.settings.onboarded = true;
+                    }
+                });
+        }
         ui.add_space(16.0);
         let items = self
             .database
@@ -620,6 +637,32 @@ impl DesktopApp {
                 ),
             );
         });
+        let counts = [
+            items
+                .iter()
+                .filter(|item| item.status == LibraryStatus::Draft)
+                .count() as f64,
+            items
+                .iter()
+                .filter(|item| item.status == LibraryStatus::Active)
+                .count() as f64,
+            items
+                .iter()
+                .filter(|item| item.status == LibraryStatus::Archived)
+                .count() as f64,
+        ];
+        Plot::new("dashboard-status")
+            .height(150.0)
+            .allow_drag(false)
+            .allow_zoom(false)
+            .show(ui, |plot_ui| {
+                let bars = vec![
+                    Bar::new(0.0, counts[0]).name("Draft"),
+                    Bar::new(1.0, counts[1]).name("Active"),
+                    Bar::new(2.0, counts[2]).name("Archived"),
+                ];
+                plot_ui.bar_chart(BarChart::new("Library", bars).width(0.6));
+            });
         ui.add_space(16.0);
         ui.heading(t("dashboard.recent"));
         for item in items.iter().take(5) {
@@ -784,10 +827,45 @@ impl DesktopApp {
         }
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Settings data actions stay together for one panel."
+    )]
     fn settings_data(&mut self, ui: &mut egui::Ui) {
         ui.add_space(16.0);
         ui.label(t("settings.database"));
         ui.label(RichText::new(self.paths.data.join("local.sqlite").display().to_string()).small());
+        ui.label(t("settings.sync_policy"));
+        ui.horizontal(|ui| {
+            for value in ["manual", "automatic"] {
+                if ui
+                    .selectable_label(self.settings.sync_policy == value, value)
+                    .clicked()
+                {
+                    value.clone_into(&mut self.settings.sync_policy);
+                }
+            }
+        });
+        ui.label(t("settings.log_level"));
+        ui.horizontal(|ui| {
+            for value in ["info", "debug", "warn"] {
+                if ui
+                    .selectable_label(self.settings.log_level == value, value)
+                    .clicked()
+                {
+                    value.clone_into(&mut self.settings.log_level);
+                }
+            }
+        });
+        if ui
+            .checkbox(
+                &mut self.settings.launch_at_login,
+                t("settings.launch_at_login"),
+            )
+            .changed()
+        {
+            let _ = self.settings_store.save(&self.settings);
+        }
         if let Some(warning) = self.tokens.warning() {
             ui.label(RichText::new(warning).color(ui.visuals().warn_fg_color));
         }

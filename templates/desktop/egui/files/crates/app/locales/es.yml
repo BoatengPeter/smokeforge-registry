@@ -42,6 +42,9 @@ settings:
   data: "Datos locales"
   database: "Base de datos"
   high_contrast: "Alto contraste"
+  sync_policy: "Política de sincronización"
+  log_level: "Nivel de registro"
+  launch_at_login: "Abrir al iniciar"
   backup: "Copia de seguridad"
 about:
   title: "Acerca de"
@@ -71,3 +74,6 @@ activity:
   title: "Actividad"
   subtitle: "Trabajo en segundo plano y estado de sincronización."
   empty: "No hay trabajos en segundo plano."
+onboarding:
+  welcome: "Bienvenido a Smokeforge. Empieza en la Biblioteca."
+  dismiss: "Entendido"
