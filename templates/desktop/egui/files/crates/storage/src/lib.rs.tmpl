@@ -1,0 +1,388 @@
+//! Local `SQLite` and preferences. No egui or network dependencies.
+
+use std::path::{Path, PathBuf};
+
+use anyhow::Context;
+use directories::ProjectDirs;
+use {{.crate_name}}_core::{LibraryDraft, LibraryItem, LibraryStatus, SyncStatus};
+use rusqlite::{Connection, OptionalExtension, params};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+mod embedded {
+    use refinery::embed_migrations;
+    embed_migrations!("migrations");
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum StorageError {
+    #[error("database error: {0}")]
+    Database(#[from] rusqlite::Error),
+    #[error("migration error: {0}")]
+    Migration(#[from] refinery::Error),
+    #[error("settings error: {0}")]
+    Settings(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Settings {
+    pub schema_version: u32,
+    pub theme: String,
+    pub language: String,
+    pub sidebar_open: bool,
+    pub last_pane: String,
+    pub sync_policy: String,
+    pub locale: String,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            theme: "dark".to_owned(),
+            language: "en".to_owned(),
+            sidebar_open: true,
+            last_pane: "dashboard".to_owned(),
+            sync_policy: "manual".to_owned(),
+            locale: "en".to_owned(),
+        }
+    }
+}
+
+pub struct Paths {
+    pub data: PathBuf,
+    pub config: PathBuf,
+    pub logs: PathBuf,
+}
+
+impl Paths {
+    /// Resolves the user data, config, cache/log, and database locations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the operating system has no usable project
+    /// directories.
+    pub fn discover(app_name: &str) -> anyhow::Result<Self> {
+        let dirs = ProjectDirs::from("dev", "smokeforge", app_name)
+            .context("could not resolve application directories")?;
+        let _ = std::fs::create_dir_all(dirs.data_dir());
+        let _ = std::fs::create_dir_all(dirs.config_dir());
+        let _ = std::fs::create_dir_all(dirs.cache_dir());
+        Ok(Self {
+            data: dirs.data_dir().to_path_buf(),
+            config: dirs.config_dir().to_path_buf(),
+            logs: dirs.cache_dir().to_path_buf(),
+        })
+    }
+}
+
+pub struct Database {
+    connection: Connection,
+}
+
+impl Database {
+    /// Opens the `SQLite` database and applies embedded migrations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the directory cannot be created, the database
+    /// cannot be opened, or a migration fails.
+    pub fn open(path: &Path) -> Result<Self, StorageError> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| StorageError::Settings(error.to_string()))?;
+        }
+        let mut connection = Connection::open(path)?;
+        connection.pragma_update(None, "journal_mode", "WAL")?;
+        connection.pragma_update(None, "foreign_keys", "ON")?;
+        embedded::migrations::runner().run(&mut connection)?;
+        Ok(Self { connection })
+    }
+
+    /// Lists non-deleted records filtered by search text and optional status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be prepared or read.
+    pub fn list(
+        &self,
+        search: &str,
+        status: Option<LibraryStatus>,
+    ) -> Result<Vec<LibraryItem>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, title, description, status, tags_json, version, sync_status, created_at, updated_at
+             FROM library_items
+             WHERE deleted_at IS NULL
+               AND (title LIKE ?1 OR description LIKE ?1)
+               AND (?2 IS NULL OR status = ?2)
+             ORDER BY updated_at DESC",
+        )?;
+        let status = status.map(status_value);
+        let rows = statement.query_map(params![format!("%{search}%"), status], map_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    /// Returns one non-deleted record, or `None` when it does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn get(&self, id: Uuid) -> Result<Option<LibraryItem>, StorageError> {
+        self.connection
+            .query_row(
+                "SELECT id, title, description, status, tags_json, version, sync_status, created_at, updated_at
+                 FROM library_items WHERE id = ?1 AND deleted_at IS NULL",
+                params![id.to_string()],
+                map_row,
+            )
+            .optional()
+            .map_err(StorageError::from)
+    }
+
+    /// Inserts a new local record from a validated draft.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the record cannot be serialized or inserted.
+    pub fn create(&self, draft: &LibraryDraft) -> Result<LibraryItem, StorageError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let item = LibraryItem {
+            id: Uuid::new_v4(),
+            title: draft.title.trim().to_owned(),
+            description: draft.description.trim().to_owned(),
+            status: draft.status,
+            tags: draft.tags.clone(),
+            version: 0,
+            sync_status: SyncStatus::Local,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+        self.connection.execute(
+            "INSERT INTO library_items (id, title, description, status, tags_json, version, sync_status, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, 'local', ?6, ?7)",
+            params![
+                item.id.to_string(),
+                item.title,
+                item.description,
+                status_value(item.status),
+                serde_json::to_string(&item.tags).unwrap_or_else(|_| "[]".to_owned()),
+                item.created_at,
+                item.updated_at,
+            ],
+        )?;
+        Ok(item)
+    }
+
+    /// Updates a local record and returns the stored result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the record cannot be updated or read back.
+    pub fn update(
+        &self,
+        id: Uuid,
+        draft: &LibraryDraft,
+    ) -> Result<Option<LibraryItem>, StorageError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.connection.execute(
+            "UPDATE library_items
+             SET title = ?2, description = ?3, status = ?4, tags_json = ?5, updated_at = ?6,
+                 sync_status = 'local'
+             WHERE id = ?1 AND deleted_at IS NULL",
+            params![
+                id.to_string(),
+                draft.title.trim(),
+                draft.description.trim(),
+                status_value(draft.status),
+                serde_json::to_string(&draft.tags).unwrap_or_else(|_| "[]".to_owned()),
+                now,
+            ],
+        )?;
+        self.get(id)
+    }
+
+    /// Marks a record deleted without removing its row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the update cannot be executed.
+    pub fn soft_delete(&self, id: Uuid) -> Result<bool, StorageError> {
+        let changed = self.connection.execute(
+            "UPDATE library_items SET deleted_at = ?2, updated_at = ?2, sync_status = 'pending'
+             WHERE id = ?1 AND deleted_at IS NULL",
+            params![id.to_string(), chrono::Utc::now().to_rfc3339()],
+        )?;
+        Ok(changed > 0)
+    }
+
+    /// Restores a soft-deleted record.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the update cannot be executed or read back.
+    pub fn restore(&self, id: Uuid) -> Result<Option<LibraryItem>, StorageError> {
+        self.connection.execute(
+            "UPDATE library_items SET deleted_at = NULL, updated_at = ?2, sync_status = 'pending' WHERE id = ?1",
+            params![id.to_string(), chrono::Utc::now().to_rfc3339()],
+        )?;
+        self.get(id)
+    }
+
+    /// Inserts the standalone example rows when the database is empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the count query or an insert fails.
+    pub fn seed_if_empty(&self) -> Result<(), StorageError> {
+        let count: i64 =
+            self.connection
+                .query_row("SELECT COUNT(*) FROM library_items", [], |row| row.get(0))?;
+        if count > 0 {
+            return Ok(());
+        }
+        let samples = [
+            (
+                "Field notes",
+                "Research notes for the next release.",
+                LibraryStatus::Active,
+                vec!["research", "product"],
+            ),
+            (
+                "Release checklist",
+                "Signing, notarization, and update smoke tests.",
+                LibraryStatus::Active,
+                vec!["release"],
+            ),
+            (
+                "Offline sync",
+                "Outbox retry and conflict policy notes.",
+                LibraryStatus::Draft,
+                vec!["sync", "draft"],
+            ),
+            (
+                "Keyboard map",
+                "Shortcut registry and native menu parity.",
+                LibraryStatus::Active,
+                vec!["ux"],
+            ),
+            (
+                "Import format",
+                "Portable JSON archive and per-row validation.",
+                LibraryStatus::Draft,
+                vec!["data"],
+            ),
+        ];
+        for (title, description, status, tags) in samples {
+            self.create(&LibraryDraft {
+                title: title.to_owned(),
+                description: description.to_owned(),
+                status,
+                tags: tags.into_iter().map(str::to_owned).collect(),
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Writes a consistent `SQLite` backup to `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the path cannot be written or `SQLite` rejects the
+    /// backup operation.
+    pub fn backup(&self, path: &Path) -> Result<(), StorageError> {
+        self.connection
+            .execute("VACUUM INTO ?1", params![path.to_string_lossy()])?;
+        Ok(())
+    }
+}
+
+fn status_value(status: LibraryStatus) -> &'static str {
+    match status {
+        LibraryStatus::Draft => "draft",
+        LibraryStatus::Active => "active",
+        LibraryStatus::Archived => "archived",
+    }
+}
+
+fn parse_status(value: &str) -> LibraryStatus {
+    match value {
+        "active" => LibraryStatus::Active,
+        "archived" => LibraryStatus::Archived,
+        _ => LibraryStatus::Draft,
+    }
+}
+
+fn parse_sync(value: &str) -> SyncStatus {
+    match value {
+        "pending" => SyncStatus::Pending,
+        "synced" => SyncStatus::Synced,
+        "conflict" => SyncStatus::Conflict,
+        "failed" => SyncStatus::Failed,
+        _ => SyncStatus::Local,
+    }
+}
+
+fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryItem> {
+    let id: String = row.get(0)?;
+    let tags: String = row.get(4)?;
+    Ok(LibraryItem {
+        id: Uuid::parse_str(&id).unwrap_or_default(),
+        title: row.get(1)?,
+        description: row.get(2)?,
+        status: parse_status(&row.get::<_, String>(3)?),
+        tags: serde_json::from_str(&tags).unwrap_or_default(),
+        version: row.get(5)?,
+        sync_status: parse_sync(&row.get::<_, String>(6)?),
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+    })
+}
+
+pub struct SettingsStore {
+    path: PathBuf,
+}
+
+impl SettingsStore {
+    #[must_use]
+    pub fn new(config_dir: &Path) -> Self {
+        Self {
+            path: config_dir.join("settings.json"),
+        }
+    }
+
+    /// Loads settings, returning defaults when the file does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the file exists but cannot be read or parsed.
+    pub fn load(&self) -> Result<Settings, StorageError> {
+        let raw = match std::fs::read_to_string(&self.path) {
+            Ok(raw) => raw,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Settings::default());
+            }
+            Err(error) => return Err(StorageError::Settings(error.to_string())),
+        };
+        serde_json::from_str(&raw).map_err(|error| StorageError::Settings(error.to_string()))
+    }
+
+    /// Atomically writes settings to disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the directory, temporary file, or rename fails.
+    pub fn save(&self, settings: &Settings) -> Result<(), StorageError> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| StorageError::Settings(error.to_string()))?;
+        }
+        let temporary = self.path.with_extension("json.tmp");
+        let raw = serde_json::to_string_pretty(settings)
+            .map_err(|error| StorageError::Settings(error.to_string()))?;
+        std::fs::write(&temporary, format!("{raw}\n"))
+            .map_err(|error| StorageError::Settings(error.to_string()))?;
+        std::fs::rename(temporary, &self.path)
+            .map_err(|error| StorageError::Settings(error.to_string()))
+    }
+}

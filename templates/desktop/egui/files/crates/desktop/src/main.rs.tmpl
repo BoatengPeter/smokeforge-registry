@@ -1,0 +1,45 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use eframe::egui;
+
+fn main() -> eframe::Result<()> {
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([1180.0, 760.0])
+        .with_min_inner_size([760.0, 520.0])
+        .with_title("Egui Verify");
+
+    if cfg!(target_os = "macos") {
+        viewport = viewport
+            .with_titlebar_shown(false)
+            .with_fullsize_content_view(true)
+            .with_titlebar_buttons_shown(true);
+    } else {
+        viewport = viewport.with_decorations(false);
+    }
+
+    let options = eframe::NativeOptions {
+        viewport,
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "Egui Verify",
+        options,
+        Box::new(|cc| {
+            let _ = cc;
+            let app = {{.crate_name}}_app::DesktopApp::new("Egui Verify")?;
+
+            Ok(Box::new(DesktopShell { app }))
+        }),
+    )
+}
+
+struct DesktopShell {
+    app: {{.crate_name}}_app::DesktopApp,
+}
+
+impl eframe::App for DesktopShell {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.app.render(ui);
+    }
+}

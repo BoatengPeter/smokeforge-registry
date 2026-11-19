@@ -1,0 +1,6 @@
+id: ci:github
+name: GitHub Actions
+files: files
+ops:
+  - addFiles:
+      - {path: .github/workflows/ci.yml, dest: .github/workflows/ci.yml}

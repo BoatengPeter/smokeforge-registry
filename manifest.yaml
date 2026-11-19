@@ -50,6 +50,11 @@ stacks:
     name: Electron
     template: templates/desktop/electron
     variables: [bundle_id, package_manager, api_url]
+  - id: desktop/egui
+    kind: desktop
+    name: egui
+    template: templates/desktop/egui
+    variables: [crate_name, bundle_id, api_url]
 presets:
   - id: fullstack
     name: Fullstack SaaS
@@ -68,6 +73,11 @@ presets:
     kinds: [desktop]
     default: true
     features: [data:tanstack-query, state:zustand, storage:sqlite]
+  - id: desktop-egui
+    name: Native egui desktop app
+    description: Rust local-first desktop app with egui, SQLite, keyring, and optional fullstack API sync
+    kinds: [desktop]
+    features: []
   - id: api
     name: Backend API
     description: Postgres and JWT authentication for any backend stack
@@ -113,6 +123,7 @@ features:
           next: overlays/next/ci/github
           workspace/fullstack: overlays/workspace/fullstack/ci
           desktop/electron: overlays/desktop/electron/ci/github
+          desktop/egui: overlays/desktop/egui/ci/github
   - id: database
     name: Database
     kinds: [backend, frontend]
@@ -207,6 +218,7 @@ features:
           rust/axum: overlays/backend/rust/sync/library
       - id: library-client
         name: Library sync UI
+        requires: [storage:sqlite]
         stacks: [desktop/electron]
         overlays:
           desktop/electron: overlays/desktop/electron/sync/library-client

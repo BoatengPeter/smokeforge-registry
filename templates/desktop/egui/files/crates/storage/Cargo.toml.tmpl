@@ -1,0 +1,23 @@
+[package]
+name = "{{.crate_name}}_storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+directories.workspace = true
+rusqlite.workspace = true
+r2d2.workspace = true
+r2d2_sqlite.workspace = true
+refinery.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+{{.crate_name}}_core = { path = "../core" }
+
+[lints]
+workspace = true

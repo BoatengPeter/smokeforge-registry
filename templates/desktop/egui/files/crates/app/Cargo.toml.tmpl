@@ -1,0 +1,29 @@
+[package]
+name = "{{.crate_name}}_app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "system_fonts", "wayland", "wgpu", "x11"] }
+egui = { version = "0.37.0", features = ["serde"] }
+egui_extras = { version = "0.37.0", features = ["all_loaders", "datepicker", "serde"] }
+egui_tiles = { version = "0.18.0", features = ["serde"] }
+egui-notify = "0.24.0"
+egui_plot = "0.38.0"
+rfd = "0.18.0"
+rust-i18n.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+{{.crate_name}}_core = { path = "../core" }
+{{.crate_name}}_storage = { path = "../storage" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+egui_kittest = "=0.37.0"

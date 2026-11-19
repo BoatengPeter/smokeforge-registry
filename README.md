@@ -3,8 +3,8 @@
 Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
 **Status:** Next.js, the four Go/Gin architectures, the Rust/Axum backend, the
-full Electron app shell, and optional fullstack desktop composition are
-implemented. The desktop shell includes React Router, shadcn/ui, Drizzle SQLite,
+full Electron app shell, the native egui desktop base, and optional fullstack
+desktop composition are implemented. The desktop shell includes React Router, shadcn/ui, Drizzle SQLite,
 Library CRUD, utility-process Activity, Settings/Diagnostics, auto-update
 wiring, OAuth PKCE, offline Library sync with idempotency/retries/manual
 conflicts, and an optional tray. Go includes PostgreSQL,
@@ -30,12 +30,14 @@ templates/
     axum/
   frontend/next/
   desktop/electron/                   # secure TypeScript Electron base
+  desktop/egui/                       # native Rust egui base + component/Rust skills
   workspace/fullstack/                # root CONTEXT-MAP, Makefile, env docs
 overlays/
   backend/go/                          # database, auth, cache, queue, media, search, pagination
   backend/rust/                        # database, auth, cache, queue, scheduler, dedupe, media, search, sync, pagination
   next/                                # database, auth, bff, state, data, testing, posthog, docker, ci
   desktop/electron/                    # data, state, storage:sqlite, testing, CI
+  desktop/egui/                         # egui base CI overlay
   workspace/fullstack/                 # root compose and CI aggregation
 tests/                                 # contract/build matrix
 ```
@@ -52,11 +54,14 @@ tests/                                 # contract/build matrix
   shutdown.
 - Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
 - Frontend presets: `fullstack` (default) and `frontend`.
-- Desktop preset: `desktop` (Electron + React + TypeScript, TanStack Query,
-  Zustand, SQLite); `testing:e2e` and `ci:github` are optional. Package manager
-  is selectable (pnpm, npm, or bun).
+- Desktop presets: `desktop` (Electron + React + TypeScript, TanStack Query,
+  Zustand, SQLite) and `desktop-egui` (native Rust, rusqlite/refinery, keyring,
+  egui_tiles, full CI). Electron package manager is selectable (pnpm, npm, or
+  bun).
 - Fullstack desktop: opt in with `--desktop electron`; adds the same desktop
-  base with main-process auth, SQLite, and the offline Library sync outbox.
+  base with main-process auth, SQLite, and the offline Library sync outbox. The
+  egui stack is available as a standalone base and will gain the same API/sync
+  composition in its milestone issues.
 - Fullstack preset: `fullstack-api` (Next.js + Go/Rust API, BFF auth, TanStack Query, Docker, CI).
 - Rust: `rust/axum` single-crate layered base with SQLx/Postgres, JWT auth,
   Redis cache, signed pagination, TOTP login/recovery, RabbitMQ retries/search
@@ -93,8 +98,8 @@ Full stack and version details: [STACKS.md](https://github.com/BoatengPeter/smok
 
 Generated apps receive their own agent skills under `.agents/skills` and
 `.claude/skills`, plus `AGENTS.md`, `CLAUDE.md`, and `skills-lock.json`.
-Next and Go skills are scoped to the generated app, not to the smokeforge CLI
-repo.
+Next, Go, Rust, and the egui component skill are scoped to the generated app,
+not to the smokeforge CLI repo.
 
 ## Release format
 

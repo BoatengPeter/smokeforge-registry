@@ -23,9 +23,15 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          NOTES: >-
+            Registry release with fullstack desktop, offline Library sync,
+            versioned idempotent APIs, manual conflicts, and retry/changefeed
+            support.
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            dist/registry.tar.gz \
-            dist/registry.sha256 \
-            --title "smokeforge-registry $GITHUB_REF_NAME" \
-            --notes "Adds the Rust/Axum backend with SQLx/Postgres, JWT auth, Docker, CI, and five Rust skills. Go/Gin backends retain Postgres, JWT auth, TOTP, Redis cache, RabbitMQ worker/scheduler, scheduler leadership, dedupe, gzip, authenticated image media with MinIO/imgproxy/nginx or Cloudflare R2, Meilisearch search, RabbitMQ search index sync, signed cursor/offset pagination, Docker, CI, Swagger, embedded migrations, and project-scoped Go skills."
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" \
+                 --title "smokeforge-registry $GITHUB_REF_NAME" \
+                 --notes "$NOTES"
+          gh release upload "$GITHUB_REF_NAME" \
+            dist/registry.tar.gz dist/registry.sha256 --clobber
+          gh release edit "$GITHUB_REF_NAME" --title "smokeforge-registry $GITHUB_REF_NAME" --notes "$NOTES"

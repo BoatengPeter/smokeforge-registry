@@ -236,3 +236,46 @@ jobs:
           pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
           make typecheck
           make build
+
+  verify-egui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: registry
+      - uses: actions/checkout@v4
+        with:
+          repository: BoatengPeter/smokeforge
+          ref: v0.2.3
+          path: cli
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+      - name: Build smokeforge
+        run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
+        working-directory: cli
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Generate egui desktop app
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: |
+          "$SMOKEFORGE_BIN" new /tmp/egui-desktop \
+            --registry "$GITHUB_WORKSPACE/registry" \
+            --kind desktop --stack desktop/egui \
+            --name "Verify Egui Desktop" --preset desktop-egui \
+            --var crate_name=egui_desktop_ci \
+            --var bundle_id=com.example.eguici \
+            --var api_url=http://localhost:8080 \
+            --no-input --no-git
+      - name: Rust quality gate
+        working-directory: /tmp/egui-desktop
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace

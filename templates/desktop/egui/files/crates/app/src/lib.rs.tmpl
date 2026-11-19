@@ -1,0 +1,557 @@
+//! Thin egui application shell and feature views.
+
+use std::sync::Mutex;
+
+use eframe::egui;
+use egui::{Color32, RichText};
+use egui_tiles::{Behavior, Tile, TileId, Tree, UiResponse};
+use {{.crate_name}}_core::{LibraryDraft, LibraryStatus};
+use {{.crate_name}}_storage::{Database, Paths, Settings, SettingsStore};
+
+pub mod theme;
+
+rust_i18n::i18n!("locales");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pane {
+    Dashboard,
+    Library,
+    Settings,
+    About,
+}
+
+impl Pane {
+    fn title_key(self) -> &'static str {
+        match self {
+            Self::Dashboard => "dashboard.title",
+            Self::Library => "library.title",
+            Self::Settings => "settings.title",
+            Self::About => "about.title",
+        }
+    }
+
+    fn all() -> [Self; 4] {
+        [Self::Dashboard, Self::Library, Self::Settings, Self::About]
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Action {
+    Navigate(Pane),
+    ToggleSidebar,
+    ToggleTheme,
+    SearchChanged(String),
+    Select(Option<uuid::Uuid>),
+    NewRecord,
+    SaveDraft,
+    DeleteRecord,
+    SetLanguage(String),
+}
+
+pub struct DesktopApp {
+    pub paths: Paths,
+    pub settings: Settings,
+    pub settings_store: SettingsStore,
+    pub database: Mutex<Database>,
+    pub tree: Tree<Pane>,
+    pub pane: Pane,
+    pub search: String,
+    pub selected: Option<uuid::Uuid>,
+    pub draft: LibraryDraft,
+    pub toasts: egui_notify::Toasts,
+}
+
+impl DesktopApp {
+    /// Creates the window state, database, settings, and tiled workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when paths, settings, migrations, or the database
+    /// cannot be initialized.
+    pub fn new(app_name: &str) -> anyhow::Result<Self> {
+        let paths = Paths::discover(app_name)?;
+        let settings_store = SettingsStore::new(&paths.config);
+        let settings = settings_store.load()?;
+        rust_i18n::set_locale(&settings.locale);
+        let database = Database::open(&paths.data.join("local.sqlite"))?;
+        database.seed_if_empty()?;
+        let panes = Pane::all()
+            .into_iter()
+            .map(|pane| (pane, true))
+            .collect::<Vec<_>>();
+        let tree = Tree::new_tabs(
+            egui::Id::unique("workspace"),
+            panes.into_iter().map(|(pane, _)| pane).collect(),
+        );
+        Ok(Self {
+            paths,
+            settings,
+            settings_store,
+            database: Mutex::new(database),
+            tree,
+            pane: Pane::Dashboard,
+            search: String::new(),
+            selected: None,
+            draft: LibraryDraft::default(),
+            toasts: egui_notify::Toasts::default(),
+        })
+    }
+
+    pub fn dispatch(&mut self, action: Action) {
+        match action {
+            Action::Navigate(pane) => {
+                self.pane = pane;
+                self.tree
+                    .make_active(|_, tile| matches!(tile, Tile::Pane(p) if *p == pane));
+            }
+            Action::ToggleSidebar => self.settings.sidebar_open = !self.settings.sidebar_open,
+            Action::ToggleTheme => {
+                self.settings.theme = match self.settings.theme.as_str() {
+                    "dark" => "light".to_owned(),
+                    _ => "dark".to_owned(),
+                };
+            }
+            Action::SearchChanged(search) => self.search = search,
+            Action::Select(id) => {
+                self.selected = id;
+                self.draft = id
+                    .and_then(|id| {
+                        self.database
+                            .lock()
+                            .ok()
+                            .and_then(|db| db.get(id).ok().flatten())
+                    })
+                    .map(|item| LibraryDraft::from(&item))
+                    .unwrap_or_default();
+            }
+            Action::NewRecord => {
+                self.selected = None;
+                self.draft = LibraryDraft::default();
+                self.dispatch(Action::Navigate(Pane::Library));
+            }
+            Action::SaveDraft => {
+                let result = self
+                    .database
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("database lock"));
+                if let Ok(database) = result {
+                    if let Some(id) = self.selected {
+                        match database.update(id, &self.draft) {
+                            Ok(Some(_)) => {
+                                self.toasts.success("Record saved.");
+                            }
+                            Ok(None) => {
+                                self.toasts.error("Record not found.");
+                            }
+                            Err(error) => {
+                                self.toasts.error(error.to_string());
+                            }
+                        }
+                    } else {
+                        match database.create(&self.draft) {
+                            Ok(item) => {
+                                self.selected = Some(item.id);
+                                self.toasts.success("Record created.");
+                            }
+                            Err(error) => {
+                                self.toasts.error(error.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            Action::DeleteRecord => {
+                if let Some(id) = self.selected
+                    && let Ok(database) = self.database.lock()
+                {
+                    match database.soft_delete(id) {
+                        Ok(true) => {
+                            self.selected = None;
+                            self.draft = LibraryDraft::default();
+                            self.toasts.success("Record deleted.");
+                        }
+                        Ok(false) => {
+                            self.toasts.error("Record not found.");
+                        }
+                        Err(error) => {
+                            self.toasts.error(error.to_string());
+                        }
+                    }
+                }
+            }
+            Action::SetLanguage(language) => {
+                self.settings.language.clone_from(&language);
+                self.settings.locale.clone_from(&language);
+                rust_i18n::set_locale(&language);
+            }
+        }
+        let _ = self.settings_store.save(&self.settings);
+    }
+
+    pub fn render(&mut self, ui: &mut egui::Ui) {
+        apply_visuals(ui.ctx(), &self.settings);
+        Self::title_bar(ui);
+        let content_height = (ui.available_height() - 30.0).max(80.0);
+        ui.horizontal(|ui| {
+            self.sidebar(ui, content_height);
+            ui.separator();
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width(), content_height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    let mut tree = std::mem::replace(
+                        &mut self.tree,
+                        Tree::empty(egui::Id::unique("workspace")),
+                    );
+                    let mut behavior = PaneBehavior { app: self };
+                    tree.ui(&mut behavior, ui);
+                    self.tree = tree;
+                },
+            );
+        });
+        Self::status_bar(ui);
+        self.toasts.show(ui.ctx());
+    }
+
+    fn title_bar(ui: &mut egui::Ui) {
+        let (rect, response) = ui.allocate_exact_size(
+            egui::vec2(ui.available_width(), 38.0),
+            egui::Sense::click_and_drag(),
+        );
+        if response.drag_started() {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+        }
+
+        ui.painter().rect_filled(rect, 0.0, theme::TITLE_BAR);
+        let left_padding = if cfg!(target_os = "macos") {
+            78.0
+        } else {
+            16.0
+        };
+        ui.painter().text(
+            rect.left_center() + egui::vec2(left_padding, 0.0),
+            egui::Align2::LEFT_CENTER,
+            t("app.name"),
+            egui::FontId::proportional(13.0),
+            theme::TEXT,
+        );
+
+        if cfg!(target_os = "macos") {
+            return;
+        }
+
+        let controls = [
+            ("−", egui::ViewportCommand::Minimized(true)),
+            ("□", egui::ViewportCommand::Maximized(true)),
+            ("×", egui::ViewportCommand::Close),
+        ];
+        let mut right = rect.right() - 6.0;
+        for (label, command) in controls {
+            let button_rect = egui::Rect::from_min_size(
+                egui::pos2(right - 30.0, rect.center().y - 13.0),
+                egui::vec2(28.0, 26.0),
+            );
+            if ui
+                .put(button_rect, egui::Button::new(label).frame(false))
+                .clicked()
+            {
+                ui.ctx().send_viewport_cmd(command);
+            }
+            right -= 32.0;
+        }
+    }
+
+    fn sidebar(&mut self, ui: &mut egui::Ui, height: f32) {
+        let width = if self.settings.sidebar_open {
+            208.0
+        } else {
+            48.0
+        };
+        ui.allocate_ui_with_layout(
+            egui::vec2(width, height),
+            egui::Layout::top_down(egui::Align::Min),
+            |ui| {
+                ui.add_space(8.0);
+                for pane in Pane::all() {
+                    let label = if self.settings.sidebar_open {
+                        t(pane.title_key())
+                    } else {
+                        icon(pane).to_owned()
+                    };
+                    let selected = pane == self.pane;
+                    if ui
+                        .add_sized(
+                            egui::vec2(ui.available_width(), 32.0),
+                            egui::Button::new(RichText::new(label).color(if selected {
+                                Color32::WHITE
+                            } else {
+                                theme::TEXT_SECONDARY
+                            }))
+                            .fill(if selected {
+                                theme::SELECTED_BACKGROUND
+                            } else {
+                                Color32::TRANSPARENT
+                            }),
+                        )
+                        .clicked()
+                    {
+                        self.dispatch(Action::Navigate(pane));
+                    }
+                }
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                    if ui.button("⚙").clicked() {
+                        self.dispatch(Action::ToggleSidebar);
+                    }
+                });
+            },
+        );
+    }
+
+    fn status_bar(ui: &mut egui::Ui) {
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(" ● Online · Local".to_owned())
+                    .small()
+                    .color(theme::SUCCESS),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(RichText::new("v0.1.0").small().color(theme::TEXT_SECONDARY));
+                ui.label(
+                    RichText::new("Ctrl/⌘K")
+                        .small()
+                        .color(theme::TEXT_SECONDARY),
+                );
+            });
+        });
+    }
+
+    fn dashboard(&mut self, ui: &mut egui::Ui) {
+        ui.heading(t("dashboard.title"));
+        ui.label(RichText::new(t("dashboard.subtitle")).color(theme::TEXT_SECONDARY));
+        ui.add_space(16.0);
+        let items = self
+            .database
+            .lock()
+            .ok()
+            .and_then(|db| db.list("", None).ok())
+            .unwrap_or_default();
+        ui.horizontal(|ui| {
+            stat(ui, t("dashboard.records"), items.len().to_string());
+            stat(
+                ui,
+                t("dashboard.stats"),
+                format!(
+                    "{} active",
+                    items
+                        .iter()
+                        .filter(|item| item.status == LibraryStatus::Active)
+                        .count()
+                ),
+            );
+        });
+        ui.add_space(16.0);
+        ui.heading(t("dashboard.recent"));
+        for item in items.iter().take(5) {
+            if ui
+                .button(format!("{}  ·  {}", item.title, item.status.label()))
+                .clicked()
+            {
+                self.dispatch(Action::Navigate(Pane::Library));
+                self.dispatch(Action::Select(Some(item.id)));
+            }
+        }
+    }
+
+    fn library(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.heading(t("library.title"));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button(t("library.new")).clicked() {
+                    self.dispatch(Action::NewRecord);
+                }
+            });
+        });
+        let mut search = self.search.clone();
+        ui.add(egui::TextEdit::singleline(&mut search).hint_text(t("library.search")));
+        if search != self.search {
+            self.dispatch(Action::SearchChanged(search));
+        }
+        let items = self
+            .database
+            .lock()
+            .ok()
+            .and_then(|db| db.list(&self.search, None).ok())
+            .unwrap_or_default();
+        ui.horizontal(|ui| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width() * 0.42, ui.available_height()),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        if items.is_empty() {
+                            ui.label(t("library.empty"));
+                        }
+                        for item in &items {
+                            let selected = self.selected == Some(item.id);
+                            if ui
+                                .add_sized(
+                                    egui::vec2(ui.available_width(), 34.0),
+                                    egui::Button::new(format!(
+                                        "{}  ·  {}",
+                                        item.title,
+                                        item.status.label()
+                                    ))
+                                    .selected(selected),
+                                )
+                                .clicked()
+                            {
+                                self.dispatch(Action::Select(Some(item.id)));
+                            }
+                        }
+                    });
+                },
+            );
+            ui.separator();
+            ui.vertical(|ui| {
+                if self.selected.is_none() {
+                    ui.label(RichText::new(t("library.select")).color(theme::TEXT_SECONDARY));
+                } else {
+                    ui.label(t("library.title_field"));
+                    ui.text_edit_singleline(&mut self.draft.title);
+                    ui.label(t("library.description_field"));
+                    ui.text_edit_multiline(&mut self.draft.description);
+                    ui.label(t("library.tags_field"));
+                    let mut tags = self.draft.tags.join(", ");
+                    if ui.text_edit_singleline(&mut tags).changed() {
+                        self.draft.tags = tags
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|tag| !tag.is_empty())
+                            .map(str::to_owned)
+                            .collect();
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.button(t("library.save")).clicked() {
+                            self.dispatch(Action::SaveDraft);
+                        }
+                        if ui.button(t("library.delete")).clicked() {
+                            self.dispatch(Action::DeleteRecord);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    fn settings(&mut self, ui: &mut egui::Ui) {
+        ui.heading(t("settings.title"));
+        ui.label(RichText::new(t("settings.subtitle")).color(theme::TEXT_SECONDARY));
+        ui.add_space(16.0);
+        ui.label(t("settings.theme"));
+        ui.horizontal(|ui| {
+            for (value, label) in [("dark", "dark"), ("light", "light"), ("system", "system")] {
+                if ui
+                    .selectable_label(
+                        self.settings.theme == value,
+                        t(&format!("settings.{label}")),
+                    )
+                    .clicked()
+                {
+                    value.clone_into(&mut self.settings.theme);
+                    let _ = self.settings_store.save(&self.settings);
+                }
+            }
+        });
+        ui.label(t("settings.language"));
+        ui.horizontal(|ui| {
+            for (value, label) in [("en", "English"), ("es", "Español")] {
+                if ui
+                    .selectable_label(self.settings.language == value, label)
+                    .clicked()
+                {
+                    self.dispatch(Action::SetLanguage(value.to_owned()));
+                }
+            }
+        });
+        ui.add_space(16.0);
+        ui.label(t("settings.database"));
+        ui.label(RichText::new(self.paths.data.join("local.sqlite").display().to_string()).small());
+    }
+
+    fn about(&mut self, ui: &mut egui::Ui) {
+        ui.heading(t("about.title"));
+        ui.label(RichText::new(t("about.subtitle")).color(theme::TEXT_SECONDARY));
+        ui.add_space(16.0);
+        ui.label("App 0.1.0 · Rust · eframe/egui 0.37");
+        ui.label(format!(
+            "{} · {}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        ));
+        ui.label(self.paths.logs.display().to_string());
+    }
+}
+
+struct PaneBehavior<'a> {
+    app: &'a mut DesktopApp,
+}
+
+impl Behavior<Pane> for PaneBehavior<'_> {
+    fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
+        t(pane.title_key()).into()
+    }
+
+    fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut Pane) -> UiResponse {
+        match pane {
+            Pane::Dashboard => self.app.dashboard(ui),
+            Pane::Library => self.app.library(ui),
+            Pane::Settings => self.app.settings(ui),
+            Pane::About => self.app.about(ui),
+        }
+        UiResponse::None
+    }
+}
+
+fn stat(ui: &mut egui::Ui, label: String, value: String) {
+    egui::Frame::new()
+        .fill(theme::PANEL)
+        .stroke(theme::BORDER_STROKE)
+        .inner_margin(16.0)
+        .show(ui, |ui| {
+            ui.set_min_width(190.0);
+            ui.label(RichText::new(label).small().color(theme::TEXT_SECONDARY));
+            ui.heading(value);
+        });
+}
+
+fn icon(pane: Pane) -> &'static str {
+    match pane {
+        Pane::Dashboard => "⌂",
+        Pane::Library => "▤",
+        Pane::Settings => "⚙",
+        Pane::About => "?",
+    }
+}
+
+fn t(key: &str) -> String {
+    rust_i18n::t!(key).to_string()
+}
+
+fn apply_visuals(ctx: &egui::Context, settings: &Settings) {
+    let mut visuals = if settings.theme == "light" {
+        egui::Visuals::light()
+    } else {
+        egui::Visuals::dark()
+    };
+    visuals.panel_fill = Color32::from_rgb(14, 15, 17);
+    visuals.window_fill = Color32::from_rgb(18, 19, 22);
+    visuals.extreme_bg_color = Color32::from_rgb(10, 11, 13);
+    visuals.faint_bg_color = Color32::from_rgb(22, 23, 27);
+    visuals.override_text_color = Some(theme::TEXT);
+    visuals.widgets.inactive.bg_fill = Color32::from_rgb(23, 24, 27);
+    visuals.widgets.hovered.bg_fill = Color32::from_rgb(31, 33, 38);
+    visuals.widgets.active.bg_fill = Color32::from_rgb(47, 89, 158);
+    visuals.selection.bg_fill = Color32::from_rgb(47, 89, 158);
+    ctx.set_visuals(visuals);
+}
