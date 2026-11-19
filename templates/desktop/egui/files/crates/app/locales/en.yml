@@ -51,6 +51,7 @@ command:
   placeholder: "Type a command…"
   dashboard: "Go to Home"
   library: "Go to Library"
+  activity: "Go to Activity"
   settings: "Go to Settings"
   account: "Go to Account"
   about: "Go to About"
@@ -66,3 +67,7 @@ account:
   sign_out: "Sign out"
   email: "Email"
   password: "Password"
+activity:
+  title: "Activity"
+  subtitle: "Background work and sync status."
+  empty: "No background jobs are running."

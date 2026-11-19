@@ -12,9 +12,10 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Navigate(Pane::Dashboard),
         Self::Navigate(Pane::Library),
+        Self::Navigate(Pane::Activity),
         Self::Navigate(Pane::Settings),
         Self::Navigate(Pane::Account),
         Self::Navigate(Pane::About),
@@ -29,6 +30,7 @@ impl Command {
         match self {
             Self::Navigate(Pane::Dashboard) => "command.dashboard",
             Self::Navigate(Pane::Library) => "command.library",
+            Self::Navigate(Pane::Activity) => "command.activity",
             Self::Navigate(Pane::Settings) => "command.settings",
             Self::Navigate(Pane::Account) => "command.account",
             Self::Navigate(Pane::About) => "command.about",

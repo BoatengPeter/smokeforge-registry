@@ -51,6 +51,7 @@ command:
   placeholder: "Escribe un comando…"
   dashboard: "Ir a Inicio"
   library: "Ir a Biblioteca"
+  activity: "Ir a Actividad"
   settings: "Ir a Ajustes"
   account: "Ir a Cuenta"
   about: "Ir a Acerca de"
@@ -66,3 +67,7 @@ account:
   sign_out: "Cerrar sesión"
   email: "Correo"
   password: "Contraseña"
+activity:
+  title: "Actividad"
+  subtitle: "Trabajo en segundo plano y estado de sincronización."
+  empty: "No hay trabajos en segundo plano."
