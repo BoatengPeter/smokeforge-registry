@@ -1,0 +1,15 @@
+app:
+  name: "Smokeforge"
+nav:
+  dashboard: "Inicio"
+  library: "Biblioteca"
+  activity: "Actividad"
+  settings: "Ajustes"
+  account: "Cuenta"
+  about: "Acerca de"
+sidebar:
+  workspace: "Espacio"
+  footer: "Local · Rust · GPUI"
+status:
+  local: "Local"
+  version: "GPUI Kit 0.10 · fijado 0.3.12"
