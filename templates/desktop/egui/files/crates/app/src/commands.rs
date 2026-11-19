@@ -12,10 +12,11 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Navigate(Pane::Dashboard),
         Self::Navigate(Pane::Library),
         Self::Navigate(Pane::Settings),
+        Self::Navigate(Pane::Account),
         Self::Navigate(Pane::About),
         Self::NewRecord,
         Self::ToggleSidebar,
@@ -29,6 +30,7 @@ impl Command {
             Self::Navigate(Pane::Dashboard) => "command.dashboard",
             Self::Navigate(Pane::Library) => "command.library",
             Self::Navigate(Pane::Settings) => "command.settings",
+            Self::Navigate(Pane::Account) => "command.account",
             Self::Navigate(Pane::About) => "command.about",
             Self::NewRecord => "command.new_record",
             Self::ToggleSidebar => "command.toggle_sidebar",
