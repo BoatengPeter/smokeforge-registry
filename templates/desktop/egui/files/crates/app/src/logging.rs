@@ -9,6 +9,13 @@ pub struct LoggingGuard {
     _guard: Option<WorkerGuard>,
 }
 
+impl LoggingGuard {
+    #[must_use]
+    pub const fn disabled() -> Self {
+        Self { _guard: None }
+    }
+}
+
 #[must_use]
 pub fn init(log_dir: &Path, level: &str) -> LoggingGuard {
     let _ = std::fs::create_dir_all(log_dir);

@@ -117,6 +117,48 @@ impl DesktopApp {
         })
     }
 
+    /// Builds a temporary app for UI tests.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the temporary `SQLite` database cannot be created.
+    #[cfg(test)]
+    #[must_use]
+    pub fn for_tests() -> Self {
+        let root =
+            std::env::temp_dir().join(format!("smokeforge-egui-test-{}", uuid::Uuid::new_v4()));
+        let _ = std::fs::create_dir_all(root.join("data"));
+        let _ = std::fs::create_dir_all(root.join("config"));
+        let paths = Paths {
+            data: root.join("data"),
+            config: root.join("config"),
+            logs: root.join("logs"),
+        };
+        let database = Database::open(&paths.data.join("local.sqlite")).unwrap();
+        database.seed_if_empty().unwrap();
+        let tree = Tree::new_tabs(
+            egui::Id::unique("workspace-test"),
+            Pane::all().into_iter().collect(),
+        );
+        let settings_store = SettingsStore::new(&paths.config);
+        Self {
+            paths,
+            settings: Settings::default(),
+            settings_store,
+            database: Mutex::new(database),
+            tree,
+            pane: Pane::Dashboard,
+            search: String::new(),
+            selected: None,
+            draft: LibraryDraft::default(),
+            toasts: egui_notify::Toasts::default(),
+            palette_open: false,
+            palette_query: String::new(),
+            logging_guard: logging::LoggingGuard::disabled(),
+            last_deleted: None,
+        }
+    }
+
     pub fn restore_layout(&mut self, storage: &dyn eframe::Storage) {
         if let Some(state) = eframe::get_value::<LayoutState>(storage, eframe::APP_KEY) {
             self.tree = state.tree;
@@ -386,18 +428,19 @@ impl DesktopApp {
         }
 
         let controls = [
-            ("−", egui::ViewportCommand::Minimized(true)),
-            ("□", egui::ViewportCommand::Maximized(true)),
-            ("×", egui::ViewportCommand::Close),
+            ("-", "Minimize", egui::ViewportCommand::Minimized(true)),
+            ("[]", "Maximize", egui::ViewportCommand::Maximized(true)),
+            ("x", "Close", egui::ViewportCommand::Close),
         ];
         let mut right = rect.right() - 6.0;
-        for (label, command) in controls {
+        for (label, name, command) in controls {
             let button_rect = egui::Rect::from_min_size(
                 egui::pos2(right - 30.0, rect.center().y - 13.0),
                 egui::vec2(28.0, 26.0),
             );
             if ui
                 .put(button_rect, egui::Button::new(label).frame(false))
+                .on_hover_text(name)
                 .clicked()
             {
                 ui.ctx().send_viewport_cmd(command);
@@ -444,7 +487,8 @@ impl DesktopApp {
                     }
                 }
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                    if ui.button("⚙").clicked() {
+                    let toggle = if self.settings.sidebar_open { "<" } else { ">" };
+                    if ui.button(toggle).on_hover_text("Toggle sidebar").clicked() {
                         self.dispatch(Action::ToggleSidebar);
                     }
                 });
@@ -456,7 +500,7 @@ impl DesktopApp {
         ui.separator();
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(" ● Online · Local".to_owned())
+                RichText::new("Online · Local".to_owned())
                     .small()
                     .color(theme::SUCCESS),
             );
@@ -466,7 +510,7 @@ impl DesktopApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(RichText::new("v0.1.0").small().color(theme::TEXT_SECONDARY));
                 ui.label(
-                    RichText::new("Ctrl/⌘K")
+                    RichText::new("Ctrl/Cmd+K")
                         .small()
                         .color(theme::TEXT_SECONDARY),
                 );
@@ -768,13 +812,33 @@ fn stat(ui: &mut egui::Ui, label: String, value: String) {
 
 fn icon(pane: Pane) -> &'static str {
     match pane {
-        Pane::Dashboard => "⌂",
-        Pane::Library => "▤",
-        Pane::Settings => "⚙",
+        Pane::Dashboard => "H",
+        Pane::Library => "L",
+        Pane::Settings => "S",
         Pane::About => "?",
     }
 }
 
 fn t(key: &str) -> String {
     rust_i18n::t!(key).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    #[test]
+    fn command_palette_navigates_and_names_controls() {
+        let mut app = DesktopApp::for_tests();
+        app.palette_open = true;
+
+        let mut harness = Harness::new_ui_state(|ui, app| app.render(ui), app);
+        harness.run();
+        harness.get_by_label("Go to Library").click();
+        harness.run();
+
+        assert_eq!(harness.state().pane, Pane::Library);
+    }
 }
