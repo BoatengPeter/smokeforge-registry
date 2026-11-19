@@ -54,6 +54,7 @@ pub struct ApiClient {
     base: Url,
     http: Client,
     access_token: Option<String>,
+    refresh_token: Option<String>,
 }
 
 impl ApiClient {
@@ -67,11 +68,17 @@ impl ApiClient {
             base: Url::parse(base)?,
             http: Client::builder().build()?,
             access_token: None,
+            refresh_token: None,
         })
     }
 
     pub fn set_access_token(&mut self, token: Option<String>) {
         self.access_token = token;
+    }
+
+    pub fn set_session(&mut self, access_token: String, refresh_token: String) {
+        self.access_token = Some(access_token);
+        self.refresh_token = Some(refresh_token);
     }
 
     /// Authenticates with email and password.
@@ -92,6 +99,7 @@ impl ApiClient {
             .await?;
         let tokens: TokenResponse = self.decode(response).await?;
         self.access_token = Some(tokens.access_token.clone());
+        self.refresh_token = Some(tokens.refresh_token.clone());
         Ok(ApiSession {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
@@ -113,6 +121,7 @@ impl ApiClient {
             .await?;
         let tokens: TokenResponse = self.decode(response).await?;
         self.access_token = Some(tokens.access_token.clone());
+        self.refresh_token = Some(tokens.refresh_token.clone());
         Ok(ApiSession {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
@@ -133,6 +142,7 @@ impl ApiClient {
             .send()
             .await?;
         self.access_token = None;
+        self.refresh_token = None;
         self.expect_empty(response).await
     }
 

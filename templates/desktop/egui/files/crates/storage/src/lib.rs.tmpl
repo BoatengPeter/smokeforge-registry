@@ -356,6 +356,115 @@ impl Database {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct OutboxRow {
+    pub id: String,
+    pub item_id: String,
+    pub operation: String,
+    pub payload: String,
+    pub idempotency_key: String,
+    pub attempts: i64,
+    pub next_attempt_at: String,
+}
+
+impl Database {
+    /// Adds a mutation to the durable sync outbox.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the insert fails.
+    pub fn enqueue_outbox(
+        &self,
+        id: &str,
+        item_id: &str,
+        operation: &str,
+        payload: &str,
+        idempotency_key: &str,
+    ) -> Result<(), StorageError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.connection.execute(
+            "INSERT INTO outbox (id, item_id, operation, payload, idempotency_key, attempts, next_attempt_at, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?6)",
+            params![id, item_id, operation, payload, idempotency_key, now],
+        )?;
+        Ok(())
+    }
+
+    /// Loads outbox rows that are due, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query fails.
+    pub fn pending_outbox(&self, limit: i64) -> Result<Vec<OutboxRow>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, item_id, operation, payload, idempotency_key, attempts, next_attempt_at
+             FROM outbox WHERE next_attempt_at <= ?1 ORDER BY created_at LIMIT ?2",
+        )?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let rows = statement.query_map(params![now, limit], |row| {
+            Ok(OutboxRow {
+                id: row.get(0)?,
+                item_id: row.get(1)?,
+                operation: row.get(2)?,
+                payload: row.get(3)?,
+                idempotency_key: row.get(4)?,
+                attempts: row.get(5)?,
+                next_attempt_at: row.get(6)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    /// Removes an acknowledged outbox row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the delete fails.
+    pub fn acknowledge_outbox(&self, id: &str) -> Result<(), StorageError> {
+        self.connection
+            .execute("DELETE FROM outbox WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Reschedules a failed outbox row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the update fails.
+    pub fn retry_outbox(&self, id: &str, next_attempt_at: &str) -> Result<(), StorageError> {
+        self.connection.execute(
+            "UPDATE outbox SET attempts = attempts + 1, next_attempt_at = ?2 WHERE id = ?1",
+            params![id, next_attempt_at],
+        )?;
+        Ok(())
+    }
+
+    /// Records a manual conflict for an item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the insert fails.
+    pub fn record_conflict(
+        &self,
+        item_id: &str,
+        local_payload: &str,
+        remote_payload: &str,
+    ) -> Result<(), StorageError> {
+        self.connection.execute(
+            "INSERT OR REPLACE INTO conflicts (item_id, local_payload, remote_payload, created_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                item_id,
+                local_payload,
+                remote_payload,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )?;
+        Ok(())
+    }
+}
+
 fn status_value(status: LibraryStatus) -> &'static str {
     match status {
         LibraryStatus::Draft => "draft",
@@ -534,6 +643,22 @@ mod tests {
             .unwrap();
         assert_eq!(database.clear_library().unwrap(), 1);
         assert!(database.list("", None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn outbox_rows_can_be_retried_and_acknowledged() {
+        let dir = temp_dir("outbox");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database
+            .enqueue_outbox("op-1", "item-1", "update", "{}", "key-1")
+            .unwrap();
+        let rows = database.pending_outbox(10).unwrap();
+        assert_eq!(rows.len(), 1);
+        database
+            .retry_outbox("op-1", "2999-01-01T00:00:00Z")
+            .unwrap();
+        assert!(database.pending_outbox(10).unwrap().is_empty());
+        database.acknowledge_outbox("op-1").unwrap();
     }
 
     #[test]
