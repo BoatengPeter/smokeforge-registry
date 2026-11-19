@@ -315,7 +315,7 @@ features:
           rust/axum: overlays/backend/rust/dedupe/redis
 
   - id: compression
-    name: "Queue — enable if you need background jobs" compression
+    name: "Queue compression — enable if you use RabbitMQ"
     kinds: [backend]
     variants:
       - id: gzip
@@ -413,7 +413,7 @@ features:
       rust/axum: overlays/backend/rust/media/core
 
   - id: media-provider
-    name: "Media — enable if you store or process images/files" provider
+    name: "Media provider — enable if you store or process images/files"
     kinds: [backend]
     requires: [media]
     variants:
@@ -468,7 +468,7 @@ features:
           rust/axum: overlays/backend/rust/search/meilisearch
 
   - id: search-sync
-    name: "Search — enable if you need full-text search" index sync
+    name: "Search index sync — enable with Meilisearch + RabbitMQ"
     kinds: [backend]
     variants:
       - id: rabbitmq
