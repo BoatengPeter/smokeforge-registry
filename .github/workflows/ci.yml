@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.8
+          ref: v0.2.9
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.8
+          ref: v0.2.9
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.8
+          ref: v0.2.9
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -149,7 +149,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.8
+          ref: v0.2.9
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -248,7 +248,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.2.8
+          ref: v0.2.9
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -276,6 +276,57 @@ jobs:
             --no-input --no-git
       - name: Rust quality gate
         working-directory: /tmp/egui-desktop
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+
+  verify-gpui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: registry
+      - uses: actions/checkout@v4
+        with:
+          repository: BoatengPeter/smokeforge
+          ref: v0.2.9
+          path: cli
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+      - name: Build smokeforge
+        run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
+        working-directory: cli
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install GPUI Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libfontconfig1-dev libfreetype6-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libxcb1-dev
+      - name: Generate GPUI desktop app
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: |
+          "$SMOKEFORGE_BIN" new /tmp/gpui-desktop \
+            --registry "$GITHUB_WORKSPACE/registry" \
+            --kind desktop --stack desktop/gpui \
+            --name "Verify GPUI Desktop" --preset desktop-gpui \
+            --var crate_name=gpui_desktop_ci \
+            --var bundle_id=com.example.gpuici \
+            --var api_url=http://localhost:8080 \
+            --no-input --no-git
+      - name: Verify pinned GPUI snapshot
+        working-directory: /tmp/gpui-desktop
+        run: |
+          grep -A2 'name = "gpui-pre"' Cargo.lock | grep -q 'version = "0.3.12"'
+      - name: Rust quality gate
+        working-directory: /tmp/gpui-desktop
         run: |
           cargo fmt --all -- --check
           cargo clippy --workspace --all-targets -- -D warnings
