@@ -1,0 +1,19 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(
+    clippy::wildcard_imports,
+    reason = "GPUI Kit exports the framework prelude."
+)]
+
+use gpui_kit::*;
+
+fn main() {
+    gpui_kit::application()
+        .with_assets(gpui_kit::assets::Assets)
+        .run(|cx| {
+            gpui_kit::init(cx);
+            gpui_kit::open_window(WindowOptions::default(), cx, |_window, cx| {
+                cx.new(|_| {{.crate_name}}_app::AppView::new())
+            })
+            .expect("failed to open the main window");
+        });
+}

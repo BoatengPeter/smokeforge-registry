@@ -1,0 +1,5 @@
+name = "{{.project_name}}"
+identifier = "{{.bundle_id}}"
+out_dir = "dist"
+formats = ["appimage", "deb"]
+before_packaging = ["cargo", "build", "--release"]

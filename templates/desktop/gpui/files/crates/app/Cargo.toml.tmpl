@@ -1,0 +1,18 @@
+[package]
+name = "{{.crate_name}}_app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+gpui-kit.workspace = true
+{{.crate_name}}_core = { path = "../core" }
+{{.crate_name}}_storage = { path = "../storage" }
+{{.crate_name}}_ui = { path = "../ui" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+gpui-kit = { version = "=0.10.0", features = ["test-support"] }

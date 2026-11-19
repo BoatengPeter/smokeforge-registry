@@ -1,0 +1,11 @@
+id: desktop/gpui
+variables:
+  - name: crate_name
+    prompt: Rust crate name (snake_case)
+    default: example_app
+  - name: bundle_id
+    prompt: Bundle identifier
+    default: com.example.app
+  - name: api_url
+    prompt: API URL
+    default: http://localhost:8080

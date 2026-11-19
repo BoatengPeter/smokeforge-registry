@@ -1,0 +1,36 @@
+.PHONY: help install build check test lint fmt run package clean
+
+help:
+	@echo "make run       Run the GPUI desktop app"
+	@echo "make check     Cargo check the workspace"
+	@echo "make test      Run workspace tests"
+	@echo "make lint      Run clippy with warnings denied"
+	@echo "make fmt       Format the workspace"
+	@echo "make package   Build a native package with cargo-packager"
+
+install:
+	cargo fetch
+
+run:
+	cargo run -p {{.crate_name}}
+
+build:
+	cargo build --workspace
+
+check:
+	cargo check --workspace
+
+test:
+	cargo test --workspace
+
+lint:
+	cargo clippy --workspace --all-targets -- -D warnings
+
+fmt:
+	cargo fmt --all
+
+package:
+	cargo packager --release
+
+clean:
+	cargo clean

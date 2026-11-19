@@ -1,0 +1,99 @@
+id: desktop-gpui
+name: Fullstack GPUI desktop wiring
+files: files
+ops:
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-phony
+      marker: desktop:gpui-phony
+      content: |
+        .PHONY: desktop-dev desktop-check desktop-test desktop-build desktop-package
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-help
+      marker: desktop:gpui-help
+      content: |
+        @echo "make desktop-dev     Run the GPUI desktop app"
+        @echo "make desktop-check   Cargo check the GPUI workspace"
+        @echo "make desktop-test    Run GPUI workspace tests"
+        @echo "make desktop-build   Build the GPUI workspace"
+        @echo "make desktop-package Package the GPUI app"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-targets
+      marker: desktop:gpui-targets
+      content: |-
+        desktop-dev:
+        	$(MAKE) -C apps/desktop run
+
+        desktop-check:
+        	$(MAKE) -C apps/desktop check
+
+        desktop-test:
+        	$(MAKE) -C apps/desktop test
+
+        desktop-build:
+        	$(MAKE) -C apps/desktop build
+
+        desktop-package:
+        	$(MAKE) -C apps/desktop package
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-install
+      marker: desktop:gpui-install
+      content: "\t$(MAKE) -C apps/desktop install"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-test
+      marker: desktop:gpui-test
+      content: "\t$(MAKE) -C apps/desktop test"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-ci
+      marker: desktop:gpui-ci
+      content: "\t$(MAKE) -C apps/desktop check"
+  - insertAfter:
+      file: Makefile
+      anchor: desktop-clean
+      marker: desktop:gpui-clean
+      content: "\t$(MAKE) -C apps/desktop clean"
+  - insertAfter:
+      file: README.md
+      anchor: desktop-readme
+      marker: desktop:gpui-readme
+      content: |-
+        ## Desktop client
+
+        When generated with `--desktop gpui`, the workspace also contains
+        `apps/desktop`: a native Rust eframe application with a local SQLite
+        Library, project-scoped Rust skills, and an API-backed mode reserved for
+        the API-client milestone.
+
+        ```bash
+        make desktop-dev
+        make desktop-test
+        make desktop-build
+        ```
+
+        The native app never exposes credentials to a renderer and owns its
+        local database, settings, and keyring access. See
+        [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md) and
+        [`apps/desktop/docs/UI.md`](apps/desktop/docs/UI.md).
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: desktop-context
+      marker: desktop:gpui-context
+      content: |-
+        ## Native GPUI target
+
+        When `apps/desktop` is generated with `--desktop gpui`:
+
+        - UI/app: `apps/desktop/crates/app`
+        - Domain: `apps/desktop/crates/core`
+        - Local data: `apps/desktop/crates/storage` with `rusqlite`
+        - API client: `apps/desktop/crates/api-client`
+        - Entry point: `apps/desktop/crates/desktop`
+
+        The API remains the source of truth. The GPUI app is local-first now;
+        generated API authentication and offline sync are added by the dedicated
+        egui milestones. Do not copy the Electron IPC/session model into it.

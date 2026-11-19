@@ -55,6 +55,11 @@ stacks:
     name: egui
     template: templates/desktop/egui
     variables: [crate_name, bundle_id, api_url]
+  - id: desktop/gpui
+    kind: desktop
+    name: GPUI
+    template: templates/desktop/gpui
+    variables: [crate_name, bundle_id, api_url]
 presets:
   - id: fullstack
     name: Fullstack SaaS
@@ -79,6 +84,12 @@ presets:
     description: Rust local-first desktop app with egui, SQLite, keyring, and optional fullstack API sync
     kinds: [desktop]
     stacks: [desktop/egui]
+    features: []
+  - id: desktop-gpui
+    name: Native GPUI desktop app
+    description: GPUI Kit desktop app with pinned GPUI snapshot, SQLite, keyring, and optional fullstack API sync
+    kinds: [desktop]
+    stacks: [desktop/gpui]
     features: []
   - id: api
     name: Backend API
@@ -126,6 +137,7 @@ features:
           workspace/fullstack: overlays/workspace/fullstack/ci
           desktop/electron: overlays/desktop/electron/ci/github
           desktop/egui: overlays/desktop/egui/ci/github
+          desktop/gpui: overlays/desktop/gpui/ci/github
   - id: database
     name: Database
     kinds: [backend, frontend]
