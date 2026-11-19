@@ -292,7 +292,7 @@ impl DesktopApp {
                     if let Some(id) = self.selected {
                         match database.update(id, &self.draft) {
                             Ok(Some(item)) => {
-                                self.queue_outbox(&database, "update", &item);
+                                Self::queue_outbox(&database, "update", &item);
                                 self.toasts.success("Record saved.");
                             }
                             Ok(None) => {
@@ -305,7 +305,7 @@ impl DesktopApp {
                     } else {
                         match database.create(&self.draft) {
                             Ok(item) => {
-                                self.queue_outbox(&database, "create", &item);
+                                Self::queue_outbox(&database, "create", &item);
                                 self.selected = Some(item.id);
                                 self.toasts.success("Record created.");
                             }
@@ -323,7 +323,7 @@ impl DesktopApp {
                     match database.soft_delete(id) {
                         Ok(true) => {
                             if let Ok(Some(item)) = database.get(id) {
-                                self.queue_outbox(&database, "delete", &item);
+                                Self::queue_outbox(&database, "delete", &item);
                             }
                             self.last_deleted = Some(id);
                             self.selected = None;
@@ -734,7 +734,7 @@ impl DesktopApp {
         let conflicts = self.database.lock().ok().map_or(0, |database| {
             database.conflicts().map_or(0, |rows| rows.len())
         });
-        ui.label(format!("{} pending sync conflicts", conflicts));
+        ui.label(format!("{conflicts} pending sync conflicts"));
         ui.add_space(12.0);
         ui.label(t("activity.empty"));
     }
@@ -940,7 +940,6 @@ impl DesktopApp {
     }
 
     fn queue_outbox(
-        &self,
         database: &{{.crate_name}}_storage::Database,
         operation: &str,
         item: &{{.crate_name}}_core::LibraryItem,
@@ -987,7 +986,7 @@ impl DesktopApp {
 
     fn start_sync(&mut self) {
         let Some(token) = self.access_token.clone() else {
-            self.sync_status = "Sign in before syncing.".to_owned();
+            "Sign in before syncing.".clone_into(&mut self.sync_status);
             return;
         };
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -995,7 +994,7 @@ impl DesktopApp {
         let path = self.paths.data.join("local.sqlite");
         let base = self.api_base.clone();
         std::thread::spawn(move || {
-            let report = sync::run(path, base, token);
+            let report = sync::run(&path, &base, token);
             let _ = sender.send(report);
         });
     }

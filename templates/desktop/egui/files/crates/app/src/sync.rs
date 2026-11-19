@@ -1,7 +1,5 @@
 //! Minimal background push for the durable outbox.
 
-use std::path::PathBuf;
-
 use api_client::{ApiClient, ApiClientError};
 use reqwest::Method;
 use serde_json::Value;
@@ -16,9 +14,9 @@ pub struct SyncReport {
     pub error: Option<String>,
 }
 
-pub fn run(db_path: PathBuf, base: String, access_token: String) -> SyncReport {
+pub fn run(db_path: &std::path::Path, base: &str, access_token: String) -> SyncReport {
     let mut report = SyncReport::default();
-    let Ok(database) = Database::open(&db_path) else {
+    let Ok(database) = Database::open(db_path) else {
         report.error = Some("could not open the local database".to_owned());
         return report;
     };
@@ -29,7 +27,7 @@ pub fn run(db_path: PathBuf, base: String, access_token: String) -> SyncReport {
         report.error = Some("could not start the sync runtime".to_owned());
         return report;
     };
-    let Ok(mut client) = ApiClient::new(&base) else {
+    let Ok(mut client) = ApiClient::new(base) else {
         report.error = Some("invalid API URL".to_owned());
         return report;
     };
