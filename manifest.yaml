@@ -148,7 +148,7 @@ features:
           rust/axum: overlays/backend/rust/database/postgres
           next: overlays/next/database/postgres
   - id: cache
-    name: Cache
+    name: "Cache — enable if you need Redis caching"
     kinds: [backend]
     variants:
       - id: redis
@@ -179,7 +179,7 @@ features:
           next: overlays/next/state/zustand
           desktop/electron: overlays/desktop/electron/state/zustand
   - id: testing
-    name: End-to-end testing
+    name: "End-to-end testing — enable if you need Playwright"
     kinds: [frontend, desktop]
     variants:
       - id: e2e
@@ -190,7 +190,7 @@ features:
           next: overlays/next/testing/e2e
           desktop/electron: overlays/desktop/electron/testing/e2e
   - id: analytics
-    name: Analytics
+    name: "Analytics — enable if you use PostHog"
     kinds: [frontend]
     variants:
       - id: posthog
@@ -200,7 +200,7 @@ features:
           next: overlays/next/analytics/posthog
 
   - id: sync
-    name: Offline sync
+    name: "Offline sync — enable for desktop Library sync"
     kinds: [backend, desktop]
     variants:
       - id: library
@@ -255,7 +255,7 @@ features:
           next: overlays/next/data/tanstack-query
           desktop/electron: overlays/desktop/electron/data/tanstack-query
   - id: queue
-    name: Queue
+    name: "Queue — enable if you need background jobs"
     kinds: [backend]
     variants:
       - id: rabbitmq
@@ -275,7 +275,7 @@ features:
           rust/axum: overlays/backend/rust/queue/rabbitmq
 
   - id: scheduler
-    name: Scheduler
+    name: "Scheduler — enable if you need recurring jobs"
     kinds: [backend]
     variants:
       - id: leader
@@ -295,7 +295,7 @@ features:
           rust/axum: overlays/backend/rust/scheduler/leader
 
   - id: dedupe
-    name: Job deduplication
+    name: "Job deduplication — enable if jobs may run twice"
     kinds: [backend]
     variants:
       - id: redis
@@ -315,7 +315,7 @@ features:
           rust/axum: overlays/backend/rust/dedupe/redis
 
   - id: compression
-    name: Queue compression
+    name: "Queue — enable if you need background jobs" compression
     kinds: [backend]
     variants:
       - id: gzip
@@ -413,7 +413,7 @@ features:
       rust/axum: overlays/backend/rust/media/core
 
   - id: media-provider
-    name: Media provider
+    name: "Media — enable if you store or process images/files" provider
     kinds: [backend]
     requires: [media]
     variants:
@@ -448,7 +448,7 @@ features:
           rust/axum: overlays/backend/rust/media/r2
 
   - id: search
-    name: Search
+    name: "Search — enable if you need full-text search"
     kinds: [backend]
     variants:
       - id: meilisearch
@@ -468,7 +468,7 @@ features:
           rust/axum: overlays/backend/rust/search/meilisearch
 
   - id: search-sync
-    name: Search index sync
+    name: "Search — enable if you need full-text search" index sync
     kinds: [backend]
     variants:
       - id: rabbitmq

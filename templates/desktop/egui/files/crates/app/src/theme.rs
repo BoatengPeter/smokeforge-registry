@@ -3,7 +3,7 @@
 //! Feature code must read colors from this module rather than defining its own
 //! palette values.
 
-use egui::{Color32, Stroke, Visuals};
+use egui::{Color32, CornerRadius, FontFamily, FontId, Stroke, TextStyle, Visuals};
 
 pub const BACKGROUND: Color32 = Color32::from_rgb(14, 15, 17);
 pub const PANEL: Color32 = Color32::from_rgb(18, 19, 22);
@@ -66,6 +66,29 @@ pub fn apply_visuals(ctx: &egui::Context, theme: &str, high_contrast: bool) {
         visuals.selection.bg_fill = ACCENT;
     }
 
+    let radius = CornerRadius::same(6);
+    for widget in [
+        &mut visuals.widgets.noninteractive,
+        &mut visuals.widgets.inactive,
+        &mut visuals.widgets.hovered,
+        &mut visuals.widgets.active,
+        &mut visuals.widgets.open,
+    ] {
+        widget.corner_radius = radius;
+    }
+
+    visuals.widgets.inactive.weak_bg_fill = RAISED;
+    visuals.widgets.inactive.bg_stroke = BORDER_STROKE;
+    visuals.widgets.hovered.weak_bg_fill = HOVERED;
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, ACCENT);
+    visuals.widgets.active.weak_bg_fill = SELECTION;
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0, ACCENT);
+    visuals.widgets.noninteractive.bg_stroke = BORDER_STROKE;
+    visuals.window_corner_radius = CornerRadius::same(8);
+    visuals.menu_corner_radius = CornerRadius::same(8);
+    visuals.window_stroke = BORDER_STROKE;
+    visuals.selection.stroke = Stroke::new(1.0, ON_SELECTION);
+
     if high_contrast {
         visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.5, TEXT);
         visuals.widgets.inactive.bg_stroke = Stroke::new(1.5, TEXT);
@@ -77,4 +100,30 @@ pub fn apply_visuals(ctx: &egui::Context, theme: &str, high_contrast: bool) {
     }
 
     ctx.set_visuals(visuals);
+    ctx.all_styles_mut(|style| {
+        style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+        style.spacing.button_padding = egui::vec2(10.0, 5.0);
+        style.spacing.interact_size = egui::vec2(36.0, 30.0);
+        style.animation_time = 0.12;
+        style.text_styles = [
+            (
+                TextStyle::Heading,
+                FontId::new(20.0, FontFamily::Proportional),
+            ),
+            (TextStyle::Body, FontId::new(13.0, FontFamily::Proportional)),
+            (
+                TextStyle::Button,
+                FontId::new(13.0, FontFamily::Proportional),
+            ),
+            (
+                TextStyle::Small,
+                FontId::new(11.0, FontFamily::Proportional),
+            ),
+            (
+                TextStyle::Monospace,
+                FontId::new(12.0, FontFamily::Monospace),
+            ),
+        ]
+        .into();
+    });
 }
