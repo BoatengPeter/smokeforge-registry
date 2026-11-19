@@ -324,6 +324,7 @@ jobs:
       - name: Verify pinned GPUI snapshot
         working-directory: /tmp/gpui-desktop
         run: |
+          cargo generate-lockfile
           grep -A2 'name = "gpui-pre"' Cargo.lock | grep -q 'version = "0.3.12"'
       - name: Rust quality gate
         working-directory: /tmp/gpui-desktop
