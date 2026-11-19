@@ -12,6 +12,14 @@ fn main() {
         .with_assets(gpui_kit::assets::Assets)
         .run(|cx| {
             gpui_kit::init(cx);
+            cx.bind_keys([
+                KeyBinding::new("cmd-1", {{.crate_name}}_app::ShowDashboard, None),
+                KeyBinding::new("cmd-2", {{.crate_name}}_app::ShowLibrary, None),
+                KeyBinding::new("cmd-3", {{.crate_name}}_app::ShowActivity, None),
+                KeyBinding::new("cmd-4", {{.crate_name}}_app::ShowSettings, None),
+                KeyBinding::new("cmd-5", {{.crate_name}}_app::ShowAccount, None),
+                KeyBinding::new("cmd-6", {{.crate_name}}_app::ShowAbout, None),
+            ]);
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                     None,

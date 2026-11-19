@@ -14,6 +14,20 @@ use gpui_kit::component::sidebar::{
 use gpui_kit::component::status_bar::StatusBar;
 use gpui_kit::*;
 
+rust_i18n::i18n!("locales");
+
+gpui_kit::actions!(
+    smokeforge,
+    [
+        ShowDashboard,
+        ShowLibrary,
+        ShowActivity,
+        ShowSettings,
+        ShowAccount,
+        ShowAbout
+    ]
+);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
     Dashboard,
@@ -34,15 +48,19 @@ impl Pane {
         Self::About,
     ];
 
-    const fn label(self) -> &'static str {
+    const fn title_key(self) -> &'static str {
         match self {
-            Self::Dashboard => "Home",
-            Self::Library => "Library",
-            Self::Activity => "Activity",
-            Self::Settings => "Settings",
-            Self::Account => "Account",
-            Self::About => "About",
+            Self::Dashboard => "nav.dashboard",
+            Self::Library => "nav.library",
+            Self::Activity => "nav.activity",
+            Self::Settings => "nav.settings",
+            Self::Account => "nav.account",
+            Self::About => "nav.about",
         }
+    }
+
+    fn label(self) -> String {
+        t(self.title_key())
     }
 }
 
@@ -67,28 +85,27 @@ impl Default for AppView {
 
 impl Render for AppView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let sidebar = Sidebar::new("main-sidebar")
-            .w(px(212.))
-            .header(SidebarHeader::new().child("Smokeforge"))
-            .child(
-                SidebarGroup::new("Workspace").child(SidebarMenu::new().children(Pane::ALL.map(
-                    |pane| {
+        let sidebar =
+            Sidebar::new("main-sidebar")
+                .w(px(212.))
+                .header(SidebarHeader::new().child(t("app.name")))
+                .child(SidebarGroup::new(t("sidebar.workspace")).child(
+                    SidebarMenu::new().children(Pane::ALL.map(|pane| {
                         SidebarMenuItem::new(pane.label())
                             .active(self.active == pane)
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.active = pane;
                                 cx.notify();
                             }))
-                    },
-                ))),
-            )
-            .footer(SidebarFooter::new().child("Local · Rust · GPUI"));
+                    })),
+                ))
+                .footer(SidebarFooter::new().child(t("sidebar.footer")));
 
         v_flex()
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(TitleBar::new().child("Smokeforge"))
+            .child(TitleBar::new().child(t("app.name")))
             .child(
                 h_flex().flex_1().min_h_0().child(sidebar).child(
                     v_flex()
@@ -106,8 +123,36 @@ impl Render for AppView {
             )
             .child(
                 StatusBar::new()
-                    .left("Local")
-                    .right("GPUI Kit 0.10 · pinned 0.3.12"),
+                    .left(t("status.local"))
+                    .right(t("status.version")),
             )
+            .on_action(cx.listener(|this, _: &ShowDashboard, _, cx| {
+                this.active = Pane::Dashboard;
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &ShowLibrary, _, cx| {
+                this.active = Pane::Library;
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &ShowActivity, _, cx| {
+                this.active = Pane::Activity;
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &ShowSettings, _, cx| {
+                this.active = Pane::Settings;
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &ShowAccount, _, cx| {
+                this.active = Pane::Account;
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &ShowAbout, _, cx| {
+                this.active = Pane::About;
+                cx.notify();
+            }))
     }
+}
+
+fn t(key: &str) -> String {
+    rust_i18n::t!(key).to_string()
 }
