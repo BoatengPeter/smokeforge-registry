@@ -73,5 +73,20 @@ pub fn run(db_path: PathBuf, base: String, access_token: String) -> SyncReport {
         }
     }
 
+    let cursor = database.sync_cursor();
+    match runtime.block_on(client.library_changes(cursor)) {
+        Ok(value) => {
+            if let Some(changes) = value.get("changes").and_then(Value::as_array) {
+                for change in changes {
+                    let _ = database.apply_remote_change(change);
+                }
+            }
+            if let Some(cursor) = value.get("cursor").and_then(Value::as_i64) {
+                let _ = database.set_sync_cursor(cursor);
+            }
+        }
+        Err(error) => report.error = Some(error.to_string()),
+    }
+
     report
 }

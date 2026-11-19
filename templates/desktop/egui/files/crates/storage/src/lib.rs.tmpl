@@ -440,6 +440,121 @@ impl Database {
         Ok(())
     }
 
+    #[must_use]
+    pub fn sync_cursor(&self) -> i64 {
+        self.connection
+            .query_row(
+                "SELECT value FROM sync_state WHERE key = 'library_cursor'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// Advances the Library changefeed cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the cursor cannot be saved.
+    pub fn set_sync_cursor(&self, cursor: i64) -> Result<(), StorageError> {
+        self.connection.execute(
+            "INSERT OR REPLACE INTO sync_state (key, value) VALUES ('library_cursor', ?1)",
+            params![cursor.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Applies a remote change unless the item has a pending local mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database write fails.
+    pub fn apply_remote_change(&self, change: &serde_json::Value) -> Result<bool, StorageError> {
+        let item_id = change
+            .get("item_id")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        let pending: i64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM outbox WHERE item_id = ?1",
+            params![item_id],
+            |row| row.get(0),
+        )?;
+        if pending > 0 {
+            return Ok(false);
+        }
+        let Some(item) = change.get("item") else {
+            return Ok(false);
+        };
+        if change.get("operation").and_then(serde_json::Value::as_str) == Some("delete") {
+            self.connection
+                .execute("DELETE FROM library_items WHERE id = ?1", params![item_id])?;
+            return Ok(true);
+        }
+        let tags = item
+            .get("tags")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([]));
+        self.connection.execute(
+            "INSERT OR REPLACE INTO library_items
+             (id, title, description, status, tags_json, version, sync_status, created_at, updated_at, deleted_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'synced', ?7, ?8, NULL)",
+            params![
+                item_id,
+                item.get("title").and_then(serde_json::Value::as_str).unwrap_or_default(),
+                item.get("description").and_then(serde_json::Value::as_str).unwrap_or_default(),
+                item.get("status").and_then(serde_json::Value::as_str).unwrap_or("draft"),
+                tags.to_string(),
+                item.get("version").and_then(serde_json::Value::as_i64).unwrap_or(1),
+                item.get("created_at").and_then(serde_json::Value::as_str).unwrap_or_default(),
+                item.get("updated_at").and_then(serde_json::Value::as_str).unwrap_or_default(),
+            ],
+        )?;
+        Ok(true)
+    }
+
+    /// Lists unresolved conflicts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query fails.
+    pub fn conflicts(&self) -> Result<Vec<(String, String, String)>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT item_id, local_payload, remote_payload FROM conflicts ORDER BY created_at",
+        )?;
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    /// Resolves a conflict by keeping the local payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the conflict cannot be removed.
+    pub fn resolve_conflict_local(&self, item_id: &str) -> Result<(), StorageError> {
+        self.connection
+            .execute("DELETE FROM conflicts WHERE item_id = ?1", params![item_id])?;
+        Ok(())
+    }
+
+    /// Resolves a conflict by applying the stored server payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the payload is invalid or the write fails.
+    pub fn resolve_conflict_remote(&self, item_id: &str) -> Result<(), StorageError> {
+        let remote: String = self.connection.query_row(
+            "SELECT remote_payload FROM conflicts WHERE item_id = ?1",
+            params![item_id],
+            |row| row.get(0),
+        )?;
+        let change = serde_json::json!({"operation":"upsert","item_id":item_id,"item":serde_json::from_str::<serde_json::Value>(&remote).unwrap_or_default()});
+        self.apply_remote_change(&change)?;
+        self.resolve_conflict_local(item_id)
+    }
+
     /// Records a manual conflict for an item.
     ///
     /// # Errors
@@ -659,6 +774,39 @@ mod tests {
             .unwrap();
         assert!(database.pending_outbox(10).unwrap().is_empty());
         database.acknowledge_outbox("op-1").unwrap();
+    }
+
+    #[test]
+    fn remote_changes_skip_items_with_pending_outbox() {
+        let dir = temp_dir("remote-changes");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database.set_sync_cursor(7).unwrap();
+        assert_eq!(database.sync_cursor(), 7);
+        database
+            .enqueue_outbox(
+                "op-1",
+                "11111111-1111-1111-1111-111111111111",
+                "update",
+                "{}",
+                "key",
+            )
+            .unwrap();
+        let change = serde_json::json!({
+            "operation": "upsert",
+            "item_id": "11111111-1111-1111-1111-111111111111",
+            "item": {"id":"11111111-1111-1111-1111-111111111111","title":"Remote","description":"","status":"active","tags":[],"version":2,"created_at":"","updated_at":""}
+        });
+        assert!(!database.apply_remote_change(&change).unwrap());
+    }
+
+    #[test]
+    fn conflicts_can_be_resolved_locally() {
+        let dir = temp_dir("conflicts");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database.record_conflict("item-1", "{}", "{}").unwrap();
+        assert_eq!(database.conflicts().unwrap().len(), 1);
+        database.resolve_conflict_local("item-1").unwrap();
+        assert!(database.conflicts().unwrap().is_empty());
     }
 
     #[test]

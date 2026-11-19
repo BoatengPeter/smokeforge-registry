@@ -284,7 +284,8 @@ impl DesktopApp {
                 if let Ok(database) = result {
                     if let Some(id) = self.selected {
                         match database.update(id, &self.draft) {
-                            Ok(Some(_)) => {
+                            Ok(Some(item)) => {
+                                self.queue_outbox(&database, "update", &item);
                                 self.toasts.success("Record saved.");
                             }
                             Ok(None) => {
@@ -297,6 +298,7 @@ impl DesktopApp {
                     } else {
                         match database.create(&self.draft) {
                             Ok(item) => {
+                                self.queue_outbox(&database, "create", &item);
                                 self.selected = Some(item.id);
                                 self.toasts.success("Record created.");
                             }
@@ -313,6 +315,9 @@ impl DesktopApp {
                 {
                     match database.soft_delete(id) {
                         Ok(true) => {
+                            if let Ok(Some(item)) = database.get(id) {
+                                self.queue_outbox(&database, "delete", &item);
+                            }
                             self.last_deleted = Some(id);
                             self.selected = None;
                             self.draft = LibraryDraft::default();
@@ -764,6 +769,37 @@ impl DesktopApp {
         if let Some(warning) = self.tokens.warning() {
             ui.label(RichText::new(warning).color(ui.visuals().warn_fg_color));
         }
+        let conflicts = self
+            .database
+            .lock()
+            .ok()
+            .and_then(|database| database.conflicts().ok())
+            .unwrap_or_default();
+        for (item_id, _, _) in conflicts {
+            ui.horizontal(|ui| {
+                ui.label(format!("Conflict: {item_id}"));
+                if ui.small_button("Keep local").clicked() {
+                    match self.resolve_conflict(&item_id, true) {
+                        Ok(()) => {
+                            self.toasts.success("Kept local record.");
+                        }
+                        Err(error) => {
+                            self.toasts.error(error);
+                        }
+                    }
+                }
+                if ui.small_button("Use server").clicked() {
+                    match self.resolve_conflict(&item_id, false) {
+                        Ok(()) => {
+                            self.toasts.success("Applied server record.");
+                        }
+                        Err(error) => {
+                            self.toasts.error(error);
+                        }
+                    }
+                }
+            });
+        }
         ui.horizontal(|ui| {
             if ui.button("Export Library").clicked()
                 && let Some(path) = rfd::FileDialog::new()
@@ -857,12 +893,40 @@ impl DesktopApp {
         database.backup(path).map_err(|error| error.to_string())
     }
 
+    fn resolve_conflict(&self, item_id: &str, keep_local: bool) -> Result<(), String> {
+        let database = self
+            .database
+            .lock()
+            .map_err(|_| "database lock".to_owned())?;
+        if keep_local {
+            database
+                .resolve_conflict_local(item_id)
+                .map_err(|error| error.to_string())
+        } else {
+            database
+                .resolve_conflict_remote(item_id)
+                .map_err(|error| error.to_string())
+        }
+    }
+
     fn clear_local_data(&self) -> Result<usize, String> {
         let database = self
             .database
             .lock()
             .map_err(|_| "database lock".to_owned())?;
         database.clear_library().map_err(|error| error.to_string())
+    }
+
+    fn queue_outbox(
+        &self,
+        database: &{{.crate_name}}_storage::Database,
+        operation: &str,
+        item: &{{.crate_name}}_core::LibraryItem,
+    ) {
+        let key = format!("{operation}-{}", uuid::Uuid::new_v4());
+        if let Ok(payload) = serde_json::to_string(item) {
+            let _ = database.enqueue_outbox(&key, &item.id.to_string(), operation, &payload, &key);
+        }
     }
 
     fn poll_auth(&mut self) {
