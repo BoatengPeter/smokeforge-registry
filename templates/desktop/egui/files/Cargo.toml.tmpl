@@ -28,6 +28,12 @@ uuid = { version = "1.29.2", features = ["serde", "v4"] }
 rust-i18n = "4.2.4"
 single-instance = "0.3.3"
 keyring = { version = "4.2.0", features = ["v1"] }
+reqwest = { version = "0.13.1", default-features = false, features = ["json", "rustls"] }
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "time"] }
+url = "2.5.8"
+reqwest = { version = "0.13.1", default-features = false, features = ["json", "rustls"] }
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "time"] }
+url = "2.5.8"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
