@@ -71,12 +71,14 @@ presets:
     name: Desktop app
     description: Secure Electron + React desktop app with TanStack Query, Zustand, and SQLite
     kinds: [desktop]
+    stacks: [desktop/electron]
     default: true
     features: [data:tanstack-query, state:zustand, storage:sqlite]
   - id: desktop-egui
     name: Native egui desktop app
     description: Rust local-first desktop app with egui, SQLite, keyring, and optional fullstack API sync
     kinds: [desktop]
+    stacks: [desktop/egui]
     features: []
   - id: api
     name: Backend API
