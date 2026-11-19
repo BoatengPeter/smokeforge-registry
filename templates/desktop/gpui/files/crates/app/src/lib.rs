@@ -16,6 +16,8 @@ use gpui_kit::component::sidebar::{
 use gpui_kit::component::status_bar::StatusBar;
 use gpui_kit::component::{Sizable as _, Theme, ThemeMode};
 use gpui_kit::prelude::FluentBuilder as _;
+pub mod logging;
+
 use gpui_kit::*;
 
 rust_i18n::i18n!("locales");

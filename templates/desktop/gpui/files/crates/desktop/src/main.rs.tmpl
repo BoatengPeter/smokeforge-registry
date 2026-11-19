@@ -8,6 +8,13 @@ use gpui_kit::component::TitleBar;
 use gpui_kit::*;
 
 fn main() {
+    install_panic_hook();
+    let instance = single_instance::SingleInstance::new("{{.bundle_id}}").ok();
+    if instance.as_ref().is_some_and(|value| !value.is_single()) {
+        return;
+    }
+    let _instance = instance;
+
     gpui_kit::application()
         .with_assets(gpui_kit::assets::Assets)
         .run(|cx| {
@@ -35,4 +42,11 @@ fn main() {
             })
             .expect("failed to open the main window");
         });
+}
+
+fn install_panic_hook() {
+    let path = std::env::temp_dir().join("smokeforge-gpui-panic.log");
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = std::fs::write(&path, format!("{info}\n"));
+    }));
 }
