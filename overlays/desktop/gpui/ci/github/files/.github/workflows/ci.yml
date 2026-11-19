@@ -18,6 +18,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libfontconfig1-dev libfreetype6-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libxcb1-dev
+      - name: Verify pinned GPUI snapshot
+        run: |
+          grep -A2 'name = "gpui-pre"' Cargo.lock | grep -q 'version = "0.3.12"'
+      - name: Verify pinned GPUI snapshot
+        run: |
+          grep -A2 'name = "gpui-pre"' Cargo.lock | grep -q 'version = "0.3.12"'
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace

@@ -87,7 +87,7 @@ pub struct AppView {
     command_state: Entity<CommandState>,
     paths: {{.crate_name}}_storage::Paths,
     settings: {{.crate_name}}_storage::Settings,
-    _settings_store: {{.crate_name}}_storage::SettingsStore,
+    settings_store: {{.crate_name}}_storage::SettingsStore,
     _logging_guard: logging::LoggingGuard,
     tokens: credentials::TokenStore,
     api_mode: bool,
@@ -145,7 +145,7 @@ impl AppView {
             command_state: cx.new(|cx| CommandState::new(window, cx)),
             paths,
             settings,
-            _settings_store: settings_store,
+            settings_store,
             _logging_guard: logging_guard,
             database,
             title_input,
@@ -178,6 +178,77 @@ impl AppView {
             }
             _ => "Local-first desktop workspace.".to_owned(),
         }
+    }
+
+    fn dashboard_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let items = self
+            .database
+            .as_ref()
+            .and_then(|database| database.list("", None).ok())
+            .unwrap_or_default();
+        let recent = items.iter().take(5).map(|item| {
+            h_flex().gap_2().child(item.title.clone()).child(
+                div()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(item.status.label()),
+            )
+        });
+        v_flex()
+            .gap_3()
+            .child(format!("{} records", items.len()))
+            .when(!self.settings.onboarded, |this| {
+                this.child(
+                    div()
+                        .p_3()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(cx.theme().border)
+                        .child("Welcome to Smokeforge. Start in the Library."),
+                )
+                .child(
+                    Button::new("dismiss-onboarding")
+                        .small()
+                        .label("Got it")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.settings.onboarded = true;
+                            let _ = this.settings_store.save(&this.settings);
+                            cx.notify();
+                        })),
+                )
+            })
+            .children(recent)
+            .into_any_element()
+    }
+
+    fn activity_body(&self, cx: &mut Context<Self>) -> AnyElement {
+        let conflicts = self
+            .database
+            .as_ref()
+            .and_then(|database| database.conflicts().ok())
+            .map_or(0, |rows| rows.len());
+        v_flex()
+            .gap_2()
+            .child(if self.sync_status.is_empty() {
+                "No sync activity.".to_owned()
+            } else {
+                self.sync_status.clone()
+            })
+            .child(
+                div()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(format!("{conflicts} pending conflicts")),
+            )
+            .into_any_element()
+    }
+
+    fn about_body(&self) -> AnyElement {
+        v_flex()
+            .gap_2()
+            .child("Smokeforge · GPUI Kit 0.10.0")
+            .child("GPUI snapshot 0.3.12")
+            .child(format!("Data: {}", self.paths.data.display()))
+            .child(format!("Logs: {}", self.paths.logs.display()))
+            .into_any_element()
     }
 
     fn conflict_rows(&self, cx: &mut Context<Self>) -> Vec<impl IntoElement> {
@@ -226,6 +297,9 @@ impl AppView {
     )]
     fn pane_body(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         match self.active {
+            Pane::Dashboard => self.dashboard_body(cx),
+            Pane::Activity => self.activity_body(cx),
+            Pane::About => self.about_body(),
             Pane::Settings => v_flex()
                 .gap_3()
                 .child(format!("Theme: {}", self.settings.theme))
@@ -343,10 +417,6 @@ impl AppView {
                 })
                 .into_any_element(),
             Pane::Library => self.library_body(cx).into_any_element(),
-            _ => div()
-                .text_color(cx.theme().muted_foreground)
-                .child("No records yet.")
-                .into_any_element(),
         }
     }
 
