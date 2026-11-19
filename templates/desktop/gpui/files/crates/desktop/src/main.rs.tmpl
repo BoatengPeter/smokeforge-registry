@@ -4,6 +4,7 @@
     reason = "GPUI Kit exports the framework prelude."
 )]
 
+use gpui_kit::component::TitleBar;
 use gpui_kit::*;
 
 fn main() {
@@ -11,7 +12,15 @@ fn main() {
         .with_assets(gpui_kit::assets::Assets)
         .run(|cx| {
             gpui_kit::init(cx);
-            gpui_kit::open_window(WindowOptions::default(), cx, |_window, cx| {
+            let options = WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
+                    None,
+                    size(px(1180.), px(760.)),
+                    cx,
+                ))),
+                ..TitleBar::window_options()
+            };
+            gpui_kit::open_window(options, cx, |_window, cx| {
                 cx.new(|_| {{.crate_name}}_app::AppView::new())
             })
             .expect("failed to open the main window");
