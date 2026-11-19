@@ -165,6 +165,105 @@ impl ApiClient {
         self.decode(response).await
     }
 
+    /// Pulls the full Library snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when unauthenticated or the API rejects the request.
+    pub async fn library_snapshot(&mut self) -> Result<serde_json::Value, ApiClientError> {
+        self.authorized_json(
+            reqwest::Method::GET,
+            "/api/v1/library/snapshot",
+            None,
+            None,
+            None,
+        )
+        .await
+    }
+
+    /// Pulls Library changes after a cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when unauthenticated or the API rejects the request.
+    pub async fn library_changes(
+        &mut self,
+        cursor: i64,
+    ) -> Result<serde_json::Value, ApiClientError> {
+        let path = format!("/api/v1/library/changes?cursor={cursor}");
+        self.authorized_json(reqwest::Method::GET, &path, None, None, None)
+            .await
+    }
+
+    /// Pushes one Library mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when unauthenticated, stale, or rejected by the API.
+    pub async fn library_mutation(
+        &mut self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+        idempotency_key: &str,
+        version: Option<i64>,
+    ) -> Result<serde_json::Value, ApiClientError> {
+        self.authorized_json(method, path, body, Some(idempotency_key), version)
+            .await
+    }
+
+    async fn authorized_json(
+        &mut self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+        idempotency_key: Option<&str>,
+        version: Option<i64>,
+    ) -> Result<serde_json::Value, ApiClientError> {
+        let mut response = self
+            .send_authorized(method.clone(), path, body, idempotency_key, version)
+            .await?;
+        if response.status() == StatusCode::UNAUTHORIZED {
+            let refresh = self
+                .refresh_token
+                .clone()
+                .ok_or(ApiClientError::Unauthorized)?;
+            self.refresh(&refresh).await?;
+            response = self
+                .send_authorized(method, path, body, idempotency_key, version)
+                .await?;
+        }
+        self.decode(response).await
+    }
+
+    async fn send_authorized(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+        idempotency_key: Option<&str>,
+        version: Option<i64>,
+    ) -> Result<reqwest::Response, ApiClientError> {
+        let token = self
+            .access_token
+            .as_deref()
+            .ok_or(ApiClientError::Unauthorized)?;
+        let mut request = self
+            .http
+            .request(method, self.endpoint(path)?)
+            .bearer_auth(token);
+        if let Some(body) = body {
+            request = request.json(body);
+        }
+        if let Some(key) = idempotency_key {
+            request = request.header("Idempotency-Key", key);
+        }
+        if let Some(version) = version {
+            request = request.header(reqwest::header::IF_MATCH, version.to_string());
+        }
+        Ok(request.send().await?)
+    }
+
     fn endpoint(&self, path: &str) -> Result<Url, ApiClientError> {
         Ok(self.base.join(path)?)
     }
