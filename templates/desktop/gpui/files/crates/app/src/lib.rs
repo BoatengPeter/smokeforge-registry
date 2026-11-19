@@ -16,6 +16,7 @@ use gpui_kit::component::sidebar::{
 use gpui_kit::component::status_bar::StatusBar;
 use gpui_kit::component::{Sizable as _, Theme, ThemeMode};
 use gpui_kit::prelude::FluentBuilder as _;
+pub mod credentials;
 pub mod logging;
 
 use gpui_kit::*;
@@ -76,15 +77,90 @@ pub struct AppView {
     active: Pane,
     show_command: bool,
     command_state: Entity<CommandState>,
+    paths: {{.crate_name}}_storage::Paths,
+    settings: {{.crate_name}}_storage::Settings,
+    settings_store: {{.crate_name}}_storage::SettingsStore,
+    _logging_guard: logging::LoggingGuard,
+    tokens: credentials::TokenStore,
+    focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl AppView {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
+        let paths = {{.crate_name}}_storage::Paths::discover("Smokeforge").unwrap_or_else(|_| {
+            {{.crate_name}}_storage::Paths {
+                data: std::env::temp_dir().join("smokeforge"),
+                config: std::env::temp_dir().join("smokeforge"),
+                logs: std::env::temp_dir().join("smokeforge-logs"),
+            }
+        });
+        let settings_store = {{.crate_name}}_storage::SettingsStore::new(&paths.config);
+        let settings = settings_store.load().unwrap_or_default();
+        let logging_guard = logging::init(&paths.logs, &settings.log_level);
         Self {
             active: Pane::Dashboard,
             show_command: false,
             command_state: cx.new(|cx| CommandState::new(window, cx)),
+            paths,
+            settings,
+            settings_store,
+            _logging_guard: logging_guard,
+            tokens: credentials::TokenStore::new("smokeforge-gpui", "auth"),
+            focus_requested,
         }
+    }
+}
+
+impl AppView {
+    fn subtitle(&self, _cx: &mut Context<Self>) -> String {
+        match self.active {
+            Pane::Settings => "Preferences, local data, and diagnostics.".to_owned(),
+            Pane::Account => {
+                if self.tokens.warning().is_some() {
+                    "API account · keyring unavailable; tokens will stay in memory.".to_owned()
+                } else {
+                    "API account session.".to_owned()
+                }
+            }
+            _ => "Local-first desktop workspace.".to_owned(),
+        }
+    }
+
+    fn pane_body(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        match self.active {
+            Pane::Settings => v_flex()
+                .gap_3()
+                .child(format!("Theme: {}", self.settings.theme))
+                .child(format!("Language: {}", self.settings.language))
+                .child(format!("Log level: {}", self.settings.log_level))
+                .child(format!("Data: {}", self.paths.data.display()))
+                .child(format!("Logs: {}", self.paths.logs.display()))
+                .child(format!("Settings store: {}", self.settings_store_error()))
+                .into_any_element(),
+            Pane::Account => v_flex()
+                .gap_2()
+                .child("Account is available in API-backed fullstack projects.")
+                .when_some(self.tokens.warning().map(str::to_owned), |this, warning| {
+                    this.child(div().text_color(cx.theme().warning).child(warning))
+                })
+                .into_any_element(),
+            _ => div()
+                .text_color(cx.theme().muted_foreground)
+                .child("No records yet.")
+                .into_any_element(),
+        }
+    }
+
+    fn settings_store_error(&self) -> String {
+        let probe = self.settings_store.save(&self.settings);
+        probe.map_or_else(
+            |error| format!("write error: {error}"),
+            |()| "ready".to_owned(),
+        )
     }
 }
 
@@ -93,7 +169,14 @@ impl Render for AppView {
         clippy::too_many_lines,
         reason = "Shell composition is kept in one render."
     )]
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self
+            .focus_requested
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
+        {
+            window.activate_window();
+        }
+
         let entity = cx.entity();
         let panes = Pane::ALL;
         let command = self.show_command.then(|| {
@@ -184,8 +267,9 @@ impl Render for AppView {
                         .child(
                             div()
                                 .text_color(cx.theme().muted_foreground)
-                                .child("Local-first desktop workspace."),
-                        ),
+                                .child(self.subtitle(cx)),
+                        )
+                        .child(self.pane_body(cx)),
                 ),
             )
             .child(

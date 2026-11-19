@@ -4,20 +4,24 @@
     reason = "GPUI Kit exports the framework prelude."
 )]
 
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use gpui_kit::component::TitleBar;
 use gpui_kit::*;
 
 fn main() {
     install_panic_hook();
-    let instance = single_instance::SingleInstance::new("{{.bundle_id}}").ok();
-    if instance.as_ref().is_some_and(|value| !value.is_single()) {
+    if forward_to_running_instance() {
         return;
     }
-    let _instance = instance;
+    let (focus, _listener) = start_instance_listener();
 
     gpui_kit::application()
         .with_assets(gpui_kit::assets::Assets)
-        .run(|cx| {
+        .run(move |cx| {
             gpui_kit::init(cx);
             cx.bind_keys([
                 KeyBinding::new("cmd-1", {{.crate_name}}_app::ShowDashboard, None),
@@ -38,10 +42,47 @@ fn main() {
                 ..TitleBar::window_options()
             };
             gpui_kit::open_window(options, cx, |window, cx| {
-                cx.new(|cx| {{.crate_name}}_app::AppView::new(window, cx))
+                cx.new(|cx| {{.crate_name}}_app::AppView::new(window, cx, focus.clone()))
             })
             .expect("failed to open the main window");
         });
+}
+
+fn instance_path() -> std::path::PathBuf {
+    std::env::temp_dir().join("smokeforge-gpui-instance.port")
+}
+
+fn forward_to_running_instance() -> bool {
+    let Ok(port) = std::fs::read_to_string(instance_path()) else {
+        return false;
+    };
+    let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port.trim().parse::<u16>().unwrap_or(0)))
+    else {
+        return false;
+    };
+    let args = std::env::args().skip(1).collect::<Vec<_>>().join("\u{0}");
+    stream.write_all(args.as_bytes()).is_ok()
+}
+
+fn start_instance_listener() -> (Arc<AtomicBool>, Option<std::thread::JoinHandle<()>>) {
+    let focus = Arc::new(AtomicBool::new(false));
+    let Ok(listener) = TcpListener::bind(("127.0.0.1", 0)) else {
+        return (focus, None);
+    };
+    let Ok(address) = listener.local_addr() else {
+        return (focus, None);
+    };
+    let _ = std::fs::write(instance_path(), address.port().to_string());
+    let signal = Arc::clone(&focus);
+    let handle = std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let mut args = String::new();
+            let _ = stream.read_to_string(&mut args);
+            signal.store(true, Ordering::Relaxed);
+        }
+    });
+
+    (focus, Some(handle))
 }
 
 fn install_panic_hook() {
