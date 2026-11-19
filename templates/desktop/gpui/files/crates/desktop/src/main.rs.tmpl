@@ -19,6 +19,8 @@ fn main() {
                 KeyBinding::new("cmd-4", {{.crate_name}}_app::ShowSettings, None),
                 KeyBinding::new("cmd-5", {{.crate_name}}_app::ShowAccount, None),
                 KeyBinding::new("cmd-6", {{.crate_name}}_app::ShowAbout, None),
+                KeyBinding::new("cmd-k", {{.crate_name}}_app::ToggleCommand, None),
+                KeyBinding::new("cmd-shift-l", {{.crate_name}}_app::ToggleTheme, None),
             ]);
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
@@ -28,8 +30,8 @@ fn main() {
                 ))),
                 ..TitleBar::window_options()
             };
-            gpui_kit::open_window(options, cx, |_window, cx| {
-                cx.new(|_| {{.crate_name}}_app::AppView::new())
+            gpui_kit::open_window(options, cx, |window, cx| {
+                cx.new(|cx| {{.crate_name}}_app::AppView::new(window, cx))
             })
             .expect("failed to open the main window");
         });

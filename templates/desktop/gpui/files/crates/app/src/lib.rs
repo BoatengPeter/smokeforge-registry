@@ -8,10 +8,14 @@
 use gpui_kit::base::{StyledExt, h_flex, v_flex};
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::TitleBar;
+use gpui_kit::component::button::{Button, ButtonVariants as _};
+use gpui_kit::component::command::{Command, CommandItem, CommandState};
 use gpui_kit::component::sidebar::{
     Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem,
 };
 use gpui_kit::component::status_bar::StatusBar;
+use gpui_kit::component::{Sizable as _, Theme, ThemeMode};
+use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 rust_i18n::i18n!("locales");
@@ -24,7 +28,9 @@ gpui_kit::actions!(
         ShowActivity,
         ShowSettings,
         ShowAccount,
-        ShowAbout
+        ShowAbout,
+        ToggleCommand,
+        ToggleTheme
     ]
 );
 
@@ -66,25 +72,48 @@ impl Pane {
 
 pub struct AppView {
     active: Pane,
+    show_command: bool,
+    command_state: Entity<CommandState>,
 }
 
 impl AppView {
-    #[must_use]
-    pub fn new() -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self {
             active: Pane::Dashboard,
+            show_command: false,
+            command_state: cx.new(|cx| CommandState::new(window, cx)),
         }
     }
 }
 
-impl Default for AppView {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Render for AppView {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "Shell composition is kept in one render."
+    )]
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let entity = cx.entity();
+        let panes = Pane::ALL;
+        let command = self.show_command.then(|| {
+            Command::new(&self.command_state)
+                .items(
+                    panes
+                        .iter()
+                        .copied()
+                        .map(|pane| CommandItem::new().label(pane.label())),
+                )
+                .on_confirm(move |path, _, cx| {
+                    if let Some(pane) = panes.get(path.row).copied() {
+                        entity.update(cx, |this, cx| {
+                            this.active = pane;
+                            this.show_command = false;
+                            cx.notify();
+                        });
+                    }
+                })
+                .w(px(420.))
+        });
+
         let sidebar =
             Sidebar::new("main-sidebar")
                 .w(px(212.))
@@ -105,7 +134,42 @@ impl Render for AppView {
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(TitleBar::new().child(t("app.name")))
+            .child(
+                TitleBar::new().child(t("app.name")).child(
+                    h_flex()
+                        .gap_2()
+                        .child(
+                            Button::new("open-command")
+                                .ghost()
+                                .xsmall()
+                                .label("Commands")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.show_command = true;
+                                    this.command_state
+                                        .update(cx, |state, cx| state.focus(window, cx));
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            Button::new("toggle-theme")
+                                .ghost()
+                                .xsmall()
+                                .label("Theme")
+                                .on_click(cx.listener(|_, _, window, cx| {
+                                    let mode = Theme::global(cx).mode;
+                                    Theme::change(
+                                        if mode == ThemeMode::Dark {
+                                            ThemeMode::Light
+                                        } else {
+                                            ThemeMode::Dark
+                                        },
+                                        Some(window),
+                                        cx,
+                                    );
+                                })),
+                        ),
+                ),
+            )
             .child(
                 h_flex().flex_1().min_h_0().child(sidebar).child(
                     v_flex()
@@ -113,6 +177,7 @@ impl Render for AppView {
                         .min_w_0()
                         .p_6()
                         .gap_2()
+                        .when_some(command, ParentElement::child)
                         .child(div().text_2xl().font_semibold().child(self.active.label()))
                         .child(
                             div()
@@ -148,6 +213,27 @@ impl Render for AppView {
             }))
             .on_action(cx.listener(|this, _: &ShowAbout, _, cx| {
                 this.active = Pane::About;
+                cx.notify();
+            }))
+            .on_action(cx.listener(|this, _: &ToggleCommand, window, cx| {
+                this.show_command = !this.show_command;
+                if this.show_command {
+                    this.command_state
+                        .update(cx, |state, cx| state.focus(window, cx));
+                }
+                cx.notify();
+            }))
+            .on_action(cx.listener(|_this, _: &ToggleTheme, window, cx| {
+                let mode = Theme::global(cx).mode;
+                Theme::change(
+                    if mode == ThemeMode::Dark {
+                        ThemeMode::Light
+                    } else {
+                        ThemeMode::Dark
+                    },
+                    Some(window),
+                    cx,
+                );
                 cx.notify();
             }))
     }
