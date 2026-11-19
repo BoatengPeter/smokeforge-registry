@@ -10,10 +10,12 @@ use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::TitleBar;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::command::{Command, CommandItem, CommandState};
+use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::sidebar::{
     Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem,
 };
 use gpui_kit::component::status_bar::StatusBar;
+use gpui_kit::component::table::{Table, TableBody, TableCell, TableHead, TableHeader, TableRow};
 use gpui_kit::component::{Sizable as _, Theme, ThemeMode};
 use gpui_kit::prelude::FluentBuilder as _;
 pub mod credentials;
@@ -83,6 +85,9 @@ pub struct AppView {
     _logging_guard: logging::LoggingGuard,
     tokens: credentials::TokenStore,
     focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    database: Option<{{.crate_name}}_storage::Database>,
+    title_input: Entity<InputState>,
+    tags_input: Entity<InputState>,
 }
 
 impl AppView {
@@ -101,6 +106,14 @@ impl AppView {
         let settings_store = {{.crate_name}}_storage::SettingsStore::new(&paths.config);
         let settings = settings_store.load().unwrap_or_default();
         let logging_guard = logging::init(&paths.logs, &settings.log_level);
+        let database = {{.crate_name}}_storage::Database::open(&paths.data.join("local.sqlite"))
+            .ok()
+            .inspect(|database| {
+                let _ = database.seed_if_empty();
+            });
+        let title_input = cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
+        let tags_input =
+            cx.new(|cx| InputState::new(window, cx).placeholder("tags, comma separated"));
         Self {
             active: Pane::Dashboard,
             show_command: false,
@@ -109,6 +122,9 @@ impl AppView {
             settings,
             settings_store,
             _logging_guard: logging_guard,
+            database,
+            title_input,
+            tags_input,
             tokens: credentials::TokenStore::new("smokeforge-gpui", "auth"),
             focus_requested,
         }
@@ -130,7 +146,7 @@ impl AppView {
         }
     }
 
-    fn pane_body(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn pane_body(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         match self.active {
             Pane::Settings => v_flex()
                 .gap_3()
@@ -148,11 +164,93 @@ impl AppView {
                     this.child(div().text_color(cx.theme().warning).child(warning))
                 })
                 .into_any_element(),
+            Pane::Library => self.library_body(cx).into_any_element(),
             _ => div()
                 .text_color(cx.theme().muted_foreground)
                 .child("No records yet.")
                 .into_any_element(),
         }
+    }
+
+    fn library_body(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let items = self
+            .database
+            .as_ref()
+            .and_then(|database| database.list("", None).ok())
+            .unwrap_or_default();
+        let rows = items.into_iter().map(|item| {
+            let id = item.id;
+            TableRow::new()
+                .id(id.to_string())
+                .child(TableCell::new().child(item.title))
+                .child(TableCell::new().child(item.status.label()))
+                .child(
+                    TableCell::new().child(
+                        Button::new(format!("delete-{id}"))
+                            .ghost()
+                            .xsmall()
+                            .label("Delete")
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if let Some(database) = &this.database {
+                                    let _ = database.soft_delete(id);
+                                }
+                                cx.notify();
+                            })),
+                    ),
+                )
+        });
+
+        v_flex()
+            .gap_3()
+            .child(Input::new(&self.title_input))
+            .child(Input::new(&self.tags_input))
+            .child(
+                Button::new("create-item")
+                    .primary()
+                    .label("Create record")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        let title = this.title_input.read(cx).value().to_string();
+                        if title.trim().is_empty() {
+                            return;
+                        }
+                        let tags = this
+                            .tags_input
+                            .read(cx)
+                            .value()
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|tag| !tag.is_empty())
+                            .map(str::to_owned)
+                            .collect();
+                        if let Some(database) = &this.database {
+                            let _ = database.create(&{{.crate_name}}_core::LibraryDraft {
+                                title,
+                                description: String::new(),
+                                status: {{.crate_name}}_core::LibraryStatus::Draft,
+                                tags,
+                            });
+                        }
+                        this.title_input =
+                            cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
+                        this.tags_input = cx.new(|cx| {
+                            InputState::new(window, cx).placeholder("tags, comma separated")
+                        });
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Table::new()
+                    .child(
+                        TableHeader::new().child(
+                            TableRow::new()
+                                .child(TableHead::new().child("Title"))
+                                .child(TableHead::new().w(px(100.)).child("Status"))
+                                .child(TableHead::new().w(px(90.)).child("")),
+                        ),
+                    )
+                    .child(TableBody::new().children(rows)),
+            )
+            .into_any_element()
     }
 
     fn settings_store_error(&self) -> String {

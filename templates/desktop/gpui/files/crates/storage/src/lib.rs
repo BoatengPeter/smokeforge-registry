@@ -1,10 +1,31 @@
-//! Local persistence boundary.
+//! Local `SQLite` and preferences. No egui or network dependencies.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use directories::ProjectDirs;
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use {{.crate_name}}_core::{LibraryDraft, LibraryItem, LibraryStatus, SyncStatus};
+
+mod embedded {
+    use refinery::embed_migrations;
+    embed_migrations!("migrations");
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum StorageError {
+    #[error("database error: {0}")]
+    Database(#[from] rusqlite::Error),
+    #[error("migration error: {0}")]
+    Migration(#[from] refinery::Error),
+    #[error("settings error: {0}")]
+    Settings(String),
+    #[error("import error: {0}")]
+    Import(String),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -17,10 +38,13 @@ pub struct Settings {
     pub theme: String,
     pub language: String,
     pub sidebar_open: bool,
+    pub last_pane: String,
+    pub sync_policy: String,
+    pub locale: String,
     pub high_contrast: bool,
-    pub onboarded: bool,
     pub log_level: String,
     pub launch_at_login: bool,
+    pub onboarded: bool,
 }
 
 impl Default for Settings {
@@ -30,10 +54,13 @@ impl Default for Settings {
             theme: "dark".to_owned(),
             language: "en".to_owned(),
             sidebar_open: true,
+            last_pane: "dashboard".to_owned(),
+            sync_policy: "manual".to_owned(),
+            locale: "en".to_owned(),
             high_contrast: false,
-            onboarded: false,
             log_level: "info".to_owned(),
             launch_at_login: false,
+            onboarded: false,
         }
     }
 }
@@ -45,11 +72,12 @@ pub struct Paths {
 }
 
 impl Paths {
-    /// Resolves per-user application directories.
+    /// Resolves the user data, config, cache/log, and database locations.
     ///
     /// # Errors
     ///
-    /// Returns an error when the OS has no usable project directories.
+    /// Returns an error when the operating system has no usable project
+    /// directories.
     pub fn discover(app_name: &str) -> anyhow::Result<Self> {
         let dirs = ProjectDirs::from("dev", "smokeforge", app_name)
             .context("could not resolve application directories")?;
@@ -64,6 +92,556 @@ impl Paths {
     }
 }
 
+pub struct Database {
+    connection: Connection,
+}
+
+impl Database {
+    /// Opens the `SQLite` database and applies embedded migrations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the directory cannot be created, the database
+    /// cannot be opened, or a migration fails.
+    pub fn open(path: &Path) -> Result<Self, StorageError> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|error| StorageError::Settings(error.to_string()))?;
+        }
+        let mut connection = Connection::open(path)?;
+        connection.busy_timeout(std::time::Duration::from_secs(5))?;
+        connection.pragma_update(None, "journal_mode", "WAL")?;
+        connection.pragma_update(None, "foreign_keys", "ON")?;
+        embedded::migrations::runner().run(&mut connection)?;
+        Ok(Self { connection })
+    }
+
+    /// Lists non-deleted records filtered by search text and optional status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be prepared or read.
+    pub fn list(
+        &self,
+        search: &str,
+        status: Option<LibraryStatus>,
+    ) -> Result<Vec<LibraryItem>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, title, description, status, tags_json, version, sync_status, created_at, updated_at
+             FROM library_items
+             WHERE deleted_at IS NULL
+               AND (title LIKE ?1 OR description LIKE ?1)
+               AND (?2 IS NULL OR status = ?2)
+             ORDER BY updated_at DESC",
+        )?;
+        let status = status.map(status_value);
+        let rows = statement.query_map(params![format!("%{search}%"), status], map_row)?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    /// Returns one non-deleted record, or `None` when it does not exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query cannot be executed.
+    pub fn get(&self, id: Uuid) -> Result<Option<LibraryItem>, StorageError> {
+        self.connection
+            .query_row(
+                "SELECT id, title, description, status, tags_json, version, sync_status, created_at, updated_at
+                 FROM library_items WHERE id = ?1 AND deleted_at IS NULL",
+                params![id.to_string()],
+                map_row,
+            )
+            .optional()
+            .map_err(StorageError::from)
+    }
+
+    /// Inserts a new local record from a validated draft.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the record cannot be serialized or inserted.
+    pub fn create(&self, draft: &LibraryDraft) -> Result<LibraryItem, StorageError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let item = LibraryItem {
+            id: Uuid::new_v4(),
+            title: draft.title.trim().to_owned(),
+            description: draft.description.trim().to_owned(),
+            status: draft.status,
+            tags: draft.tags.clone(),
+            version: 0,
+            sync_status: SyncStatus::Local,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+        self.connection.execute(
+            "INSERT INTO library_items (id, title, description, status, tags_json, version, sync_status, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, 'local', ?6, ?7)",
+            params![
+                item.id.to_string(),
+                item.title,
+                item.description,
+                status_value(item.status),
+                serde_json::to_string(&item.tags).unwrap_or_else(|_| "[]".to_owned()),
+                item.created_at,
+                item.updated_at,
+            ],
+        )?;
+        Ok(item)
+    }
+
+    /// Updates a local record and returns the stored result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the record cannot be updated or read back.
+    pub fn update(
+        &self,
+        id: Uuid,
+        draft: &LibraryDraft,
+    ) -> Result<Option<LibraryItem>, StorageError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.connection.execute(
+            "UPDATE library_items
+             SET title = ?2, description = ?3, status = ?4, tags_json = ?5, updated_at = ?6,
+                 sync_status = 'local'
+             WHERE id = ?1 AND deleted_at IS NULL",
+            params![
+                id.to_string(),
+                draft.title.trim(),
+                draft.description.trim(),
+                status_value(draft.status),
+                serde_json::to_string(&draft.tags).unwrap_or_else(|_| "[]".to_owned()),
+                now,
+            ],
+        )?;
+        self.get(id)
+    }
+
+    /// Marks a record deleted without removing its row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the update cannot be executed.
+    pub fn soft_delete(&self, id: Uuid) -> Result<bool, StorageError> {
+        let changed = self.connection.execute(
+            "UPDATE library_items SET deleted_at = ?2, updated_at = ?2, sync_status = 'pending'
+             WHERE id = ?1 AND deleted_at IS NULL",
+            params![id.to_string(), chrono::Utc::now().to_rfc3339()],
+        )?;
+        Ok(changed > 0)
+    }
+
+    /// Restores a soft-deleted record.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the update cannot be executed or read back.
+    pub fn restore(&self, id: Uuid) -> Result<Option<LibraryItem>, StorageError> {
+        self.connection.execute(
+            "UPDATE library_items SET deleted_at = NULL, updated_at = ?2, sync_status = 'pending' WHERE id = ?1",
+            params![id.to_string(), chrono::Utc::now().to_rfc3339()],
+        )?;
+        self.get(id)
+    }
+
+    /// Inserts the standalone example rows when the database is empty.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the count query or an insert fails.
+    pub fn seed_if_empty(&self) -> Result<(), StorageError> {
+        let count: i64 =
+            self.connection
+                .query_row("SELECT COUNT(*) FROM library_items", [], |row| row.get(0))?;
+        if count > 0 {
+            return Ok(());
+        }
+        let samples = [
+            (
+                "Field notes",
+                "Research notes for the next release.",
+                LibraryStatus::Active,
+                vec!["research", "product"],
+            ),
+            (
+                "Release checklist",
+                "Signing, notarization, and update smoke tests.",
+                LibraryStatus::Active,
+                vec!["release"],
+            ),
+            (
+                "Offline sync",
+                "Outbox retry and conflict policy notes.",
+                LibraryStatus::Draft,
+                vec!["sync", "draft"],
+            ),
+            (
+                "Keyboard map",
+                "Shortcut registry and native menu parity.",
+                LibraryStatus::Active,
+                vec!["ux"],
+            ),
+            (
+                "Import format",
+                "Portable JSON archive and per-row validation.",
+                LibraryStatus::Draft,
+                vec!["data"],
+            ),
+        ];
+        for (title, description, status, tags) in samples {
+            self.create(&LibraryDraft {
+                title: title.to_owned(),
+                description: description.to_owned(),
+                status,
+                tags: tags.into_iter().map(str::to_owned).collect(),
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Writes a consistent `SQLite` backup to `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the path cannot be written or `SQLite` rejects the
+    /// backup operation.
+    pub fn backup(&self, path: &Path) -> Result<(), StorageError> {
+        self.connection
+            .execute("VACUUM INTO ?1", params![path.to_string_lossy()])?;
+        Ok(())
+    }
+
+    /// Deletes every local record after explicit user confirmation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the delete statement fails.
+    pub fn clear_library(&self) -> Result<usize, StorageError> {
+        let changed = self.connection.execute("DELETE FROM library_items", [])?;
+        Ok(changed)
+    }
+
+    /// Exports non-deleted records as a portable JSON archive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the library cannot be read or serialized.
+    pub fn export_json(&self) -> Result<String, StorageError> {
+        let items = self.list("", None)?;
+        serde_json::to_string_pretty(&items)
+            .map_err(|error| StorageError::Import(error.to_string()))
+    }
+
+    /// Imports records, skipping IDs that already exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the archive is invalid or an insert fails.
+    pub fn import_json(&self, raw: &str) -> Result<usize, StorageError> {
+        let items: Vec<LibraryItem> =
+            serde_json::from_str(raw).map_err(|error| StorageError::Import(error.to_string()))?;
+        let mut inserted = 0;
+        for item in items {
+            let changed = self.connection.execute(
+                "INSERT OR IGNORE INTO library_items
+                 (id, title, description, status, tags_json, version, sync_status, created_at, updated_at, deleted_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL)",
+                params![
+                    item.id.to_string(),
+                    item.title,
+                    item.description,
+                    status_value(item.status),
+                    serde_json::to_string(&item.tags).unwrap_or_else(|_| "[]".to_owned()),
+                    item.version,
+                    sync_value(item.sync_status),
+                    item.created_at,
+                    item.updated_at,
+                ],
+            )?;
+            inserted += changed;
+        }
+        Ok(inserted)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OutboxRow {
+    pub id: String,
+    pub item_id: String,
+    pub operation: String,
+    pub payload: String,
+    pub idempotency_key: String,
+    pub attempts: i64,
+    pub next_attempt_at: String,
+}
+
+impl Database {
+    /// Adds a mutation to the durable sync outbox.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the insert fails.
+    pub fn enqueue_outbox(
+        &self,
+        id: &str,
+        item_id: &str,
+        operation: &str,
+        payload: &str,
+        idempotency_key: &str,
+    ) -> Result<(), StorageError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.connection.execute(
+            "INSERT INTO outbox (id, item_id, operation, payload, idempotency_key, attempts, next_attempt_at, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?6)",
+            params![id, item_id, operation, payload, idempotency_key, now],
+        )?;
+        Ok(())
+    }
+
+    /// Loads outbox rows that are due, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query fails.
+    pub fn pending_outbox(&self, limit: i64) -> Result<Vec<OutboxRow>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, item_id, operation, payload, idempotency_key, attempts, next_attempt_at
+             FROM outbox WHERE next_attempt_at <= ?1 ORDER BY created_at LIMIT ?2",
+        )?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let rows = statement.query_map(params![now, limit], |row| {
+            Ok(OutboxRow {
+                id: row.get(0)?,
+                item_id: row.get(1)?,
+                operation: row.get(2)?,
+                payload: row.get(3)?,
+                idempotency_key: row.get(4)?,
+                attempts: row.get(5)?,
+                next_attempt_at: row.get(6)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    /// Removes an acknowledged outbox row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the delete fails.
+    pub fn acknowledge_outbox(&self, id: &str) -> Result<(), StorageError> {
+        self.connection
+            .execute("DELETE FROM outbox WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Reschedules a failed outbox row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the update fails.
+    pub fn retry_outbox(&self, id: &str, next_attempt_at: &str) -> Result<(), StorageError> {
+        self.connection.execute(
+            "UPDATE outbox SET attempts = attempts + 1, next_attempt_at = ?2 WHERE id = ?1",
+            params![id, next_attempt_at],
+        )?;
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn sync_cursor(&self) -> i64 {
+        self.connection
+            .query_row(
+                "SELECT value FROM sync_state WHERE key = 'library_cursor'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// Advances the Library changefeed cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the cursor cannot be saved.
+    pub fn set_sync_cursor(&self, cursor: i64) -> Result<(), StorageError> {
+        self.connection.execute(
+            "INSERT OR REPLACE INTO sync_state (key, value) VALUES ('library_cursor', ?1)",
+            params![cursor.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Applies a remote change unless the item has a pending local mutation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database write fails.
+    pub fn apply_remote_change(&self, change: &serde_json::Value) -> Result<bool, StorageError> {
+        let item_id = change
+            .get("item_id")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        let pending: i64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM outbox WHERE item_id = ?1",
+            params![item_id],
+            |row| row.get(0),
+        )?;
+        if pending > 0 {
+            return Ok(false);
+        }
+        let Some(item) = change.get("item") else {
+            return Ok(false);
+        };
+        if change.get("operation").and_then(serde_json::Value::as_str) == Some("delete") {
+            self.connection
+                .execute("DELETE FROM library_items WHERE id = ?1", params![item_id])?;
+            return Ok(true);
+        }
+        let tags = item
+            .get("tags")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!([]));
+        self.connection.execute(
+            "INSERT OR REPLACE INTO library_items
+             (id, title, description, status, tags_json, version, sync_status, created_at, updated_at, deleted_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'synced', ?7, ?8, NULL)",
+            params![
+                item_id,
+                item.get("title").and_then(serde_json::Value::as_str).unwrap_or_default(),
+                item.get("description").and_then(serde_json::Value::as_str).unwrap_or_default(),
+                item.get("status").and_then(serde_json::Value::as_str).unwrap_or("draft"),
+                tags.to_string(),
+                item.get("version").and_then(serde_json::Value::as_i64).unwrap_or(1),
+                item.get("created_at").and_then(serde_json::Value::as_str).unwrap_or_default(),
+                item.get("updated_at").and_then(serde_json::Value::as_str).unwrap_or_default(),
+            ],
+        )?;
+        Ok(true)
+    }
+
+    /// Lists unresolved conflicts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the query fails.
+    pub fn conflicts(&self) -> Result<Vec<(String, String, String)>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT item_id, local_payload, remote_payload FROM conflicts ORDER BY created_at",
+        )?;
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(StorageError::from)
+    }
+
+    /// Resolves a conflict by keeping the local payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the conflict cannot be removed.
+    pub fn resolve_conflict_local(&self, item_id: &str) -> Result<(), StorageError> {
+        self.connection
+            .execute("DELETE FROM conflicts WHERE item_id = ?1", params![item_id])?;
+        Ok(())
+    }
+
+    /// Resolves a conflict by applying the stored server payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the payload is invalid or the write fails.
+    pub fn resolve_conflict_remote(&self, item_id: &str) -> Result<(), StorageError> {
+        let remote: String = self.connection.query_row(
+            "SELECT remote_payload FROM conflicts WHERE item_id = ?1",
+            params![item_id],
+            |row| row.get(0),
+        )?;
+        let change = serde_json::json!({"operation":"upsert","item_id":item_id,"item":serde_json::from_str::<serde_json::Value>(&remote).unwrap_or_default()});
+        self.apply_remote_change(&change)?;
+        self.resolve_conflict_local(item_id)
+    }
+
+    /// Records a manual conflict for an item.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the insert fails.
+    pub fn record_conflict(
+        &self,
+        item_id: &str,
+        local_payload: &str,
+        remote_payload: &str,
+    ) -> Result<(), StorageError> {
+        self.connection.execute(
+            "INSERT OR REPLACE INTO conflicts (item_id, local_payload, remote_payload, created_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                item_id,
+                local_payload,
+                remote_payload,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )?;
+        Ok(())
+    }
+}
+
+fn status_value(status: LibraryStatus) -> &'static str {
+    match status {
+        LibraryStatus::Draft => "draft",
+        LibraryStatus::Active => "active",
+        LibraryStatus::Archived => "archived",
+    }
+}
+
+fn parse_status(value: &str) -> LibraryStatus {
+    match value {
+        "active" => LibraryStatus::Active,
+        "archived" => LibraryStatus::Archived,
+        _ => LibraryStatus::Draft,
+    }
+}
+
+fn sync_value(status: SyncStatus) -> &'static str {
+    match status {
+        SyncStatus::Local => "local",
+        SyncStatus::Pending => "pending",
+        SyncStatus::Synced => "synced",
+        SyncStatus::Conflict => "conflict",
+        SyncStatus::Failed => "failed",
+    }
+}
+
+fn parse_sync(value: &str) -> SyncStatus {
+    match value {
+        "pending" => SyncStatus::Pending,
+        "synced" => SyncStatus::Synced,
+        "conflict" => SyncStatus::Conflict,
+        "failed" => SyncStatus::Failed,
+        _ => SyncStatus::Local,
+    }
+}
+
+fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryItem> {
+    let id: String = row.get(0)?;
+    let tags: String = row.get(4)?;
+    Ok(LibraryItem {
+        id: Uuid::parse_str(&id).unwrap_or_default(),
+        title: row.get(1)?,
+        description: row.get(2)?,
+        status: parse_status(&row.get::<_, String>(3)?),
+        tags: serde_json::from_str(&tags).unwrap_or_default(),
+        version: row.get(5)?,
+        sync_status: parse_sync(&row.get::<_, String>(6)?),
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+    })
+}
+
 pub struct SettingsStore {
     path: PathBuf,
 }
@@ -76,20 +654,19 @@ impl SettingsStore {
         }
     }
 
-    /// Loads settings, quarantining corrupt or unknown-schema files.
+    /// Loads settings, returning defaults when the file does not exist.
     ///
     /// # Errors
     ///
-    /// Returns an error when the file exists but cannot be read.
-    pub fn load(&self) -> Result<Settings, String> {
+    /// Returns an error when the file exists but cannot be read or parsed.
+    pub fn load(&self) -> Result<Settings, StorageError> {
         let raw = match std::fs::read_to_string(&self.path) {
             Ok(raw) => raw,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Settings::default());
             }
-            Err(error) => return Err(error.to_string()),
+            Err(error) => return Err(StorageError::Settings(error.to_string())),
         };
-
         match serde_json::from_str::<Settings>(&raw) {
             Ok(settings) if settings.schema_version == 1 => Ok(settings),
             Ok(_) | Err(_) => {
@@ -100,40 +677,161 @@ impl SettingsStore {
         }
     }
 
-    /// Saves settings atomically.
+    /// Atomically writes settings to disk.
     ///
     /// # Errors
     ///
-    /// Returns an error when the file cannot be written.
-    pub fn save(&self, settings: &Settings) -> Result<(), String> {
+    /// Returns an error when the directory, temporary file, or rename fails.
+    pub fn save(&self, settings: &Settings) -> Result<(), StorageError> {
         if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+            std::fs::create_dir_all(parent)
+                .map_err(|error| StorageError::Settings(error.to_string()))?;
         }
         let temporary = self.path.with_extension("json.tmp");
-        let raw = serde_json::to_string_pretty(settings).map_err(|error| error.to_string())?;
-        std::fs::write(&temporary, format!("{raw}\n")).map_err(|error| error.to_string())?;
-        std::fs::rename(temporary, &self.path).map_err(|error| error.to_string())
+        let raw = serde_json::to_string_pretty(settings)
+            .map_err(|error| StorageError::Settings(error.to_string()))?;
+        std::fs::write(&temporary, format!("{raw}\n"))
+            .map_err(|error| StorageError::Settings(error.to_string()))?;
+        std::fs::rename(temporary, &self.path)
+            .map_err(|error| StorageError::Settings(error.to_string()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("smokeforge-gpui-{name}-{}", Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("smokeforge-storage-{name}-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
 
     #[test]
-    fn corrupt_settings_are_quarantined() {
-        let dir = temp_dir("settings");
+    fn corrupt_settings_recover_and_are_quarantined() {
+        let dir = temp_dir("corrupt-settings");
         let store = SettingsStore::new(&dir);
-        std::fs::write(dir.join("settings.json"), "{broken").unwrap();
-        let settings = store.load().unwrap();
-        assert_eq!(settings.schema_version, 1);
+        std::fs::write(dir.join("settings.json"), "{not json").unwrap();
+
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.schema_version, 1);
         assert!(dir.join("settings.json.corrupt").exists());
+        assert!(!dir.join("settings.json").exists());
+    }
+
+    #[test]
+    fn old_settings_load_with_new_fields_defaulted() {
+        let dir = temp_dir("old-settings");
+        let store = SettingsStore::new(&dir);
+        std::fs::write(
+            dir.join("settings.json"),
+            r#"{"schema_version":1,"theme":"light","language":"en","sidebar_open":false,"last_pane":"library","sync_policy":"manual","locale":"en"}"#,
+        )
+        .unwrap();
+
+        let loaded = store.load().unwrap();
+        assert!(!loaded.sidebar_open);
+        assert!(!loaded.high_contrast);
+    }
+
+    #[test]
+    fn export_and_import_skip_duplicate_ids() {
+        let dir = temp_dir("export-import");
+        let first = Database::open(&dir.join("first.sqlite")).unwrap();
+        let item = first
+            .create(&LibraryDraft {
+                title: "Exported".to_owned(),
+                description: "A portable record.".to_owned(),
+                status: LibraryStatus::Active,
+                tags: vec!["portable".to_owned()],
+            })
+            .unwrap();
+        let archive = first.export_json().unwrap();
+        let second = Database::open(&dir.join("second.sqlite")).unwrap();
+        assert_eq!(second.import_json(&archive).unwrap(), 1);
+        assert_eq!(second.import_json(&archive).unwrap(), 0);
+        assert_eq!(second.get(item.id).unwrap().unwrap().title, "Exported");
+    }
+
+    #[test]
+    fn clear_library_removes_all_records() {
+        let dir = temp_dir("clear-library");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database
+            .create(&LibraryDraft {
+                title: "Clear me".to_owned(),
+                description: String::new(),
+                status: LibraryStatus::Draft,
+                tags: Vec::new(),
+            })
+            .unwrap();
+        assert_eq!(database.clear_library().unwrap(), 1);
+        assert!(database.list("", None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn outbox_rows_can_be_retried_and_acknowledged() {
+        let dir = temp_dir("outbox");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database
+            .enqueue_outbox("op-1", "item-1", "update", "{}", "key-1")
+            .unwrap();
+        let rows = database.pending_outbox(10).unwrap();
+        assert_eq!(rows.len(), 1);
+        database
+            .retry_outbox("op-1", "2999-01-01T00:00:00Z")
+            .unwrap();
+        assert!(database.pending_outbox(10).unwrap().is_empty());
+        database.acknowledge_outbox("op-1").unwrap();
+    }
+
+    #[test]
+    fn remote_changes_skip_items_with_pending_outbox() {
+        let dir = temp_dir("remote-changes");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database.set_sync_cursor(7).unwrap();
+        assert_eq!(database.sync_cursor(), 7);
+        database
+            .enqueue_outbox(
+                "op-1",
+                "11111111-1111-1111-1111-111111111111",
+                "update",
+                "{}",
+                "key",
+            )
+            .unwrap();
+        let change = serde_json::json!({
+            "operation": "upsert",
+            "item_id": "11111111-1111-1111-1111-111111111111",
+            "item": {"id":"11111111-1111-1111-1111-111111111111","title":"Remote","description":"","status":"active","tags":[],"version":2,"created_at":"","updated_at":""}
+        });
+        assert!(!database.apply_remote_change(&change).unwrap());
+    }
+
+    #[test]
+    fn conflicts_can_be_resolved_locally() {
+        let dir = temp_dir("conflicts");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database.record_conflict("item-1", "{}", "{}").unwrap();
+        assert_eq!(database.conflicts().unwrap().len(), 1);
+        database.resolve_conflict_local("item-1").unwrap();
+        assert!(database.conflicts().unwrap().is_empty());
+    }
+
+    #[test]
+    fn database_uses_wal_and_foreign_keys() {
+        let dir = temp_dir("db-pragmas");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        let mode: String = database
+            .connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        let foreign_keys: i64 = database
+            .connection
+            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
+        assert_eq!(foreign_keys, 1);
     }
 }
