@@ -13,6 +13,7 @@ use {{.crate_name}}_storage::{Database, Paths, Settings, SettingsStore};
 pub mod commands;
 pub mod credentials;
 pub mod logging;
+pub mod sync;
 pub mod theme;
 
 use commands::Command;
@@ -91,6 +92,8 @@ pub struct DesktopApp {
     pub auth_password: String,
     pub auth_rx: Option<std::sync::mpsc::Receiver<AuthMessage>>,
     pub access_token: Option<String>,
+    pub sync_rx: Option<std::sync::mpsc::Receiver<sync::SyncReport>>,
+    pub sync_status: String,
 }
 
 #[derive(Debug)]
@@ -158,6 +161,8 @@ impl DesktopApp {
             auth_password: String::new(),
             auth_rx: None,
             access_token: None,
+            sync_rx: None,
+            sync_status: String::new(),
         })
     }
 
@@ -209,6 +214,8 @@ impl DesktopApp {
             auth_password: String::new(),
             auth_rx: None,
             access_token: None,
+            sync_rx: None,
+            sync_status: String::new(),
         }
     }
 
@@ -359,6 +366,7 @@ impl DesktopApp {
 
     pub fn render(&mut self, ui: &mut egui::Ui) {
         self.poll_auth();
+        self.poll_sync();
         self.handle_shortcuts(ui);
         theme::apply_visuals(ui.ctx(), &self.settings.theme, self.settings.high_contrast);
         Self::title_bar(ui);
@@ -876,6 +884,36 @@ impl DesktopApp {
         }
     }
 
+    fn poll_sync(&mut self) {
+        let Some(receiver) = &self.sync_rx else {
+            return;
+        };
+        while let Ok(report) = receiver.try_recv() {
+            self.sync_status = format!(
+                "Synced {} · conflicts {} · retried {}",
+                report.pushed, report.conflicts, report.retried
+            );
+            if let Some(error) = report.error {
+                self.sync_status = error;
+            }
+        }
+    }
+
+    fn start_sync(&mut self) {
+        let Some(token) = self.access_token.clone() else {
+            self.sync_status = "Sign in before syncing.".to_owned();
+            return;
+        };
+        let (sender, receiver) = std::sync::mpsc::channel();
+        self.sync_rx = Some(receiver);
+        let path = self.paths.data.join("local.sqlite");
+        let base = self.api_base.clone();
+        std::thread::spawn(move || {
+            let report = sync::run(path, base, token);
+            let _ = sender.send(report);
+        });
+    }
+
     fn account(&mut self, ui: &mut egui::Ui) {
         ui.heading(t("account.title"));
         ui.label(RichText::new(t("account.subtitle")).color(theme::TEXT_SECONDARY));
@@ -883,6 +921,12 @@ impl DesktopApp {
         match &self.auth_state {
             AuthState::SignedIn(email) => {
                 ui.label(format!("Signed in as {email}"));
+                if ui.button("Sync now").clicked() {
+                    self.start_sync();
+                }
+                if !self.sync_status.is_empty() {
+                    ui.label(&self.sync_status);
+                }
                 if ui.button(t("account.sign_out")).clicked() {
                     self.access_token = None;
                     self.tokens.delete().ok();
