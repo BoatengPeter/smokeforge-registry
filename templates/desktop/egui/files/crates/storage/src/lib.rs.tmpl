@@ -303,6 +303,16 @@ impl Database {
         Ok(())
     }
 
+    /// Deletes every local record after explicit user confirmation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the delete statement fails.
+    pub fn clear_library(&self) -> Result<usize, StorageError> {
+        let changed = self.connection.execute("DELETE FROM library_items", [])?;
+        Ok(changed)
+    }
+
     /// Exports non-deleted records as a portable JSON archive.
     ///
     /// # Errors
@@ -508,6 +518,22 @@ mod tests {
         assert_eq!(second.import_json(&archive).unwrap(), 1);
         assert_eq!(second.import_json(&archive).unwrap(), 0);
         assert_eq!(second.get(item.id).unwrap().unwrap().title, "Exported");
+    }
+
+    #[test]
+    fn clear_library_removes_all_records() {
+        let dir = temp_dir("clear-library");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        database
+            .create(&LibraryDraft {
+                title: "Clear me".to_owned(),
+                description: String::new(),
+                status: LibraryStatus::Draft,
+                tags: Vec::new(),
+            })
+            .unwrap();
+        assert_eq!(database.clear_library().unwrap(), 1);
+        assert!(database.list("", None).unwrap().is_empty());
     }
 
     #[test]

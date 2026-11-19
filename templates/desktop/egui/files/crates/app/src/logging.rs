@@ -1,5 +1,6 @@
 //! Rolling local logs with conservative redaction.
 
+use std::io::{self, Write};
 use std::path::Path;
 
 use tracing_appender::non_blocking::WorkerGuard;
@@ -17,16 +18,32 @@ impl LoggingGuard {
 }
 
 #[must_use]
+struct RedactingWriter<W: Write>(W);
+
+impl<W: Write> Write for RedactingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let text = String::from_utf8_lossy(buf);
+        self.0.write_all(redact(&text).as_bytes())?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
+#[must_use]
 pub fn init(log_dir: &Path, level: &str) -> LoggingGuard {
     let _ = std::fs::create_dir_all(log_dir);
     let appender = tracing_appender::rolling::daily(log_dir, "smokeforge.log");
     let (writer, guard) = tracing_appender::non_blocking(appender);
     let filter = EnvFilter::try_new(level).unwrap_or_else(|_| EnvFilter::new("info"));
 
+    let file_writer = writer.clone();
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_ansi(false)
-        .with_writer(writer)
+        .with_writer(move || RedactingWriter(file_writer.clone()))
         .finish();
 
     let installed = tracing::subscriber::set_global_default(subscriber).is_ok();

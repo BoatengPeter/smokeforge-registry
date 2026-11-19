@@ -738,6 +738,25 @@ impl DesktopApp {
                     }
                 }
             }
+
+            if ui.button("Clear local data").clicked() {
+                let confirmed = rfd::MessageDialog::new()
+                    .set_title("Clear local data")
+                    .set_description("Delete all local Library records? This cannot be undone.")
+                    .set_buttons(rfd::MessageButtons::YesNo)
+                    .show()
+                    == rfd::MessageDialogResult::Yes;
+                if confirmed {
+                    match self.clear_local_data() {
+                        Ok(count) => {
+                            self.toasts.success(format!("Cleared {count} records."));
+                        }
+                        Err(error) => {
+                            self.toasts.error(error);
+                        }
+                    }
+                }
+            }
         });
     }
 
@@ -767,6 +786,14 @@ impl DesktopApp {
             .lock()
             .map_err(|_| "database lock".to_owned())?;
         database.backup(path).map_err(|error| error.to_string())
+    }
+
+    fn clear_local_data(&self) -> Result<usize, String> {
+        let database = self
+            .database
+            .lock()
+            .map_err(|_| "database lock".to_owned())?;
+        database.clear_library().map_err(|error| error.to_string())
     }
 
     fn about(&mut self, ui: &mut egui::Ui) {
