@@ -1,4 +1,4 @@
-.PHONY: help build check test lint fmt run package clean
+.PHONY: help install build check test lint fmt run package clean
 
 help:
 	@echo "make run       Run the egui desktop app"
@@ -8,6 +8,9 @@ help:
 	@echo "make fmt       Format the workspace"
 	@echo "make package   Build a native package with cargo-packager"
 	@echo "make clean     Remove target output"
+
+install:
+	cargo fetch
 
 run:
 	cargo run -p {{.crate_name}}

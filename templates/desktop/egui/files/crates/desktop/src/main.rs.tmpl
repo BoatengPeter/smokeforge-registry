@@ -3,10 +3,17 @@
 use eframe::egui;
 
 fn main() -> eframe::Result<()> {
+    install_panic_hook();
+    let instance = single_instance::SingleInstance::new("{{.bundle_id}}").ok();
+    if instance.as_ref().is_some_and(|value| !value.is_single()) {
+        return Ok(());
+    }
+    let _instance = instance;
+
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1180.0, 760.0])
         .with_min_inner_size([760.0, 520.0])
-        .with_title("Egui Verify");
+        .with_title("{{.project_name}}");
 
     if cfg!(target_os = "macos") {
         viewport = viewport
@@ -23,15 +30,26 @@ fn main() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "Egui Verify",
+        "{{.project_name}}",
         options,
         Box::new(|cc| {
             let _ = cc;
-            let app = {{.crate_name}}_app::DesktopApp::new("Egui Verify")?;
+            let mut app = {{.crate_name}}_app::DesktopApp::new("{{.project_name}}")?;
+            if let Some(storage) = cc.storage {
+                app.restore_layout(storage);
+            }
 
             Ok(Box::new(DesktopShell { app }))
         }),
     )
+}
+
+fn install_panic_hook() {
+    let path = std::env::temp_dir().join("smokeforge-egui-panic.log");
+    std::panic::set_hook(Box::new(move |info| {
+        let report = format!("{info}\n");
+        let _ = std::fs::write(&path, report);
+    }));
 }
 
 struct DesktopShell {
@@ -41,5 +59,9 @@ struct DesktopShell {
 impl eframe::App for DesktopShell {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.render(ui);
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        self.app.save_layout(storage);
     }
 }

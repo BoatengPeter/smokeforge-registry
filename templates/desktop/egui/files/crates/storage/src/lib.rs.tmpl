@@ -23,9 +23,12 @@ pub enum StorageError {
     Migration(#[from] refinery::Error),
     #[error("settings error: {0}")]
     Settings(String),
+    #[error("import error: {0}")]
+    Import(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub schema_version: u32,
     pub theme: String,
@@ -34,6 +37,7 @@ pub struct Settings {
     pub last_pane: String,
     pub sync_policy: String,
     pub locale: String,
+    pub high_contrast: bool,
 }
 
 impl Default for Settings {
@@ -46,6 +50,7 @@ impl Default for Settings {
             last_pane: "dashboard".to_owned(),
             sync_policy: "manual".to_owned(),
             locale: "en".to_owned(),
+            high_contrast: false,
         }
     }
 }
@@ -94,6 +99,7 @@ impl Database {
                 .map_err(|error| StorageError::Settings(error.to_string()))?;
         }
         let mut connection = Connection::open(path)?;
+        connection.busy_timeout(std::time::Duration::from_secs(5))?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         embedded::migrations::runner().run(&mut connection)?;
@@ -296,6 +302,48 @@ impl Database {
             .execute("VACUUM INTO ?1", params![path.to_string_lossy()])?;
         Ok(())
     }
+
+    /// Exports non-deleted records as a portable JSON archive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the library cannot be read or serialized.
+    pub fn export_json(&self) -> Result<String, StorageError> {
+        let items = self.list("", None)?;
+        serde_json::to_string_pretty(&items)
+            .map_err(|error| StorageError::Import(error.to_string()))
+    }
+
+    /// Imports records, skipping IDs that already exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the archive is invalid or an insert fails.
+    pub fn import_json(&self, raw: &str) -> Result<usize, StorageError> {
+        let items: Vec<LibraryItem> =
+            serde_json::from_str(raw).map_err(|error| StorageError::Import(error.to_string()))?;
+        let mut inserted = 0;
+        for item in items {
+            let changed = self.connection.execute(
+                "INSERT OR IGNORE INTO library_items
+                 (id, title, description, status, tags_json, version, sync_status, created_at, updated_at, deleted_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULL)",
+                params![
+                    item.id.to_string(),
+                    item.title,
+                    item.description,
+                    status_value(item.status),
+                    serde_json::to_string(&item.tags).unwrap_or_else(|_| "[]".to_owned()),
+                    item.version,
+                    sync_value(item.sync_status),
+                    item.created_at,
+                    item.updated_at,
+                ],
+            )?;
+            inserted += changed;
+        }
+        Ok(inserted)
+    }
 }
 
 fn status_value(status: LibraryStatus) -> &'static str {
@@ -311,6 +359,16 @@ fn parse_status(value: &str) -> LibraryStatus {
         "active" => LibraryStatus::Active,
         "archived" => LibraryStatus::Archived,
         _ => LibraryStatus::Draft,
+    }
+}
+
+fn sync_value(status: SyncStatus) -> &'static str {
+    match status {
+        SyncStatus::Local => "local",
+        SyncStatus::Pending => "pending",
+        SyncStatus::Synced => "synced",
+        SyncStatus::Conflict => "conflict",
+        SyncStatus::Failed => "failed",
     }
 }
 
@@ -365,7 +423,14 @@ impl SettingsStore {
             }
             Err(error) => return Err(StorageError::Settings(error.to_string())),
         };
-        serde_json::from_str(&raw).map_err(|error| StorageError::Settings(error.to_string()))
+        match serde_json::from_str::<Settings>(&raw) {
+            Ok(settings) if settings.schema_version == 1 => Ok(settings),
+            Ok(_) | Err(_) => {
+                let corrupt = self.path.with_extension("json.corrupt");
+                let _ = std::fs::rename(&self.path, corrupt);
+                Ok(Settings::default())
+            }
+        }
     }
 
     /// Atomically writes settings to disk.
@@ -385,5 +450,79 @@ impl SettingsStore {
             .map_err(|error| StorageError::Settings(error.to_string()))?;
         std::fs::rename(temporary, &self.path)
             .map_err(|error| StorageError::Settings(error.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("smokeforge-storage-{name}-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn corrupt_settings_recover_and_are_quarantined() {
+        let dir = temp_dir("corrupt-settings");
+        let store = SettingsStore::new(&dir);
+        std::fs::write(dir.join("settings.json"), "{not json").unwrap();
+
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.schema_version, 1);
+        assert!(dir.join("settings.json.corrupt").exists());
+        assert!(!dir.join("settings.json").exists());
+    }
+
+    #[test]
+    fn old_settings_load_with_new_fields_defaulted() {
+        let dir = temp_dir("old-settings");
+        let store = SettingsStore::new(&dir);
+        std::fs::write(
+            dir.join("settings.json"),
+            r#"{"schema_version":1,"theme":"light","language":"en","sidebar_open":false,"last_pane":"library","sync_policy":"manual","locale":"en"}"#,
+        )
+        .unwrap();
+
+        let loaded = store.load().unwrap();
+        assert!(!loaded.sidebar_open);
+        assert!(!loaded.high_contrast);
+    }
+
+    #[test]
+    fn export_and_import_skip_duplicate_ids() {
+        let dir = temp_dir("export-import");
+        let first = Database::open(&dir.join("first.sqlite")).unwrap();
+        let item = first
+            .create(&LibraryDraft {
+                title: "Exported".to_owned(),
+                description: "A portable record.".to_owned(),
+                status: LibraryStatus::Active,
+                tags: vec!["portable".to_owned()],
+            })
+            .unwrap();
+        let archive = first.export_json().unwrap();
+        let second = Database::open(&dir.join("second.sqlite")).unwrap();
+        assert_eq!(second.import_json(&archive).unwrap(), 1);
+        assert_eq!(second.import_json(&archive).unwrap(), 0);
+        assert_eq!(second.get(item.id).unwrap().unwrap().title, "Exported");
+    }
+
+    #[test]
+    fn database_uses_wal_and_foreign_keys() {
+        let dir = temp_dir("db-pragmas");
+        let database = Database::open(&dir.join("local.sqlite")).unwrap();
+        let mode: String = database
+            .connection
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        let foreign_keys: i64 = database
+            .connection
+            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
+        assert_eq!(foreign_keys, 1);
     }
 }

@@ -33,20 +33,48 @@ pub const SEARCH_WIDTH: f32 = 240.0;
 pub const SORT_WIDTH: f32 = 160.0;
 
 /// Apply the selected theme while keeping the shared palette tokens.
-pub fn apply_visuals(ctx: &egui::Context, theme: &str) {
-    let mut visuals = if theme == "light" {
-        Visuals::light()
-    } else {
-        Visuals::dark()
+pub fn apply_visuals(ctx: &egui::Context, theme: &str, high_contrast: bool) {
+    let resolved = match theme {
+        "light" => egui::Theme::Light,
+        "system" => ctx.system_theme().unwrap_or(egui::Theme::Dark),
+        _ => egui::Theme::Dark,
     };
-    visuals.panel_fill = BACKGROUND;
-    visuals.window_fill = PANEL;
-    visuals.extreme_bg_color = EXTREME_BACKGROUND;
-    visuals.faint_bg_color = FAINT_BACKGROUND;
-    visuals.override_text_color = Some(TEXT);
-    visuals.widgets.inactive.bg_fill = RAISED;
-    visuals.widgets.hovered.bg_fill = HOVERED;
-    visuals.widgets.active.bg_fill = SELECTION;
-    visuals.selection.bg_fill = SELECTION;
+    let mut visuals = match resolved {
+        egui::Theme::Light => Visuals::light(),
+        egui::Theme::Dark => Visuals::dark(),
+    };
+
+    if resolved == egui::Theme::Dark {
+        visuals.panel_fill = BACKGROUND;
+        visuals.window_fill = PANEL;
+        visuals.extreme_bg_color = EXTREME_BACKGROUND;
+        visuals.faint_bg_color = FAINT_BACKGROUND;
+        visuals.override_text_color = Some(TEXT);
+        visuals.widgets.inactive.bg_fill = RAISED;
+        visuals.widgets.hovered.bg_fill = HOVERED;
+        visuals.widgets.active.bg_fill = SELECTION;
+        visuals.selection.bg_fill = SELECTION;
+    } else {
+        visuals.panel_fill = Color32::from_rgb(251, 248, 243);
+        visuals.window_fill = Color32::from_rgb(255, 253, 249);
+        visuals.extreme_bg_color = Color32::from_rgb(241, 236, 227);
+        visuals.faint_bg_color = Color32::from_rgb(231, 224, 213);
+        visuals.override_text_color = Some(Color32::from_rgb(49, 52, 54));
+        visuals.widgets.inactive.bg_fill = Color32::from_rgb(231, 224, 213);
+        visuals.widgets.hovered.bg_fill = Color32::from_rgb(241, 236, 227);
+        visuals.widgets.active.bg_fill = ACCENT;
+        visuals.selection.bg_fill = ACCENT;
+    }
+
+    if high_contrast {
+        visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.5, TEXT);
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.5, TEXT);
+        visuals.override_text_color = Some(if resolved == egui::Theme::Dark {
+            Color32::WHITE
+        } else {
+            Color32::BLACK
+        });
+    }
+
     ctx.set_visuals(visuals);
 }

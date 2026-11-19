@@ -1,7 +1,7 @@
 ---
 version: "alpha"
 name: Smokeforge egui
-description: "CraftAnything-inspired near-black technical shell with compact density, white primary actions, and a blue selection accent."
+description: "Near-black technical shell with compact density, white primary actions, and a blue selection accent."
 colors:
   background: "#0E0F11"
   panel: "#121316"
