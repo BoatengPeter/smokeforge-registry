@@ -76,6 +76,7 @@ pub struct DesktopApp {
     pub logging_guard: logging::LoggingGuard,
     pub last_deleted: Option<uuid::Uuid>,
     pub form_error: Option<String>,
+    pub tokens: credentials::TokenStore,
 }
 
 impl DesktopApp {
@@ -117,6 +118,7 @@ impl DesktopApp {
             logging_guard,
             last_deleted: None,
             form_error: None,
+            tokens: credentials::TokenStore::new("smokeforge-egui", "auth"),
         })
     }
 
@@ -160,6 +162,7 @@ impl DesktopApp {
             logging_guard: logging::LoggingGuard::disabled(),
             last_deleted: None,
             form_error: None,
+            tokens: credentials::TokenStore::memory_only(),
         }
     }
 
@@ -658,6 +661,11 @@ impl DesktopApp {
         ui.heading(t("settings.title"));
         ui.label(RichText::new(t("settings.subtitle")).color(theme::TEXT_SECONDARY));
         ui.add_space(16.0);
+        self.settings_appearance(ui);
+        self.settings_data(ui);
+    }
+
+    fn settings_appearance(&mut self, ui: &mut egui::Ui) {
         ui.label(t("settings.theme"));
         ui.horizontal(|ui| {
             for (value, label) in [("dark", "dark"), ("light", "light"), ("system", "system")] {
@@ -692,9 +700,15 @@ impl DesktopApp {
             self.settings.high_contrast = high_contrast;
             let _ = self.settings_store.save(&self.settings);
         }
+    }
+
+    fn settings_data(&mut self, ui: &mut egui::Ui) {
         ui.add_space(16.0);
         ui.label(t("settings.database"));
         ui.label(RichText::new(self.paths.data.join("local.sqlite").display().to_string()).small());
+        if let Some(warning) = self.tokens.warning() {
+            ui.label(RichText::new(warning).color(ui.visuals().warn_fg_color));
+        }
         ui.horizontal(|ui| {
             if ui.button("Export Library").clicked()
                 && let Some(path) = rfd::FileDialog::new()
