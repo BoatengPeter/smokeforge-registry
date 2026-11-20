@@ -24,3 +24,5 @@ Auto-update is intentionally out of scope for the initial template.
 
 Linux builds require the GPUI X11/Wayland and fontconfig development packages.
 CI installs them before building; see `docs/BUILD.md`.
+
+Docker packaging and runtime display requirements are documented in [DOCKER.md](DOCKER.md).
