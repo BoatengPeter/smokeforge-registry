@@ -194,29 +194,84 @@ impl AppView {
             )
         });
         v_flex()
-            .gap_3()
-            .child(format!("{} records", items.len()))
+            .gap_5()
+            .max_w(px(860.))
+            .child(
+                h_flex()
+                    .gap_4()
+                    .child(
+                        v_flex()
+                            .w(px(220.))
+                            .p_5()
+                            .rounded_lg()
+                            .bg(cx.theme().secondary)
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("Library records"),
+                            )
+                            .child(
+                                div()
+                                    .text_3xl()
+                                    .font_semibold()
+                                    .child(items.len().to_string()),
+                            ),
+                    )
+                    .child(
+                        v_flex()
+                            .w(px(220.))
+                            .p_5()
+                            .rounded_lg()
+                            .bg(cx.theme().secondary)
+                            .border_1()
+                            .border_color(cx.theme().border)
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("Workspace"),
+                            )
+                            .child(div().text_3xl().font_semibold().child("Local")),
+                    ),
+            )
             .when(!self.settings.onboarded, |this| {
                 this.child(
-                    div()
-                        .p_3()
-                        .rounded_md()
+                    v_flex()
+                        .gap_3()
+                        .p_4()
+                        .rounded_lg()
+                        .bg(cx.theme().secondary)
                         .border_1()
                         .border_color(cx.theme().border)
-                        .child("Welcome to Smokeforge. Start in the Library."),
-                )
-                .child(
-                    Button::new("dismiss-onboarding")
-                        .small()
-                        .label("Got it")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.settings.onboarded = true;
-                            let _ = this.settings_store.save(&this.settings);
-                            cx.notify();
-                        })),
+                        .child("Welcome to Smokeforge. Start in the Library.")
+                        .child(
+                            Button::new("dismiss-onboarding")
+                                .small()
+                                .label("Got it")
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.settings.onboarded = true;
+                                    let _ = this.settings_store.save(&this.settings);
+                                    cx.notify();
+                                })),
+                        ),
                 )
             })
-            .children(recent)
+            .child(
+                v_flex()
+                    .gap_2()
+                    .p_4()
+                    .rounded_lg()
+                    .bg(cx.theme().secondary)
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .child(div().text_lg().font_semibold().child("Recent records"))
+                    .children(recent),
+            )
             .into_any_element()
     }
 
@@ -555,6 +610,7 @@ impl Render for AppView {
             .footer(SidebarFooter::new().child(t("sidebar.footer")));
 
         v_flex()
+            .relative()
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
@@ -601,7 +657,6 @@ impl Render for AppView {
                         .min_w_0()
                         .p_6()
                         .gap_2()
-                        .when_some(command, ParentElement::child)
                         .child(div().text_2xl().font_semibold().child(self.active.label()))
                         .child(
                             div()
@@ -616,6 +671,16 @@ impl Render for AppView {
                     .left(t("status.local"))
                     .right(t("status.version")),
             )
+            .when_some(command, |this, command| {
+                this.child(
+                    div()
+                        .absolute()
+                        .top(px(54.))
+                        .left(px(240.))
+                        .right(px(24.))
+                        .child(command),
+                )
+            })
             .on_action(cx.listener(|this, _: &ShowDashboard, _, cx| {
                 this.active = Pane::Dashboard;
                 cx.notify();
