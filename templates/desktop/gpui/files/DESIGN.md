@@ -1,4 +1,4 @@
-# Design System: Smokeforge GPUI
+# Design System: Desktop GPUI
 
 Use GPUI Kit semantic theme tokens (`cx.theme()`), the component library, and the GPUI Kit design guides. Dark is the default; light and high contrast are supported.
 

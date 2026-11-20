@@ -1,0 +1,24 @@
+use super::*;
+
+impl AppView {
+    pub(crate) fn activity_body(&self, cx: &mut Context<Self>) -> AnyElement {
+        let conflicts = self
+            .database
+            .as_ref()
+            .and_then(|database| database.conflicts().ok())
+            .map_or(0, |rows| rows.len());
+        v_flex()
+            .gap_2()
+            .child(if self.sync_status.is_empty() {
+                "No sync activity.".to_owned()
+            } else {
+                self.sync_status.clone()
+            })
+            .child(
+                div()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(format!("{conflicts} pending conflicts")),
+            )
+            .into_any_element()
+    }
+}

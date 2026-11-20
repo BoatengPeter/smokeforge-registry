@@ -1,0 +1,19 @@
+#![allow(unused_imports, reason = "Re-exported for page modules.")]
+
+mod about;
+mod account;
+mod activity;
+mod dashboard;
+mod library;
+mod settings;
+
+pub(crate) use crate::*;
+pub(crate) use {{.crate_name}}_ui::*;
+pub(crate) use gpui_kit::base::{StyledExt, h_flex, v_flex};
+pub(crate) use gpui_kit::component::ActiveTheme;
+pub(crate) use gpui_kit::component::button::{Button, ButtonVariants as _};
+pub(crate) use gpui_kit::component::input::{Input, InputState};
+pub(crate) use gpui_kit::component::table::{
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+};
+pub(crate) use gpui_kit::*;

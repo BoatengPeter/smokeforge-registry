@@ -1,0 +1,13 @@
+use super::*;
+
+impl AppView {
+    pub(crate) fn about_body(&self) -> AnyElement {
+        v_flex()
+            .gap_2()
+            .child(format!("{} · GPUI Kit 0.10.0", t("app.name")))
+            .child("GPUI snapshot 0.3.12")
+            .child(format!("Data: {}", self.paths.data.display()))
+            .child(format!("Logs: {}", self.paths.logs.display()))
+            .into_any_element()
+    }
+}

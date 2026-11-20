@@ -1,4 +1,4 @@
-//! Typed API client for the smokeforge auth and Library contract.
+//! Typed API client for authentication and the Library contract.
 
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};

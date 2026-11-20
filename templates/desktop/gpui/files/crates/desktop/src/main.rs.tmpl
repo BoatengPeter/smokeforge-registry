@@ -49,7 +49,7 @@ fn main() {
 }
 
 fn instance_path() -> std::path::PathBuf {
-    std::env::temp_dir().join("smokeforge-gpui-instance.port")
+    std::env::temp_dir().join("{{.crate_name}}-instance.port")
 }
 
 fn forward_to_running_instance() -> bool {
@@ -86,7 +86,7 @@ fn start_instance_listener() -> (Arc<AtomicBool>, Option<std::thread::JoinHandle
 }
 
 fn install_panic_hook() {
-    let path = std::env::temp_dir().join("smokeforge-gpui-panic.log");
+    let path = std::env::temp_dir().join("{{.crate_name}}-panic.log");
     std::panic::set_hook(Box::new(move |info| {
         let _ = std::fs::write(&path, format!("{info}\n"));
     }));

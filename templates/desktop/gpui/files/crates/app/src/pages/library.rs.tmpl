@@ -1,0 +1,84 @@
+use super::*;
+
+impl AppView {
+    pub(crate) fn library_body(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let items = self
+            .database
+            .as_ref()
+            .and_then(|database| database.list("", None).ok())
+            .unwrap_or_default();
+        let rows = items.into_iter().map(|item| {
+            let id = item.id;
+            TableRow::new()
+                .id(id.to_string())
+                .child(TableCell::new().child(item.title))
+                .child(TableCell::new().child(item.status.label()))
+                .child(
+                    TableCell::new().child(
+                        Button::new(format!("delete-{id}"))
+                            .ghost()
+                            .xsmall()
+                            .label("Delete")
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if let Some(database) = &this.database {
+                                    let _ = database.soft_delete(id);
+                                }
+                                cx.notify();
+                            })),
+                    ),
+                )
+        });
+
+        v_flex()
+            .gap_3()
+            .child(Input::new(&self.title_input))
+            .child(Input::new(&self.tags_input))
+            .child(
+                Button::new("create-item")
+                    .primary()
+                    .label("Create record")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        let title = this.title_input.read(cx).value().to_string();
+                        if title.trim().is_empty() {
+                            return;
+                        }
+                        let tags = this
+                            .tags_input
+                            .read(cx)
+                            .value()
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|tag| !tag.is_empty())
+                            .map(str::to_owned)
+                            .collect();
+                        if let Some(database) = &this.database {
+                            let _ = database.create(&{{.crate_name}}_core::LibraryDraft {
+                                title,
+                                description: String::new(),
+                                status: {{.crate_name}}_core::LibraryStatus::Draft,
+                                tags,
+                            });
+                        }
+                        this.title_input =
+                            cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
+                        this.tags_input = cx.new(|cx| {
+                            InputState::new(window, cx).placeholder("tags, comma separated")
+                        });
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Table::new()
+                    .child(
+                        TableHeader::new().child(
+                            TableRow::new()
+                                .child(TableHead::new().child("Title"))
+                                .child(TableHead::new().w(px(100.)).child("Status"))
+                                .child(TableHead::new().w(px(90.)).child("")),
+                        ),
+                    )
+                    .child(TableBody::new().children(rows)),
+            )
+            .into_any_element()
+    }
+}

@@ -1,0 +1,15 @@
+use super::*;
+
+impl AppView {
+    pub(crate) fn settings_body(&self, _cx: &mut Context<Self>) -> AnyElement {
+        v_flex()
+            .gap_3()
+            .child(format!("Theme: {}", self.settings.theme))
+            .child(format!("Language: {}", self.settings.language))
+            .child(format!("Log level: {}", self.settings.log_level))
+            .child(format!("Data: {}", self.paths.data.display()))
+            .child(format!("Logs: {}", self.paths.logs.display()))
+            .child(format!("Config: {}", self.paths.config.display()))
+            .into_any_element()
+    }
+}

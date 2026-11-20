@@ -14,7 +14,7 @@ flowchart LR
 ## Build
 
 ```bash
-docker build -t smokeforge-gpui .
+docker build -t gpui-app .
 ```
 
 The build stage installs the `-dev` packages. The runtime stage installs the
@@ -30,7 +30,7 @@ docker run --rm -it \
   -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
   --device /dev/dri \
   --group-add video \
-  smokeforge-gpui
+  gpui-app
 xhost -local:docker
 ```
 
@@ -53,7 +53,7 @@ docker run --rm -it \
   -v "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY" \
   --device /dev/dri \
   --group-add video \
-  smokeforge-gpui
+  gpui-app
 ```
 
 If the window does not appear, test X11 first. GPU/Vulkan drivers and the
