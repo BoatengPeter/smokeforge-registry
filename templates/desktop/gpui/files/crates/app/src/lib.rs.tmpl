@@ -27,8 +27,13 @@ use gpui_kit::*;
 
 rust_i18n::i18n!("locales");
 
+#[derive(Debug, Clone)]
+pub enum Action {
+    SetLanguage(String),
+}
+
 gpui_kit::actions!(
-    desktop,
+    smokeforge,
     [
         ShowDashboard,
         ShowLibrary,
@@ -101,6 +106,7 @@ pub struct AppView {
     sync_task: Option<Task<()>>,
     sync_status: String,
     focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    applied_theme: String,
     database: Option<{{.crate_name}}_storage::Database>,
     title_input: Entity<InputState>,
     tags_input: Entity<InputState>,
@@ -112,11 +118,11 @@ impl AppView {
         cx: &mut Context<Self>,
         focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Self {
-        let paths = {{.crate_name}}_storage::Paths::discover("{{.project_name}}").unwrap_or_else(|_| {
+        let paths = {{.crate_name}}_storage::Paths::discover("Smokeforge").unwrap_or_else(|_| {
             {{.crate_name}}_storage::Paths {
-                data: std::env::temp_dir().join("{{.crate_name}}"),
-                config: std::env::temp_dir().join("{{.crate_name}}"),
-                logs: std::env::temp_dir().join("{{.crate_name}}-logs"),
+                data: std::env::temp_dir().join("smokeforge"),
+                config: std::env::temp_dir().join("smokeforge"),
+                logs: std::env::temp_dir().join("smokeforge-logs"),
             }
         });
         let settings_store = {{.crate_name}}_storage::SettingsStore::new(&paths.config);
@@ -151,7 +157,7 @@ impl AppView {
             database,
             title_input,
             tags_input,
-            tokens: credentials::TokenStore::new("{{.crate_name}}", "auth"),
+            tokens: credentials::TokenStore::new("smokeforge-gpui", "auth"),
             api_mode,
             api_base,
             email_input,
@@ -162,11 +168,23 @@ impl AppView {
             sync_task: None,
             sync_status: String::new(),
             focus_requested,
+            applied_theme: String::new(),
         }
     }
 }
 
 impl AppView {
+    pub fn dispatch(&mut self, action: Action) {
+        match action {
+            Action::SetLanguage(language) => {
+                language.clone_into(&mut self.settings.language);
+                language.clone_into(&mut self.settings.locale);
+                rust_i18n::set_locale(&language);
+                let _ = self.settings_store.save(&self.settings);
+            }
+        }
+    }
+
     fn subtitle(&self, _cx: &mut Context<Self>) -> String {
         match self.active {
             Pane::Settings => "Preferences, local data, and diagnostics.".to_owned(),
@@ -185,7 +203,7 @@ impl AppView {
         match self.active {
             Pane::Dashboard => self.dashboard_body(cx),
             Pane::Activity => self.activity_body(cx),
-            Pane::About => self.about_body(),
+            Pane::About => self.about_body(cx),
             Pane::Settings => self.settings_body(cx),
             Pane::Account => self.account_body(cx),
             Pane::Library => self.library_body(cx).into_any_element(),

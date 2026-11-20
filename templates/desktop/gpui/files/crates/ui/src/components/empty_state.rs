@@ -5,6 +5,7 @@ use gpui_kit::component::ActiveTheme;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
+#[derive(IntoElement)]
 pub struct EmptyState {
     title: SharedString,
     body: Option<SharedString>,

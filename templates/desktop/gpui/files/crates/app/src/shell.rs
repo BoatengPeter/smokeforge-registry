@@ -6,6 +6,15 @@ impl Render for AppView {
         reason = "Shell composition is kept in one render."
     )]
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.applied_theme != self.settings.theme {
+            match self.settings.theme.as_str() {
+                "light" => Theme::change(ThemeMode::Light, Some(window), cx),
+                "system" => Theme::sync_system_appearance(Some(window), cx),
+                _ => Theme::change(ThemeMode::Dark, Some(window), cx),
+            }
+            self.applied_theme.clone_from(&self.settings.theme);
+        }
+
         if self
             .focus_requested
             .swap(false, std::sync::atomic::Ordering::Relaxed)
@@ -97,6 +106,7 @@ impl Render for AppView {
                 h_flex().flex_1().min_h_0().child(sidebar).child(
                     v_flex()
                         .flex_1()
+                        .w_full()
                         .min_w_0()
                         .p_6()
                         .gap_2()
@@ -156,17 +166,14 @@ impl Render for AppView {
                 }
                 cx.notify();
             }))
-            .on_action(cx.listener(|_this, _: &ToggleTheme, window, cx| {
-                let mode = Theme::global(cx).mode;
-                Theme::change(
-                    if mode == ThemeMode::Dark {
-                        ThemeMode::Light
-                    } else {
-                        ThemeMode::Dark
-                    },
-                    Some(window),
-                    cx,
-                );
+            .on_action(cx.listener(|this, _: &ToggleTheme, _, cx| {
+                let next = if this.settings.theme == "dark" {
+                    "light"
+                } else {
+                    "dark"
+                };
+                next.clone_into(&mut this.settings.theme);
+                let _ = this.settings_store.save(&this.settings);
                 cx.notify();
             }))
     }

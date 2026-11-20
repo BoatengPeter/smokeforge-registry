@@ -30,42 +30,47 @@ impl AppView {
         });
 
         v_flex()
-            .gap_3()
-            .child(Input::new(&self.title_input))
-            .child(Input::new(&self.tags_input))
+            .w_full()
+            .gap_4()
+            .child(PageHeader::new(t("nav.library")).subtitle("Local records backed by SQLite."))
             .child(
-                Button::new("create-item")
-                    .primary()
-                    .label("Create record")
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        let title = this.title_input.read(cx).value().to_string();
-                        if title.trim().is_empty() {
-                            return;
-                        }
-                        let tags = this
-                            .tags_input
-                            .read(cx)
-                            .value()
-                            .split(',')
-                            .map(str::trim)
-                            .filter(|tag| !tag.is_empty())
-                            .map(str::to_owned)
-                            .collect();
-                        if let Some(database) = &this.database {
-                            let _ = database.create(&{{.crate_name}}_core::LibraryDraft {
-                                title,
-                                description: String::new(),
-                                status: {{.crate_name}}_core::LibraryStatus::Draft,
-                                tags,
-                            });
-                        }
-                        this.title_input =
-                            cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
-                        this.tags_input = cx.new(|cx| {
-                            InputState::new(window, cx).placeholder("tags, comma separated")
-                        });
-                        cx.notify();
-                    })),
+                SectionCard::new("New record")
+                    .child(Input::new(&self.title_input))
+                    .child(Input::new(&self.tags_input))
+                    .child(
+                        Button::new("create-item")
+                            .primary()
+                            .label("Create record")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                let title = this.title_input.read(cx).value().to_string();
+                                if title.trim().is_empty() {
+                                    return;
+                                }
+                                let tags = this
+                                    .tags_input
+                                    .read(cx)
+                                    .value()
+                                    .split(',')
+                                    .map(str::trim)
+                                    .filter(|tag| !tag.is_empty())
+                                    .map(str::to_owned)
+                                    .collect();
+                                if let Some(database) = &this.database {
+                                    let _ = database.create(&{{.crate_name}}_core::LibraryDraft {
+                                        title,
+                                        description: String::new(),
+                                        status: {{.crate_name}}_core::LibraryStatus::Draft,
+                                        tags,
+                                    });
+                                }
+                                this.title_input =
+                                    cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
+                                this.tags_input = cx.new(|cx| {
+                                    InputState::new(window, cx).placeholder("tags, comma separated")
+                                });
+                                cx.notify();
+                            })),
+                    ),
             )
             .child(
                 Table::new()

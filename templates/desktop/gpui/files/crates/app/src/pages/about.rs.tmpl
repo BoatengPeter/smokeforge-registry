@@ -1,13 +1,24 @@
 use super::*;
 
 impl AppView {
-    pub(crate) fn about_body(&self) -> AnyElement {
+    pub(crate) fn about_body(&self, _cx: &mut Context<Self>) -> AnyElement {
         v_flex()
-            .gap_2()
-            .child(format!("{} · GPUI Kit 0.10.0", t("app.name")))
-            .child("GPUI snapshot 0.3.12")
-            .child(format!("Data: {}", self.paths.data.display()))
-            .child(format!("Logs: {}", self.paths.logs.display()))
+            .w_full()
+            .gap_4()
+            .child(PageHeader::new(t("app.name")).subtitle("Desktop application"))
+            .child(
+                SectionCard::new("Application")
+                    .child("GPUI Kit 0.10.0 · GPUI 0.3.12")
+                    .child(format!("Workspace data: {}", self.paths.data.display()))
+                    .child(format!("Logs: {}", self.paths.logs.display())),
+            )
+            .child(
+                SectionCard::new("Links").child(
+                    Button::new("open-github")
+                        .label(t("about.github"))
+                        .on_click(|_, _, cx| cx.open_url("https://github.com/BoatengPeter")),
+                ),
+            )
             .into_any_element()
     }
 }

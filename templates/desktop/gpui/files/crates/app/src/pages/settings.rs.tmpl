@@ -1,15 +1,57 @@
 use super::*;
 
 impl AppView {
-    pub(crate) fn settings_body(&self, _cx: &mut Context<Self>) -> AnyElement {
-        v_flex()
-            .gap_3()
-            .child(format!("Theme: {}", self.settings.theme))
-            .child(format!("Language: {}", self.settings.language))
-            .child(format!("Log level: {}", self.settings.log_level))
+    pub(crate) fn settings_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let theme_options = [
+            ("dark", t("setting.dark")),
+            ("light", t("setting.light")),
+            ("system", t("setting.system")),
+        ];
+        let language_options = [("en", t("setting.english")), ("es", t("setting.spanish"))];
+
+        let appearance =
+            SectionCard::new(t("setting.appearance"))
+                .child(h_flex().gap_2().children(theme_options.into_iter().map(
+                    |(value, label)| {
+                        Button::new(format!("theme-{value}"))
+                            .when(
+                                self.settings.theme == value,
+                                gpui_kit::component::button::ButtonVariants::primary,
+                            )
+                            .label(label)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                value.clone_into(&mut this.settings.theme);
+                                let _ = this.settings_store.save(&this.settings);
+                                cx.notify();
+                            }))
+                    },
+                )))
+                .child(h_flex().gap_2().children(language_options.into_iter().map(
+                    |(value, label)| {
+                        Button::new(format!("language-{value}"))
+                            .when(
+                                self.settings.language == value,
+                                gpui_kit::component::button::ButtonVariants::primary,
+                            )
+                            .label(label)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.dispatch(crate::Action::SetLanguage(value.to_owned()));
+                                cx.notify();
+                            }))
+                    },
+                )));
+
+        let data = SectionCard::new(t("about.diagnostics"))
             .child(format!("Data: {}", self.paths.data.display()))
             .child(format!("Logs: {}", self.paths.logs.display()))
             .child(format!("Config: {}", self.paths.config.display()))
+            .child(format!("Log level: {}", self.settings.log_level));
+
+        v_flex()
+            .w_full()
+            .gap_4()
+            .child(PageHeader::new(t("nav.settings")).subtitle("Preferences and local data."))
+            .child(h_flex().gap_4().items_start().child(appearance).child(data))
             .into_any_element()
     }
 }

@@ -3,7 +3,7 @@
     reason = "GPUI Kit exports the framework prelude."
 )]
 
-//! Shared UI components and theme.
+//! Shared Smokeforge UI components and theme.
 
 pub mod components;
 

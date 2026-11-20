@@ -4,6 +4,7 @@ use gpui_kit::base::{StyledExt, v_flex};
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::*;
 
+#[derive(IntoElement)]
 pub struct SectionCard {
     title: SharedString,
     children: Vec<AnyElement>,
