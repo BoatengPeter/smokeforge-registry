@@ -20,8 +20,12 @@ make run
 make package
 ```
 
-Read `CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, `DESIGN.md`, and `docs/LIBRARIES.md` before changing code.
+Read `CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, `DESIGN.md`, `docs/LIBRARIES.md`, and `docs/DOCKER.md` before changing code.
 
 ## Component work
 
 Read `.agents/skills/egui-component-engineering/SKILL.md` before adding or changing UI. It defines the reusable component contract, stable-ID rules, keyboard/accessibility bar, theme-token policy, and verification gate. The template also vendors `rust-async-patterns`, `rust-patterns`, `rust-testing`, and the two Rust best-practice skills from the API template.
+
+## Docker
+
+See [docs/DOCKER.md](docs/DOCKER.md) for building the image and X11/Wayland/GPU passthrough.

@@ -19,3 +19,5 @@ Before release:
 - Verify the app launches from the packaged artifact, not only `cargo run`.
 
 Auto-update is intentionally out of scope for the initial template.
+
+Docker packaging and runtime display requirements are documented in [DOCKER.md](DOCKER.md).
