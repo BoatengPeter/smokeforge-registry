@@ -381,6 +381,7 @@ impl DesktopApp {
         self.poll_auth();
         self.poll_sync();
         self.handle_shortcuts(ui);
+        egui_extras::install_image_loaders(ui.ctx());
         theme::apply_visuals(ui.ctx(), &self.settings.theme, self.settings.high_contrast);
         Self::title_bar(ui);
         let content_height = (ui.available_height() - 30.0).max(80.0);
