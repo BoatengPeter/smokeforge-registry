@@ -4,7 +4,9 @@
 - `crates/ui` owns GPUI Kit theme tokens and reusable components.
 - `crates/app` owns entities, models, views, actions, keybindings, and async state.
 - `crates/desktop` owns application bootstrap, assets, logging, and panic handling.
-- Read `.agents/skills/gpui-kit/SKILL.md`, `.agents/skills/gpui-kit-design-guides/SKILL.md`, and the matching Rust skills before work.
+- Read `docs/BUILD.md`, `docs/ARCHITECTURE.md`, `docs/AUTH.md`, and `docs/SYNC.md` when changing build, architecture, auth, or sync behavior.
+
+Read `.agents/skills/gpui-kit/SKILL.md`, `.agents/skills/gpui-kit-design-guides/SKILL.md`, and the matching Rust skills before work.
 - Never guess a GPUI API; check the pinned source or GPUI Kit docs.
 - Keep `render` cheap; no I/O, locks, or network calls.
 - Store `Subscription` and `Task` handles.
