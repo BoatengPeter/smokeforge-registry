@@ -3,15 +3,18 @@ import { join } from "node:path";
 
 import { windowChrome } from "../../shared/design-tokens";
 import { isTrustedRendererUrl } from "../../shared/security";
+import { loadAppIcon } from "./app-icon";
 
 export function openLibraryItemWindow(itemId: string): void {
   const devUrl = process.env.ELECTRON_RENDERER_URL;
+  const icon = loadAppIcon();
   const window = new BrowserWindow({
     width: 920,
     height: 680,
     minWidth: 620,
     minHeight: 460,
     show: false,
+    icon,
     backgroundColor: windowChrome.background,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {

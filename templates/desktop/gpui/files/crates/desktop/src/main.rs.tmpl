@@ -33,12 +33,17 @@ fn main() {
                 KeyBinding::new("cmd-k", {{.crate_name}}_app::ToggleCommand, None),
                 KeyBinding::new("cmd-shift-l", {{.crate_name}}_app::ToggleTheme, None),
             ]);
+            let icon = image::load_from_memory(include_bytes!("../../../assets/icon.png"))
+                .expect("embedded application icon")
+                .into_rgba8();
             let options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                     None,
                     size(px(1180.), px(760.)),
                     cx,
                 ))),
+                app_id: Some("{{.bundle_id}}".to_owned()),
+                icon: Some(Arc::new(icon)),
                 ..TitleBar::window_options()
             };
             gpui_kit::open_window(options, cx, |window, cx| {

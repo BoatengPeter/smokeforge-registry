@@ -12,8 +12,9 @@ cargo packager --release
 Before release:
 
 - Set `version` in the workspace package metadata.
-- Replace the placeholder bundle identifier and add platform icons under
-  `assets/`.
+- Replace the placeholder bundle identifier. The Smoke icons ship in `assets/`
+  (`icon.png`, `icon.ico`, `icon.icns`); replace them only when the identity
+  changes.
 - Build on each target OS; do not cross-package DMG/MSI from Linux.
 - Sign and notarize macOS builds, and sign Windows installers, in CI secrets.
 - Verify the app launches from the packaged artifact, not only `cargo run`.

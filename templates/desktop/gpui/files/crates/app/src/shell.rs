@@ -67,40 +67,42 @@ impl Render for AppView {
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
             .child(
-                TitleBar::new().child(t("app.name")).child(
-                    h_flex()
-                        .gap_2()
-                        .child(
-                            Button::new("open-command")
-                                .ghost()
-                                .xsmall()
-                                .label("Commands")
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.show_command = true;
-                                    this.command_state
-                                        .update(cx, |state, cx| state.focus(window, cx));
-                                    cx.notify();
-                                })),
-                        )
-                        .child(
-                            Button::new("toggle-theme")
-                                .ghost()
-                                .xsmall()
-                                .label("Theme")
-                                .on_click(cx.listener(|_, _, window, cx| {
-                                    let mode = Theme::global(cx).mode;
-                                    Theme::change(
-                                        if mode == ThemeMode::Dark {
-                                            ThemeMode::Light
-                                        } else {
-                                            ThemeMode::Dark
-                                        },
-                                        Some(window),
-                                        cx,
-                                    );
-                                })),
-                        ),
-                ),
+                TitleBar::new()
+                    .child(img(self.logo.clone()).w(px(16.)).h(px(16.)))
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(
+                                Button::new("open-command")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("Commands")
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.show_command = true;
+                                        this.command_state
+                                            .update(cx, |state, cx| state.focus(window, cx));
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new("toggle-theme")
+                                    .ghost()
+                                    .xsmall()
+                                    .label("Theme")
+                                    .on_click(cx.listener(|_, _, window, cx| {
+                                        let mode = Theme::global(cx).mode;
+                                        Theme::change(
+                                            if mode == ThemeMode::Dark {
+                                                ThemeMode::Light
+                                            } else {
+                                                ThemeMode::Dark
+                                            },
+                                            Some(window),
+                                            cx,
+                                        );
+                                    })),
+                            ),
+                    ),
             )
             .child(
                 h_flex().flex_1().min_h_0().child(sidebar).child(

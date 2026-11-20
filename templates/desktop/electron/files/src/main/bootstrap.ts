@@ -4,6 +4,7 @@ import { installApplicationMenu } from "./app/menu";
 import { appSettings } from "./features/settings/settings.ipc";
 import { checkForUpdates } from "./features/updates/update.service";
 import { createMainWindow } from "./windows/main-window";
+import { loadAppIcon } from "./windows/app-icon";
 import { registerAppProtocol, registerAppScheme } from "./app/protocol";
 import { loadConfig } from "./infra/config";
 import { configureLogging, log, setLogLevel } from "./infra/logger";
@@ -38,6 +39,11 @@ export async function bootstrap(): Promise<void> {
   });
 
   await app.whenReady();
+
+  if (process.platform === "darwin" && !app.isPackaged) {
+    const icon = loadAppIcon();
+    if (icon) app.dock?.setIcon(icon);
+  }
 
   const settings = await appSettings().read();
   configureLogging(settings.logLevel);

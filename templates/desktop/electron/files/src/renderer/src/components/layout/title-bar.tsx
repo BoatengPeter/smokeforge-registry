@@ -1,4 +1,5 @@
 import { PanelLeft, Search } from "lucide-react";
+import logo from "@renderer/assets/logo.png";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@renderer/components/ui/button";
@@ -24,9 +25,7 @@ export function TitleBar({ onPalette }: { onPalette: () => void }) {
         >
           <PanelLeft className="size-4" />
         </Button>
-        <span className="hidden text-xs font-semibold tracking-[0.12em] text-sidebar-foreground/70 sm:block">
-          Smokeforge
-        </span>
+        <img alt="" className="size-4" src={logo} />
       </div>
       <button
         className="app-region-no-drag flex h-7 w-60 items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/70 px-2.5 text-xs text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent"

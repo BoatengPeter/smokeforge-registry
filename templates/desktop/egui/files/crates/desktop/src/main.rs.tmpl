@@ -14,10 +14,14 @@ fn main() -> eframe::Result<()> {
     }
     let (focus, _listener) = start_instance_listener();
 
+    let icon = eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icon.png"))
+        .expect("embedded application icon");
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1180.0, 760.0])
         .with_min_inner_size([760.0, 520.0])
-        .with_title("{{.project_name}}");
+        .with_title("{{.project_name}}")
+        .with_app_id("{{.bundle_id}}")
+        .with_icon(icon);
 
     if cfg!(target_os = "macos") {
         viewport = viewport

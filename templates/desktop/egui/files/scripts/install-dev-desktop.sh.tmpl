@@ -1,0 +1,30 @@
+#!/usr/bin/env sh
+set -eu
+
+[ "$(uname -s)" = "Linux" ] || exit 0
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+app_id="{{.bundle_id}}"
+entry_dir="$HOME/.local/share/applications"
+icon_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
+
+mkdir -p "$entry_dir" "$icon_dir"
+cp "$project_dir/assets/icon.png" "$icon_dir/$app_id.png"
+cat > "$entry_dir/$app_id.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name={{.project_name}}
+Comment=Local development build
+Exec=$project_dir/target/debug/{{.crate_name}}
+Icon=$app_id
+Terminal=false
+StartupWMClass=$app_id
+Categories=Utility;
+EOF
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$entry_dir" >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
+fi

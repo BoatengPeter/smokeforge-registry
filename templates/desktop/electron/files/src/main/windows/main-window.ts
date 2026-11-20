@@ -4,11 +4,13 @@ import { join } from "node:path";
 
 import { windowChrome } from "../../shared/design-tokens";
 import { isTrustedRendererUrl } from "../../shared/security";
+import { loadAppIcon } from "./app-icon";
 
 const titleBarOverlay = windowChrome.titleBarOverlay;
 
 export function createMainWindow(): BrowserWindow {
   const devUrl = process.env.ELECTRON_RENDERER_URL;
+  const icon = loadAppIcon();
   const windowState = windowStateKeeper({
     defaultWidth: 1180,
     defaultHeight: 760,
@@ -23,6 +25,7 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 760,
     minHeight: 520,
     show: false,
+    icon,
     backgroundColor: windowChrome.background,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     ...(process.platform === "darwin"

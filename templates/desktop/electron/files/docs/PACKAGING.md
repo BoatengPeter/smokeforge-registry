@@ -15,6 +15,11 @@ The packaged app is built from `out/` and uses the custom `app://bundle` origin.
 The `afterPack` hook applies Electron fuses. It requires `@electron/fuses` at
 build time.
 
+The Smoke app icon ships in `resources/icon.png`, `resources/icon.ico`, and
+`resources/icon.icns`. electron-builder uses the platform icon for the app
+bundle and installers; the main process loads the PNG for the runtime window
+icon.
+
 ## Build pipeline
 
 ```mermaid

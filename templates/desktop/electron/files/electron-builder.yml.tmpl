@@ -6,10 +6,14 @@ files:
   - out/**/*
   # smokeforge:anchor files-entry
   - package.json
-# smokeforge:anchor extra-resources
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+  # smokeforge:anchor extra-resources
 asar: true
 afterPack: scripts/after-pack.cjs
 mac:
+  icon: resources/icon.icns
   target:
     - dmg
     - zip
@@ -18,9 +22,11 @@ mac:
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
 win:
+  icon: resources/icon.ico
   target:
     - nsis
 linux:
+  icon: resources/icon.png
   target:
     - AppImage
     - deb

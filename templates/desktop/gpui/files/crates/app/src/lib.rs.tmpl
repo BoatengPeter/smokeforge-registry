@@ -5,6 +5,8 @@
     reason = "GPUI Kit exports the framework prelude."
 )]
 
+use std::sync::Arc;
+
 use gpui_kit::base::{StyledExt, h_flex, v_flex};
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::TitleBar;
@@ -89,6 +91,7 @@ impl Pane {
 
 pub struct AppView {
     active: Pane,
+    logo: Arc<Image>,
     show_command: bool,
     command_state: Entity<CommandState>,
     paths: {{.crate_name}}_storage::Paths,
@@ -148,6 +151,10 @@ impl AppView {
         });
         Self {
             active: Pane::Dashboard,
+            logo: Arc::new(Image::from_bytes(
+                ImageFormat::Png,
+                include_bytes!("../../../assets/logo.png").to_vec(),
+            )),
             show_command: false,
             command_state: cx.new(|cx| CommandState::new(window, cx)),
             paths,

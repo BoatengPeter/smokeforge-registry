@@ -1,8 +1,9 @@
-.PHONY: help doctor install build check test lint fmt run package docker-build docker-run clean
+.PHONY: help doctor install build check test lint fmt run desktop-entry package docker-build docker-run clean
 
 help:
 	@echo "make doctor    Check Linux native build dependencies"
 	@echo "make run       Run the GPUI desktop app"
+	@echo "make desktop-entry Install a local launcher so the app icon appears in the desktop shell"
 	@echo "make check     Cargo check the workspace"
 	@echo "make test      Run workspace tests"
 	@echo "make lint      Run clippy with warnings denied"
@@ -19,8 +20,11 @@ doctor:
 install:
 	cargo fetch
 
-run:
+run: desktop-entry
 	cargo run -p {{.crate_name}}
+
+desktop-entry:
+	@sh scripts/install-dev-desktop.sh
 
 build:
 	cargo build --workspace
