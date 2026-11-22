@@ -1,0 +1,109 @@
+package {{.package_name}}.core.data
+
+import {{.package_name}}.core.common.AppError
+import {{.package_name}}.core.common.AppResult
+import {{.package_name}}.core.common.DispatcherProvider
+import {{.package_name}}.core.model.AuthRepository
+import {{.package_name}}.core.model.SessionState
+import {{.package_name}}.core.model.User
+import {{.package_name}}.core.network.ApiErrorMapper
+import {{.package_name}}.core.network.AuthApi
+import {{.package_name}}.core.network.ForgotPasswordRequest
+import {{.package_name}}.core.network.LoginRequest
+import {{.package_name}}.core.network.RefreshRequest
+import {{.package_name}}.core.network.RegisterRequest
+import {{.package_name}}.core.network.toSessionTokens
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import retrofit2.HttpException
+
+@Singleton
+class AuthRepositoryImpl @Inject constructor(
+    private val authApi: AuthApi,
+    private val sessionManager: SessionManager,
+    private val errorMapper: ApiErrorMapper,
+    private val dispatchers: DispatcherProvider,
+) : AuthRepository {
+    private val mutableSession = MutableStateFlow<SessionState>(SessionState.Loading)
+
+    override val session: StateFlow<SessionState> = mutableSession.asStateFlow()
+
+    override suspend fun restoreSession(): AppResult<Unit> = withContext(dispatchers.io) {
+        if (!sessionManager.restore()) {
+            mutableSession.value = SessionState.SignedOut
+            return@withContext AppResult.Success(Unit)
+        }
+
+        when (val result = call { authApi.me().toDomain() }) {
+            is AppResult.Success -> {
+                mutableSession.value = SessionState.SignedIn(result.value)
+                AppResult.Success(Unit)
+            }
+            is AppResult.Failure -> {
+                sessionManager.clear()
+                mutableSession.value = SessionState.SignedOut
+                AppResult.Success(Unit)
+            }
+        }
+    }
+
+    override suspend fun login(email: String, password: String): AppResult<User> =
+        withContext(dispatchers.io) {
+            when (val result = call { authApi.login(LoginRequest(email.trim(), password)) }) {
+                is AppResult.Failure -> result
+                is AppResult.Success -> {
+                    val tokens = result.value.toSessionTokens()
+                        ?: return@withContext AppResult.Failure(
+                            AppError.Server("The API did not return a refresh token."),
+                        )
+                    sessionManager.save(tokens)
+                    when (val user = call { authApi.me().toDomain() }) {
+                        is AppResult.Success -> {
+                            mutableSession.value = SessionState.SignedIn(user.value)
+                            user
+                        }
+                        is AppResult.Failure -> {
+                            sessionManager.clear()
+                            mutableSession.value = SessionState.SignedOut
+                            user
+                        }
+                    }
+                }
+            }
+        }
+
+    override suspend fun register(email: String, password: String): AppResult<User> =
+        withContext(dispatchers.io) {
+            call { authApi.register(RegisterRequest(email.trim(), password)).toDomain() }
+        }
+
+    override suspend fun requestPasswordReset(email: String): AppResult<Unit> =
+        withContext(dispatchers.io) {
+            call {
+                val response = authApi.forgotPassword(ForgotPasswordRequest(email.trim()))
+                if (response.isSuccessful) Unit else throw HttpException(response)
+            }
+        }
+
+    override suspend fun logout(): AppResult<Unit> = withContext(dispatchers.io) {
+        val refresh = sessionManager.refreshToken()
+        if (refresh != null) {
+            runCatching { authApi.logout(RefreshRequest(refresh)) }
+        }
+        sessionManager.clear()
+        mutableSession.value = SessionState.SignedOut
+        AppResult.Success(Unit)
+    }
+
+    private suspend fun <T> call(block: suspend () -> T): AppResult<T> = try {
+        AppResult.Success(block())
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (throwable: Throwable) {
+        AppResult.Failure(errorMapper.map(throwable))
+    }
+}

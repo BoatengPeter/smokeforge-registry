@@ -1,0 +1,10 @@
+package {{.package_name}}.core.datastore
+
+import {{.package_name}}.core.model.ThemeMode
+import kotlinx.coroutines.flow.Flow
+
+interface SettingsStore {
+    val themeMode: Flow<ThemeMode>
+
+    suspend fun setThemeMode(mode: ThemeMode)
+}

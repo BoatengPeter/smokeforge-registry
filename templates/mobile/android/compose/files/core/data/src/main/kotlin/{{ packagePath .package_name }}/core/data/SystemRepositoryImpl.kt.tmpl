@@ -1,0 +1,36 @@
+package {{.package_name}}.core.data
+
+import {{.package_name}}.core.common.AppResult
+import {{.package_name}}.core.common.DispatcherProvider
+import {{.package_name}}.core.model.SystemRepository
+import {{.package_name}}.core.model.User
+import {{.package_name}}.core.network.ApiErrorMapper
+import {{.package_name}}.core.network.AuthApi
+import {{.package_name}}.core.network.PingApi
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.withContext
+
+@Singleton
+class SystemRepositoryImpl @Inject constructor(
+    private val pingApi: PingApi,
+    private val authApi: AuthApi,
+    private val errorMapper: ApiErrorMapper,
+    private val dispatchers: DispatcherProvider,
+) : SystemRepository {
+    override suspend fun ping(): AppResult<String> = withContext(dispatchers.io) {
+        call { pingApi.ping().message }
+    }
+
+    override suspend fun currentUser(): AppResult<User> = withContext(dispatchers.io) {
+        call { authApi.me().toDomain() }
+    }
+
+    private suspend fun <T> call(block: suspend () -> T): AppResult<T> = try {
+        AppResult.Success(block())
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (throwable: Throwable) {
+        AppResult.Failure(errorMapper.map(throwable))
+    }
+}

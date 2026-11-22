@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auth_login_title">Welcome back</string>
+    <string name="auth_login_subtitle">Sign in to continue to your workspace.</string>
+    <string name="auth_register_title">Create an account</string>
+    <string name="auth_register_subtitle">Start with a secure account tied to your API.</string>
+    <string name="auth_forgot_title">Reset your password</string>
+    <string name="auth_forgot_subtitle">We will send a reset link when the account exists.</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_confirm_password">Confirm password</string>
+    <string name="auth_sign_in">Sign in</string>
+    <string name="auth_create_account">Create account</string>
+    <string name="auth_send_reset">Send reset link</string>
+    <string name="auth_have_account">Already have an account? Sign in</string>
+    <string name="auth_need_account">New here? Create an account</string>
+    <string name="auth_forgot_password">Forgot password?</string>
+    <string name="auth_notice_account_created">Account created. Sign in to continue.</string>
+    <string name="auth_notice_reset_sent">If the account exists, a reset link has been sent.</string>
+    <string name="auth_error_email_required">Enter your email address.</string>
+    <string name="auth_error_email_invalid">Enter a valid email address.</string>
+    <string name="auth_error_password_required">Enter your password.</string>
+    <string name="auth_error_password_short">Use at least 12 characters for the password.</string>
+    <string name="auth_error_password_mismatch">Passwords do not match.</string>
+    <string name="auth_error_invalid_credentials">The email or password is incorrect.</string>
+    <string name="auth_error_email_unverified">Verify your email before signing in.</string>
+    <string name="auth_error_email_registered">An account with that email already exists.</string>
+    <string name="auth_error_network">The API cannot be reached. Check your connection and try again.</string>
+    <string name="auth_error_server">The request could not be completed. Try again.</string>
+</resources>

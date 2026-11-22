@@ -1,0 +1,49 @@
+package {{.package_name}}.core.network
+
+import {{.package_name}}.core.common.AppError
+import java.io.IOException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.Assert.assertEquals
+import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
+
+class ApiErrorMapperTest {
+    private val mapper = ApiErrorMapper()
+
+    @Test
+    fun `network failures map to network errors`() {
+        assertEquals(AppError.Network, mapper.map(IOException("offline")))
+    }
+
+    @Test
+    fun `unauthorized maps to invalid credentials`() {
+        assertEquals(
+            AppError.InvalidCredentials,
+            mapper.map(HttpException(Response.error<Unit>(401, problem("Invalid credentials")))),
+        )
+    }
+
+    @Test
+    fun `conflict maps to registered email`() {
+        assertEquals(
+            AppError.EmailAlreadyRegistered,
+            mapper.map(HttpException(Response.error<Unit>(409, problem("Email already registered")))),
+        )
+    }
+
+    @Test
+    fun `validation uses the first field message`() {
+        val body = """{"title":"Validation failed","status":422,"errors":[{"field":"password","message":"too short"}]}"""
+            .toResponseBody("application/problem+json".toMediaType())
+
+        assertEquals(
+            AppError.Validation("too short"),
+            mapper.map(HttpException(Response.error<Unit>(422, body))),
+        )
+    }
+
+    private fun problem(detail: String) = """{"title":"Error","status":400,"detail":"$detail"}"""
+        .toResponseBody("application/problem+json".toMediaType())
+}

@@ -6,9 +6,9 @@ This repository is the versioned template registry used by
 
 ## Status
 
-M3 has Next.js and the Go/Gin backend implemented. The manifest, base files,
-overlays, and project-scoped skills exist; contract/build-matrix automation is
-the remaining work.
+M3 has Next.js, the Go/Gin backend, the Android Compose base, and the desktop
+bases implemented. The manifest, base files, overlays, and project-scoped skills
+exist; contract/build-matrix automation is the remaining work.
 
 ## Non-negotiables
 

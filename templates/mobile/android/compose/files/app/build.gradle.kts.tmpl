@@ -1,0 +1,107 @@
+plugins {
+    id("smoke.android.application")
+    id("smoke.android.compose")
+    id("smoke.android.hilt")
+}
+
+val stagingApiBaseUrl = providers.gradleProperty("stagingApiBaseUrl")
+    .getOrElse("https://staging.example.com")
+val releaseApiBaseUrl = providers.gradleProperty("releaseApiBaseUrl")
+    .getOrElse("https://api.example.com")
+
+android {
+    namespace = "{{.package_name}}"
+
+    defaultConfig {
+        applicationId = "{{.application_id}}"
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            buildConfigField("String", "API_BASE_URL", "\"{{.api_base_url}}\"")
+            buildConfigField("String", "ENVIRONMENT", "\"debug\"")
+        }
+
+        create("staging") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            buildConfigField("String", "API_BASE_URL", "\"$stagingApiBaseUrl\"")
+            buildConfigField("String", "ENVIRONMENT", "\"staging\"")
+        }
+
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+            buildConfigField("String", "ENVIRONMENT", "\"release\"")
+        }
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+val keystorePath = providers.environmentVariable("SMOKE_KEYSTORE_PATH").orNull
+if (keystorePath != null) {
+    android.signingConfigs {
+        create("release") {
+            storeFile = file(keystorePath)
+            storePassword = providers.environmentVariable("SMOKE_KEYSTORE_PASSWORD").orNull
+            keyAlias = providers.environmentVariable("SMOKE_KEY_ALIAS").orNull
+            keyPassword = providers.environmentVariable("SMOKE_KEY_PASSWORD").orNull
+        }
+    }
+    android.buildTypes.named("release") {
+        signingConfig = android.signingConfigs.getByName("release")
+    }
+}
+
+dependencies {
+    implementation(project(":core:common"))
+    implementation(project(":core:model"))
+    implementation(project(":core:data"))
+    implementation(project(":core:network"))
+    implementation(project(":core:designsystem"))
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(project(":feature:auth"))
+    implementation(project(":feature:home"))
+    implementation(project(":feature:settings"))
+
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.hilt.navigation.compose)
+
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.androidx.test.core.ktx)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(project(":core:testing"))
+}

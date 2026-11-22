@@ -1,0 +1,19 @@
+package {{.package_name}}.core.testing
+
+import {{.package_name}}.core.model.SettingsRepository
+import {{.package_name}}.core.model.ThemeMode
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+class FakeSettingsRepository(
+    initialTheme: ThemeMode = ThemeMode.SYSTEM,
+) : SettingsRepository {
+    private val theme = MutableStateFlow(initialTheme)
+
+    override val themeMode: Flow<ThemeMode> = theme.asStateFlow()
+
+    override suspend fun setThemeMode(mode: ThemeMode) {
+        theme.value = mode
+    }
+}

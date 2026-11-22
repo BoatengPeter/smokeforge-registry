@@ -1,0 +1,29 @@
+package {{.package_name}}.core.network
+
+import retrofit2.Response
+import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.Headers
+import retrofit2.http.POST
+
+interface AuthApi {
+    @POST("api/v1/auth/login")
+    @Headers("X-Refresh-Token-Transport: body")
+    suspend fun login(@Body request: LoginRequest): TokenResponse
+
+    @POST("api/v1/auth/register")
+    suspend fun register(@Body request: RegisterRequest): UserResponse
+
+    @POST("api/v1/auth/refresh")
+    @Headers("X-Refresh-Token-Transport: body")
+    suspend fun refresh(@Body request: RefreshRequest): TokenResponse
+
+    @POST("api/v1/auth/logout")
+    suspend fun logout(@Body request: RefreshRequest): Response<Unit>
+
+    @GET("api/v1/auth/me")
+    suspend fun me(): UserResponse
+
+    @POST("api/v1/auth/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): Response<Unit>
+}

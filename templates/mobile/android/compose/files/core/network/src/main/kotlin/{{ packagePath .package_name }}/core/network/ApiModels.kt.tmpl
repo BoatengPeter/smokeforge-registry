@@ -1,0 +1,87 @@
+package {{.package_name}}.core.network
+
+import {{.package_name}}.core.model.User
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class LoginRequest(
+    val email: String,
+    val password: String,
+)
+
+@Serializable
+data class RegisterRequest(
+    val email: String,
+    val password: String,
+)
+
+@Serializable
+data class ForgotPasswordRequest(
+    val email: String,
+)
+
+@Serializable
+data class RefreshRequest(
+    @SerialName("refresh_token") val refreshToken: String,
+)
+
+@Serializable
+data class TokenResponse(
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("token_type") val tokenType: String,
+    @SerialName("expires_in") val expiresIn: Long,
+    @SerialName("refresh_token") val refreshToken: String? = null,
+)
+
+@Serializable
+data class UserResponse(
+    val id: String,
+    val email: String,
+    val role: String,
+    @SerialName("email_verified") val emailVerified: Boolean,
+    @SerialName("created_at") val createdAt: String,
+) {
+    fun toDomain() = User(
+        id = id,
+        email = email,
+        role = role,
+        emailVerified = emailVerified,
+        createdAt = createdAt,
+    )
+}
+
+@Serializable
+data class PingResponse(
+    val message: String,
+    @SerialName("request_id") val requestId: String = "",
+)
+
+@Serializable
+data class ProblemDetails(
+    val type: String = "about:blank",
+    val title: String = "",
+    val status: Int = 0,
+    val detail: String? = null,
+    val instance: String? = null,
+    val code: String? = null,
+    @SerialName("request_id") val requestId: String? = null,
+    val errors: List<FieldError> = emptyList(),
+)
+
+@Serializable
+data class FieldError(
+    val field: String,
+    val message: String,
+)
+
+data class SessionTokens(
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresInSeconds: Long,
+)
+
+fun TokenResponse.toSessionTokens(): SessionTokens? {
+    val refresh = refreshToken ?: return null
+    return SessionTokens(accessToken, refresh, expiresIn)
+}

@@ -1,0 +1,11 @@
+id: android/compose
+variables:
+  - name: application_id
+    prompt: Android application ID
+    default: com.example.app
+  - name: package_name
+    prompt: Kotlin package name
+    default: com.example.app
+  - name: api_base_url
+    prompt: API base URL
+    default: http://10.0.2.2:8080

@@ -1,0 +1,15 @@
+plugins {
+    id("smoke.android.library")
+}
+
+android {
+    namespace = "{{.package_name}}.core.testing"
+}
+
+dependencies {
+    api(project(":core:model"))
+    implementation(project(":core:common"))
+    implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
+}

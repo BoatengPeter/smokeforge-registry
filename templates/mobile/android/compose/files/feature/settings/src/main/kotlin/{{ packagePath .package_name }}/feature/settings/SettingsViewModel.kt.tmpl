@@ -1,0 +1,70 @@
+package {{.package_name}}.feature.settings
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import {{.package_name}}.core.model.AppInfo
+import {{.package_name}}.core.model.AuthRepository
+import {{.package_name}}.core.model.SessionState
+import {{.package_name}}.core.model.SettingsRepository
+import {{.package_name}}.core.model.ThemeMode
+import {{.package_name}}.core.model.User
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class SettingsUiState(
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val user: User? = null,
+    val appInfo: AppInfo? = null,
+    val isSigningOut: Boolean = false,
+    val hasError: Boolean = false,
+)
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val settingsRepository: SettingsRepository,
+    private val authRepository: AuthRepository,
+    appInfo: AppInfo,
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(SettingsUiState(appInfo = appInfo))
+    val state: StateFlow<SettingsUiState> = mutableState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            settingsRepository.themeMode.collect { mode ->
+                mutableState.update { it.copy(themeMode = mode) }
+            }
+        }
+        viewModelScope.launch {
+            authRepository.session.collect { session ->
+                if (session is SessionState.SignedIn) {
+                    mutableState.update { it.copy(user = session.user) }
+                }
+            }
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            settingsRepository.setThemeMode(mode)
+        }
+    }
+
+    fun signOut() {
+        if (mutableState.value.isSigningOut) return
+        mutableState.update { it.copy(isSigningOut = true, hasError = false) }
+        viewModelScope.launch {
+            val result = authRepository.logout()
+            mutableState.update {
+                it.copy(
+                    isSigningOut = false,
+                    hasError = result is {{.package_name}}.core.common.AppResult.Failure,
+                )
+            }
+        }
+    }
+}

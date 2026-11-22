@@ -1,0 +1,12 @@
+package {{.package_name}}.core.datastore
+
+data class StoredTokens(
+    val accessToken: String,
+    val refreshToken: String,
+)
+
+interface TokenStore {
+    suspend fun read(): StoredTokens?
+    suspend fun write(tokens: StoredTokens)
+    suspend fun clear()
+}

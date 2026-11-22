@@ -1,0 +1,53 @@
+package {{.package_name}}.core.testing
+
+import {{.package_name}}.core.common.AppResult
+import {{.package_name}}.core.model.AuthRepository
+import {{.package_name}}.core.model.SessionState
+import {{.package_name}}.core.model.User
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+class FakeAuthRepository(
+    initialSession: SessionState = SessionState.SignedOut,
+) : AuthRepository {
+    private val state = MutableStateFlow(initialSession)
+
+    override val session: StateFlow<SessionState> = state.asStateFlow()
+
+    var restoreResult: AppResult<Unit> = AppResult.Success(Unit)
+    var loginResult: AppResult<User> = AppResult.Success(TestData.user)
+    var registerResult: AppResult<User> = AppResult.Success(TestData.user)
+    var forgotResult: AppResult<Unit> = AppResult.Success(Unit)
+    var logoutResult: AppResult<Unit> = AppResult.Success(Unit)
+
+    var lastLogin: Pair<String, String>? = null
+    var lastRegister: Pair<String, String>? = null
+    var lastForgotEmail: String? = null
+
+    override suspend fun restoreSession(): AppResult<Unit> = restoreResult
+
+    override suspend fun login(email: String, password: String): AppResult<User> {
+        lastLogin = email to password
+        return loginResult
+    }
+
+    override suspend fun register(email: String, password: String): AppResult<User> {
+        lastRegister = email to password
+        return registerResult
+    }
+
+    override suspend fun requestPasswordReset(email: String): AppResult<Unit> {
+        lastForgotEmail = email
+        return forgotResult
+    }
+
+    override suspend fun logout(): AppResult<Unit> {
+        state.value = SessionState.SignedOut
+        return logoutResult
+    }
+
+    fun setSession(session: SessionState) {
+        state.value = session
+    }
+}

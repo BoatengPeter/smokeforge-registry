@@ -1,0 +1,25 @@
+package {{.package_name}}
+
+import {{.package_name}}.core.model.AppInfo
+import {{.package_name}}.core.network.ApiConfig
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+    @Provides
+    @Singleton
+    fun apiConfig(): ApiConfig = ApiConfig(BuildConfig.API_BASE_URL)
+
+    @Provides
+    @Singleton
+    fun appInfo(): AppInfo = AppInfo(
+        environment = BuildConfig.ENVIRONMENT,
+        apiBaseUrl = BuildConfig.API_BASE_URL,
+        versionName = BuildConfig.VERSION_NAME,
+    )
+}

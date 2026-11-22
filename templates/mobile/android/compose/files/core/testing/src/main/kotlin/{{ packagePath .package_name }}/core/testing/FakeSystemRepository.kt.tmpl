@@ -1,0 +1,14 @@
+package {{.package_name}}.core.testing
+
+import {{.package_name}}.core.common.AppResult
+import {{.package_name}}.core.model.SystemRepository
+import {{.package_name}}.core.model.User
+
+class FakeSystemRepository(
+    var pingResult: AppResult<String> = AppResult.Success("pong"),
+    var userResult: AppResult<User> = AppResult.Success(TestData.user),
+) : SystemRepository {
+    override suspend fun ping(): AppResult<String> = pingResult
+
+    override suspend fun currentUser(): AppResult<User> = userResult
+}

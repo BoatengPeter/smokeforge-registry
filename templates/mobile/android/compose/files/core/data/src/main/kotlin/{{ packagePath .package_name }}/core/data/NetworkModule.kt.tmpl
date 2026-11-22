@@ -1,0 +1,88 @@
+package {{.package_name}}.core.data
+
+import {{.package_name}}.core.network.ApiConfig
+import {{.package_name}}.core.network.ApiErrorMapper
+import {{.package_name}}.core.network.AuthApi
+import {{.package_name}}.core.network.NetworkJson
+import {{.package_name}}.core.network.PingApi
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Named
+import javax.inject.Singleton
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
+
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    @Provides
+    @Singleton
+    fun json(): Json = NetworkJson
+
+    @Provides
+    @Singleton
+    fun errorMapper(json: Json): ApiErrorMapper = ApiErrorMapper(json)
+
+    @Provides
+    @Singleton
+    @Named("plain")
+    fun plainClient(): OkHttpClient = OkHttpClient.Builder().build()
+
+    @Provides
+    @Singleton
+    @Named("refresh")
+    fun refreshRetrofit(config: ApiConfig, json: Json): Retrofit = Retrofit.Builder()
+        .baseUrl(config.baseUrl.withTrailingSlash())
+        .client(plainClient())
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+
+    @Provides
+    @Singleton
+    @Named("refresh")
+    fun refreshApi(@Named("refresh") retrofit: Retrofit): AuthApi =
+        retrofit.create(AuthApi::class.java)
+
+    @Provides
+    @Singleton
+    fun authInterceptor(sessionManager: SessionManager): AuthInterceptor =
+        AuthInterceptor(sessionManager)
+
+    @Provides
+    @Singleton
+    fun tokenAuthenticator(sessionManager: SessionManager): TokenAuthenticator =
+        TokenAuthenticator(sessionManager)
+
+    @Provides
+    @Singleton
+    fun authenticatedClient(
+        authInterceptor: AuthInterceptor,
+        tokenAuthenticator: TokenAuthenticator,
+    ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(authInterceptor)
+        .authenticator(tokenAuthenticator)
+        .build()
+
+    @Provides
+    @Singleton
+    fun retrofit(config: ApiConfig, json: Json, client: OkHttpClient): Retrofit = Retrofit.Builder()
+        .baseUrl(config.baseUrl.withTrailingSlash())
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+
+    @Provides
+    @Singleton
+    fun authApi(retrofit: Retrofit): AuthApi = retrofit.create(AuthApi::class.java)
+
+    @Provides
+    @Singleton
+    fun pingApi(retrofit: Retrofit): PingApi = retrofit.create(PingApi::class.java)
+
+    private fun String.withTrailingSlash(): String = if (endsWith('/')) this else "$this/"
+}

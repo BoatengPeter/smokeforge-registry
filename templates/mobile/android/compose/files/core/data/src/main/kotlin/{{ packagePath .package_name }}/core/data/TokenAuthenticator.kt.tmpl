@@ -1,0 +1,43 @@
+package {{.package_name}}.core.data
+
+import javax.inject.Inject
+import kotlinx.coroutines.runBlocking
+import okhttp3.Authenticator
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.Route
+
+class TokenAuthenticator @Inject constructor(
+    private val sessionManager: SessionManager,
+) : Authenticator {
+    override fun authenticate(route: Route?, response: Response): Request? {
+        val path = response.request.url.encodedPath
+        if (path == "/api/v1/auth/login" ||
+            path == "/api/v1/auth/login/totp" ||
+            path == "/api/v1/auth/register" ||
+            path == "/api/v1/auth/refresh" ||
+            path == "/api/v1/auth/forgot-password"
+        ) {
+            return null
+        }
+        if (responseCount(response) >= 2) return null
+
+        val refreshed = runBlocking { sessionManager.refreshAccessToken() }
+        if (!refreshed) return null
+
+        val token = sessionManager.accessToken() ?: return null
+        return response.request.newBuilder()
+            .header("Authorization", "Bearer $token")
+            .build()
+    }
+
+    private fun responseCount(response: Response): Int {
+        var count = 1
+        var prior = response.priorResponse
+        while (prior != null) {
+            count++
+            prior = prior.priorResponse
+        }
+        return count
+    }
+}

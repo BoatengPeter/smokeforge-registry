@@ -1,0 +1,68 @@
+package {{.package_name}}.core.data
+
+import {{.package_name}}.core.common.DispatcherProvider
+import {{.package_name}}.core.datastore.StoredTokens
+import {{.package_name}}.core.datastore.TokenStore
+import {{.package_name}}.core.network.AuthApi
+import {{.package_name}}.core.network.RefreshRequest
+import {{.package_name}}.core.network.SessionTokens
+import {{.package_name}}.core.network.toSessionTokens
+import javax.inject.Inject
+import javax.inject.Named
+import javax.inject.Singleton
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+@Singleton
+class SessionManager @Inject constructor(
+    @Named("refresh") private val refreshApi: AuthApi,
+    private val tokenStore: TokenStore,
+    private val dispatchers: DispatcherProvider,
+) {
+    @Volatile
+    private var accessToken: String? = null
+
+    @Volatile
+    private var refreshToken: String? = null
+
+    private val refreshLock = Mutex()
+
+    fun accessToken(): String? = accessToken
+
+    fun refreshToken(): String? = refreshToken
+
+    suspend fun restore(): Boolean = withContext(dispatchers.io) {
+        val stored = tokenStore.read()
+        accessToken = stored?.accessToken
+        refreshToken = stored?.refreshToken
+        stored != null
+    }
+
+    suspend fun save(tokens: SessionTokens) = withContext(dispatchers.io) {
+        accessToken = tokens.accessToken
+        refreshToken = tokens.refreshToken
+        tokenStore.write(StoredTokens(tokens.accessToken, tokens.refreshToken))
+    }
+
+    suspend fun clear() = withContext(dispatchers.io) {
+        accessToken = null
+        refreshToken = null
+        tokenStore.clear()
+    }
+
+    suspend fun refreshAccessToken(): Boolean = refreshLock.withLock {
+        withContext(dispatchers.io) {
+            val currentRefresh = refreshToken ?: return@withContext false
+            val response = runCatching {
+                refreshApi.refresh(RefreshRequest(currentRefresh))
+            }.getOrNull() ?: return@withContext false
+
+            val rotated = response.toSessionTokens() ?: return@withContext false
+            accessToken = rotated.accessToken
+            refreshToken = rotated.refreshToken
+            tokenStore.write(StoredTokens(rotated.accessToken, rotated.refreshToken))
+            true
+        }
+    }
+}

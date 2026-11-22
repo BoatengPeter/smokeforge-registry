@@ -1,0 +1,34 @@
+package {{.package_name}}
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import {{.package_name}}.core.model.AuthRepository
+import {{.package_name}}.core.model.SessionState
+import {{.package_name}}.core.model.SettingsRepository
+import {{.package_name}}.core.model.ThemeMode
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+@HiltViewModel
+class AppViewModel @Inject constructor(
+    authRepository: AuthRepository,
+    settingsRepository: SettingsRepository,
+) : ViewModel() {
+    val session: StateFlow<SessionState> = authRepository.session
+
+    val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = ThemeMode.SYSTEM,
+    )
+
+    init {
+        viewModelScope.launch {
+            authRepository.restoreSession()
+        }
+    }
+}

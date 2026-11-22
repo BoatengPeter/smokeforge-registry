@@ -1,0 +1,44 @@
+package {{.package_name}}.core.datastore
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.flow.first
+
+class DataStoreTokenStore(
+    private val dataStore: DataStore<Preferences>,
+    private val cipher: TokenCipher,
+) : TokenStore {
+    override suspend fun read(): StoredTokens? {
+        val preferences = dataStore.data.first()
+        val access = preferences[ACCESS] ?: return null
+        val refresh = preferences[REFRESH] ?: return null
+
+        return runCatching {
+            StoredTokens(
+                accessToken = cipher.decrypt(access),
+                refreshToken = cipher.decrypt(refresh),
+            )
+        }.getOrNull()
+    }
+
+    override suspend fun write(tokens: StoredTokens) {
+        dataStore.edit { preferences ->
+            preferences[ACCESS] = cipher.encrypt(tokens.accessToken)
+            preferences[REFRESH] = cipher.encrypt(tokens.refreshToken)
+        }
+    }
+
+    override suspend fun clear() {
+        dataStore.edit { preferences ->
+            preferences.remove(ACCESS)
+            preferences.remove(REFRESH)
+        }
+    }
+
+    private companion object {
+        val ACCESS = stringPreferencesKey("session.access")
+        val REFRESH = stringPreferencesKey("session.refresh")
+    }
+}

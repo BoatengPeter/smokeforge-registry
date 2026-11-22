@@ -1,0 +1,42 @@
+package {{.package_name}}.core.datastore
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
+import dagger.Binds
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+private val Context.smokePreferences: DataStore<Preferences> by preferencesDataStore(
+    name = "smoke_preferences",
+)
+
+@Module
+@InstallIn(SingletonComponent::class)
+object StorageModule {
+    @Provides
+    @Singleton
+    fun preferences(@ApplicationContext context: Context): DataStore<Preferences> =
+        context.smokePreferences
+
+    @Provides
+    @Singleton
+    fun tokenCipher(): TokenCipher = KeystoreTokenCipher()
+
+    @Provides
+    @Singleton
+    fun tokenStore(
+        dataStore: DataStore<Preferences>,
+        cipher: TokenCipher,
+    ): TokenStore = DataStoreTokenStore(dataStore, cipher)
+
+    @Provides
+    @Singleton
+    fun settingsStore(dataStore: DataStore<Preferences>): SettingsStore =
+        DataStoreSettingsStore(dataStore)
+}

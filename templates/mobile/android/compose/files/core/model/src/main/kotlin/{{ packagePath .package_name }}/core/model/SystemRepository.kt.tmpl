@@ -1,0 +1,8 @@
+package {{.package_name}}.core.model
+
+import {{.package_name}}.core.common.AppResult
+
+interface SystemRepository {
+    suspend fun ping(): AppResult<String>
+    suspend fun currentUser(): AppResult<User>
+}

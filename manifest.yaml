@@ -7,6 +7,8 @@ kinds:
     max: 1
   fullstack:
     max: 1
+  mobile:
+    max: 2
   desktop:
     max: 1
 stacks:
@@ -45,6 +47,11 @@ stacks:
     name: Fullstack workspace
     template: templates/workspace/fullstack
     variables: [package_manager]
+  - id: android/compose
+    kind: mobile
+    name: Android (Compose)
+    template: templates/mobile/android/compose
+    variables: [application_id, package_name, api_base_url]
   - id: desktop/electron
     kind: desktop
     name: Electron
@@ -71,6 +78,13 @@ presets:
     name: Frontend only
     description: The base app without backend or client state
     kinds: [frontend]
+    features: []
+  - id: mobile
+    name: Android app
+    description: Native Android app with Compose, Hilt, and API auth
+    kinds: [mobile]
+    stacks: [android/compose]
+    default: true
     features: []
   - id: desktop
     name: Desktop app

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_title">Workspace</string>
+    <string name="home_subtitle">A production shell connected to your API.</string>
+    <string name="home_greeting">Signed in as %1$s</string>
+    <string name="home_api_panel">API status</string>
+    <string name="home_api_ready">Connected</string>
+    <string name="home_api_pending">Checking…</string>
+    <string name="home_account_panel">Account</string>
+    <string name="home_account_role">Role: %1$s</string>
+    <string name="home_account_verified">Email verified</string>
+    <string name="home_account_unverified">Email not verified</string>
+    <string name="home_refresh">Refresh status</string>
+    <string name="home_error">Could not load the workspace.</string>
+    <string name="home_retry">Retry</string>
+</resources>

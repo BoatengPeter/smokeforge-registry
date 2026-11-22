@@ -1,0 +1,139 @@
+package {{.package_name}}.feature.home
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import {{.package_name}}.core.designsystem.ErrorPanel
+import {{.package_name}}.core.designsystem.LoadingPanel
+import {{.package_name}}.core.designsystem.SmokePanel
+import {{.package_name}}.core.designsystem.SmokeScreenHeader
+import {{.package_name}}.core.designsystem.SmokeTheme
+
+@Composable
+fun HomeRoute(
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = hiltViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    HomeScreen(state = state, onRefresh = viewModel::refresh, modifier = modifier)
+}
+
+@Composable
+fun HomeScreen(
+    state: HomeUiState,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Scaffold(modifier = modifier.fillMaxSize()) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            SmokeScreenHeader(
+                title = stringResource(R.string.home_title),
+                subtitle = stringResource(R.string.home_subtitle),
+            )
+
+            state.user?.let { user ->
+                Text(
+                    text = stringResource(R.string.home_greeting, user.email),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+
+            if (state.isLoading) {
+                LoadingPanel()
+            }
+
+            if (state.hasError) {
+                ErrorPanel(
+                    message = stringResource(R.string.home_error),
+                    onRetry = onRefresh,
+                )
+            }
+
+            SmokePanel(title = stringResource(R.string.home_api_panel)) {
+                Text(
+                    text = state.apiMessage ?: stringResource(R.string.home_api_pending),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
+            state.user?.let { user ->
+                SmokePanel(title = stringResource(R.string.home_account_panel)) {
+                    Text(
+                        text = user.email,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.home_account_role, user.role),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(
+                            if (user.emailVerified) {
+                                R.string.home_account_verified
+                            } else {
+                                R.string.home_account_unverified
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            OutlinedButton(
+                onClick = onRefresh,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.home_refresh))
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenPreview() {
+    SmokeTheme(darkTheme = true) {
+        HomeScreen(
+            state = HomeUiState(
+                user = {{.package_name}}.core.model.User(
+                    id = "preview",
+                    email = "person@example.com",
+                    role = "user",
+                    emailVerified = true,
+                    createdAt = "2026-11-20T12:00:00Z",
+                ),
+                apiMessage = "pong",
+                isLoading = false,
+            ),
+            onRefresh = {},
+        )
+    }
+}

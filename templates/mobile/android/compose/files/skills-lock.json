@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "skills": {
+    "android-clean-architecture": {
+      "source": "affaan-m/ECC",
+      "commit": "4adeee6732a12d1540f49a4d50a38ce8c97f9a53",
+      "sourceType": "github",
+      "skillPath": "skills/android-clean-architecture/SKILL.md",
+      "computedHash": "b5513d6cf5102d341e1aa93337752a4bcf4862d67cf4570dc1ae746df366c6ba"
+    },
+    "kotlin-patterns": {
+      "source": "affaan-m/ECC",
+      "commit": "4adeee6732a12d1540f49a4d50a38ce8c97f9a53",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-patterns/SKILL.md",
+      "computedHash": "440a4d922cbffb97e99f9de1668acf5b50ab4bc838a1c951c562bf08acd43235"
+    },
+    "kotlin-testing": {
+      "source": "affaan-m/ECC",
+      "commit": "4adeee6732a12d1540f49a4d50a38ce8c97f9a53",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-testing/SKILL.md",
+      "computedHash": "c894346ba381187c2ad004ff0acd621c19f58bfb4afbddd299f674a601f29b02"
+    },
+    "mobile-android-design": {
+      "source": "wshobson/agents",
+      "commit": "42203085cfc5736204bf0f6d436dff7e1da0bf3f",
+      "sourceType": "github",
+      "skillPath": "plugins/ui-design/skills/mobile-android-design/SKILL.md",
+      "computedHash": "55efd53301a7dedb208b426587aa66672e3450449c59f4729340f5fa1b96f7ff"
+    }
+  }
+}

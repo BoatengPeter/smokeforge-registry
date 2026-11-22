@@ -1,0 +1,31 @@
+package {{.package_name}}.core.network
+
+import {{.package_name}}.core.common.AppError
+import java.io.IOException
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import retrofit2.HttpException
+
+class ApiErrorMapper(private val json: Json = NetworkJson) {
+    fun map(throwable: Throwable): AppError {
+        if (throwable is IOException) return AppError.Network
+        if (throwable is SerializationException) return AppError.Server(null)
+        if (throwable !is HttpException) return AppError.Unknown
+
+        val problem = runCatching {
+            throwable.response()?.errorBody()?.string()?.let {
+                json.decodeFromString<ProblemDetails>(it)
+            }
+        }.getOrNull()
+
+        return when (throwable.code()) {
+            401 -> AppError.InvalidCredentials
+            403 -> AppError.EmailNotVerified
+            404 -> AppError.NotFound
+            409 -> AppError.EmailAlreadyRegistered
+            422 -> AppError.Validation(problem?.errors?.firstOrNull()?.message ?: problem?.detail)
+            in 500..599 -> AppError.Server(problem?.detail)
+            else -> AppError.Validation(problem?.detail)
+        }
+    }
+}

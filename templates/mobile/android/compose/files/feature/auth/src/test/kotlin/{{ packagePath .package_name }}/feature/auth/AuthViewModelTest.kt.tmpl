@@ -1,0 +1,86 @@
+package {{.package_name}}.feature.auth
+
+import {{.package_name}}.core.common.AppError
+import {{.package_name}}.core.common.AppResult
+import {{.package_name}}.core.testing.FakeAuthRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class AuthViewModelTest {
+    private val dispatcher = StandardTestDispatcher()
+    private lateinit var repository: FakeAuthRepository
+    private lateinit var viewModel: AuthViewModel
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+        repository = FakeAuthRepository()
+        viewModel = AuthViewModel(repository)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `login stores trimmed email and clears password on success`() = runTest(dispatcher) {
+        viewModel.onEmailChanged(" person@example.com ")
+        viewModel.onPasswordChanged("correct horse battery staple")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals("person@example.com" to "correct horse battery staple", repository.lastLogin)
+        assertEquals("", viewModel.state.value.password)
+        assertEquals(null, viewModel.state.value.error)
+    }
+
+    @Test
+    fun `invalid credentials show a stable error`() = runTest(dispatcher) {
+        repository.loginResult = AppResult.Failure(AppError.InvalidCredentials)
+        viewModel.onEmailChanged("person@example.com")
+        viewModel.onPasswordChanged("wrong password")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(AuthError.InvalidCredentials, viewModel.state.value.error)
+        assertTrue(!viewModel.state.value.isLoading)
+    }
+
+    @Test
+    fun `registration validates matching passwords before calling API`() = runTest(dispatcher) {
+        viewModel.setMode(AuthMode.REGISTER)
+        viewModel.onEmailChanged("person@example.com")
+        viewModel.onPasswordChanged("a long enough password")
+        viewModel.onConfirmPasswordChanged("different password")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(AuthError.PasswordMismatch, viewModel.state.value.error)
+        assertEquals(null, repository.lastRegister)
+    }
+
+    @Test
+    fun `registration moves back to login with a notice`() = runTest(dispatcher) {
+        viewModel.setMode(AuthMode.REGISTER)
+        viewModel.onEmailChanged("person@example.com")
+        viewModel.onPasswordChanged("a long enough password")
+        viewModel.onConfirmPasswordChanged("a long enough password")
+        viewModel.submit()
+        advanceUntilIdle()
+
+        assertEquals(AuthMode.LOGIN, viewModel.state.value.mode)
+        assertEquals(AuthNotice.ACCOUNT_CREATED, viewModel.state.value.notice)
+    }
+}

@@ -1,0 +1,13 @@
+package {{.package_name}}.core.testing
+
+import {{.package_name}}.core.model.User
+
+object TestData {
+    val user = User(
+        id = "01934f5a-7d0f-7a61-9e0b-7b2f4b4b6a1e",
+        email = "person@example.com",
+        role = "user",
+        emailVerified = true,
+        createdAt = "2026-11-20T12:00:00Z",
+    )
+}

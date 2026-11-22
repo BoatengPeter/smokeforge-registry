@@ -1,0 +1,60 @@
+package {{.package_name}}.feature.home
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import {{.package_name}}.core.common.AppResult
+import {{.package_name}}.core.model.AuthRepository
+import {{.package_name}}.core.model.SessionState
+import {{.package_name}}.core.model.SystemRepository
+import {{.package_name}}.core.model.User
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class HomeUiState(
+    val user: User? = null,
+    val apiMessage: String? = null,
+    val isLoading: Boolean = true,
+    val hasError: Boolean = false,
+)
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val systemRepository: SystemRepository,
+    private val authRepository: AuthRepository,
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(HomeUiState())
+    val state: StateFlow<HomeUiState> = mutableState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            authRepository.session.collect { session ->
+                if (session is SessionState.SignedIn) {
+                    mutableState.update { it.copy(user = session.user) }
+                }
+            }
+        }
+        refresh()
+    }
+
+    fun refresh() {
+        mutableState.update { it.copy(isLoading = true, hasError = false) }
+        viewModelScope.launch {
+            val ping = systemRepository.ping()
+            val user = systemRepository.currentUser()
+            val failed = ping is AppResult.Failure || user is AppResult.Failure
+            mutableState.update {
+                it.copy(
+                    apiMessage = (ping as? AppResult.Success)?.value,
+                    user = (user as? AppResult.Success)?.value ?: it.user,
+                    isLoading = false,
+                    hasError = failed,
+                )
+            }
+        }
+    }
+}

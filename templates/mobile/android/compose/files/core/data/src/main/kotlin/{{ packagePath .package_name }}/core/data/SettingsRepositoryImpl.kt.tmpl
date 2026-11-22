@@ -1,0 +1,19 @@
+package {{.package_name}}.core.data
+
+import {{.package_name}}.core.datastore.SettingsStore
+import {{.package_name}}.core.model.SettingsRepository
+import {{.package_name}}.core.model.ThemeMode
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+
+@Singleton
+class SettingsRepositoryImpl @Inject constructor(
+    private val settingsStore: SettingsStore,
+) : SettingsRepository {
+    override val themeMode: Flow<ThemeMode> = settingsStore.themeMode
+
+    override suspend fun setThemeMode(mode: ThemeMode) {
+        settingsStore.setThemeMode(mode)
+    }
+}

@@ -1,0 +1,26 @@
+package {{.package_name}}.core.data
+
+import {{.package_name}}.core.model.AuthRepository
+import {{.package_name}}.core.model.SettingsRepository
+import {{.package_name}}.core.model.SystemRepository
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class DataModule {
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSystemRepository(impl: SystemRepositoryImpl): SystemRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
+}

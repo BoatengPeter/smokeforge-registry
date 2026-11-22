@@ -1,0 +1,15 @@
+package {{.package_name}}.core.model
+
+import kotlinx.coroutines.flow.Flow
+
+enum class ThemeMode {
+    SYSTEM,
+    LIGHT,
+    DARK,
+}
+
+interface SettingsRepository {
+    val themeMode: Flow<ThemeMode>
+
+    suspend fun setThemeMode(mode: ThemeMode)
+}

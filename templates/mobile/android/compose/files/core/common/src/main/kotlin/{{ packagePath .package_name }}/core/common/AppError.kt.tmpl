@@ -1,0 +1,13 @@
+package {{.package_name}}.core.common
+
+sealed interface AppError {
+    data object Network : AppError
+    data object Unauthorized : AppError
+    data object InvalidCredentials : AppError
+    data object EmailNotVerified : AppError
+    data object EmailAlreadyRegistered : AppError
+    data object NotFound : AppError
+    data class Validation(val message: String?) : AppError
+    data class Server(val message: String?) : AppError
+    data object Unknown : AppError
+}

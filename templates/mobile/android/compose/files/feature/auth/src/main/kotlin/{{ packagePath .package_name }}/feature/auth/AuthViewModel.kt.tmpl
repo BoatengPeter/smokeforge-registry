@@ -1,0 +1,163 @@
+package {{.package_name}}.feature.auth
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import {{.package_name}}.core.common.AppError
+import {{.package_name}}.core.common.AppResult
+import {{.package_name}}.core.model.AuthRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+enum class AuthMode {
+    LOGIN,
+    REGISTER,
+    FORGOT,
+}
+
+enum class AuthNotice {
+    ACCOUNT_CREATED,
+    RESET_SENT,
+}
+
+sealed interface AuthError {
+    data object EmailRequired : AuthError
+    data object EmailInvalid : AuthError
+    data object PasswordRequired : AuthError
+    data object PasswordTooShort : AuthError
+    data object PasswordMismatch : AuthError
+    data object InvalidCredentials : AuthError
+    data object EmailNotVerified : AuthError
+    data object EmailAlreadyRegistered : AuthError
+    data object Network : AuthError
+    data class Server(val message: String?) : AuthError
+}
+
+data class AuthUiState(
+    val mode: AuthMode = AuthMode.LOGIN,
+    val email: String = "",
+    val password: String = "",
+    val confirmPassword: String = "",
+    val isLoading: Boolean = false,
+    val error: AuthError? = null,
+    val notice: AuthNotice? = null,
+)
+
+@HiltViewModel
+class AuthViewModel @Inject constructor(
+    private val repository: AuthRepository,
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(AuthUiState())
+    val state: StateFlow<AuthUiState> = mutableState.asStateFlow()
+
+    fun setMode(mode: AuthMode) {
+        mutableState.update {
+            it.copy(mode = mode, error = null, notice = null, password = "", confirmPassword = "")
+        }
+    }
+
+    fun onEmailChanged(value: String) {
+        mutableState.update { it.copy(email = value, error = null) }
+    }
+
+    fun onPasswordChanged(value: String) {
+        mutableState.update { it.copy(password = value, error = null) }
+    }
+
+    fun onConfirmPasswordChanged(value: String) {
+        mutableState.update { it.copy(confirmPassword = value, error = null) }
+    }
+
+    fun submit() {
+        val snapshot = mutableState.value
+        if (snapshot.isLoading) return
+
+        val validation = validate(snapshot)
+        if (validation != null) {
+            mutableState.update { it.copy(error = validation) }
+            return
+        }
+
+        mutableState.update { it.copy(isLoading = true, error = null, notice = null) }
+        viewModelScope.launch {
+            when (snapshot.mode) {
+                AuthMode.LOGIN -> login(snapshot)
+                AuthMode.REGISTER -> register(snapshot)
+                AuthMode.FORGOT -> forgot(snapshot)
+            }
+        }
+    }
+
+    private suspend fun login(snapshot: AuthUiState) {
+        when (val result = repository.login(snapshot.email.trim(), snapshot.password)) {
+            is AppResult.Failure -> mutableState.update {
+                it.copy(isLoading = false, error = result.error.toAuthError())
+            }
+            is AppResult.Success -> mutableState.update {
+                it.copy(isLoading = false, password = "", confirmPassword = "")
+            }
+        }
+    }
+
+    private suspend fun register(snapshot: AuthUiState) {
+        when (val result = repository.register(snapshot.email.trim(), snapshot.password)) {
+            is AppResult.Failure -> mutableState.update {
+                it.copy(isLoading = false, error = result.error.toAuthError())
+            }
+            is AppResult.Success -> mutableState.update {
+                it.copy(
+                    mode = AuthMode.LOGIN,
+                    isLoading = false,
+                    password = "",
+                    confirmPassword = "",
+                    notice = AuthNotice.ACCOUNT_CREATED,
+                )
+            }
+        }
+    }
+
+    private suspend fun forgot(snapshot: AuthUiState) {
+        when (val result = repository.requestPasswordReset(snapshot.email.trim())) {
+            is AppResult.Failure -> mutableState.update {
+                it.copy(isLoading = false, error = result.error.toAuthError())
+            }
+            is AppResult.Success -> mutableState.update {
+                it.copy(isLoading = false, notice = AuthNotice.RESET_SENT)
+            }
+        }
+    }
+
+    private fun validate(state: AuthUiState): AuthError? {
+        if (state.email.isBlank()) return AuthError.EmailRequired
+        if (!EMAIL.matches(state.email.trim())) return AuthError.EmailInvalid
+        if (state.mode == AuthMode.FORGOT) return null
+        if (state.password.isBlank()) return AuthError.PasswordRequired
+        if (state.mode == AuthMode.REGISTER && state.password.length < 12) {
+            return AuthError.PasswordTooShort
+        }
+        if (state.mode == AuthMode.REGISTER && state.password != state.confirmPassword) {
+            return AuthError.PasswordMismatch
+        }
+        return null
+    }
+
+    private fun AppError.toAuthError(): AuthError = when (this) {
+        AppError.InvalidCredentials -> AuthError.InvalidCredentials
+        AppError.EmailNotVerified -> AuthError.EmailNotVerified
+        AppError.EmailAlreadyRegistered -> AuthError.EmailAlreadyRegistered
+        AppError.Network -> AuthError.Network
+        AppError.Unauthorized -> AuthError.InvalidCredentials
+        is AppError.Server -> AuthError.Server(message)
+        is AppError.Validation -> AuthError.Server(message)
+        AppError.NotFound -> AuthError.Server(null)
+        AppError.Unknown -> AuthError.Server(null)
+    }
+
+    private companion object {
+        val EMAIL = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+    }
+}
