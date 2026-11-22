@@ -1,6 +1,6 @@
 # Context map
 
-This workspace can have up to four context boundaries. Read the closest `CONTEXT.md`
+This workspace can have up to five context boundaries. Read the closest `CONTEXT.md`
 before changing code in that area.
 
 | Area | Context | Responsibility |
@@ -44,3 +44,4 @@ flowchart LR
 - Cross-app changes require checking both context files and updating this map.
 
 <!-- smokeforge:anchor desktop-context -->
+<!-- smokeforge:anchor mobile-context -->

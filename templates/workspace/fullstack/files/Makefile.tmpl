@@ -1,5 +1,6 @@
 .PHONY: help install api-dev web-dev api-test web-test test ci docker-up docker-down clean
 # smokeforge:anchor desktop-phony
+# smokeforge:anchor mobile-phony
 
 help:
 	@echo "make install    Install API and web dependencies"
@@ -10,13 +11,17 @@ help:
 	@echo "make docker-up  Build and start the full stack"
 	@echo "make docker-down Stop the full stack"
 	# smokeforge:anchor desktop-help
+	# smokeforge:anchor mobile-help
 
 # smokeforge:anchor desktop-targets
+
+# smokeforge:anchor mobile-targets
 
 install:
 	$(MAKE) -C apps/api install
 	$(MAKE) -C apps/web install
 	# smokeforge:anchor desktop-install
+	# smokeforge:anchor mobile-install
 
 api-dev:
 	$(MAKE) -C apps/api run
@@ -32,11 +37,13 @@ web-test:
 
 test: api-test web-test
 	# smokeforge:anchor desktop-test
+	# smokeforge:anchor mobile-test
 
 ci:
 	$(MAKE) -C apps/api ci
 	$(MAKE) -C apps/web ci
 	# smokeforge:anchor desktop-ci
+	# smokeforge:anchor mobile-ci
 
 docker-up:
 	docker compose up --build -d
@@ -48,3 +55,4 @@ clean:
 	$(MAKE) -C apps/api clean
 	$(MAKE) -C apps/web clean
 	# smokeforge:anchor desktop-clean
+	# smokeforge:anchor mobile-clean

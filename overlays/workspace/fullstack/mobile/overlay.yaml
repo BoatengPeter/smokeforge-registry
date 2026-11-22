@@ -1,0 +1,94 @@
+id: mobile
+name: Fullstack Android wiring
+files: files
+ops:
+  - insertAfter:
+      file: Makefile
+      anchor: mobile-phony
+      marker: mobile:make-phony
+      content: |-
+        .PHONY: mobile-build mobile-test mobile-lint mobile-ci
+  - insertAfter:
+      file: Makefile
+      anchor: mobile-help
+      marker: mobile:make-help
+      content: |-
+        @echo "make mobile-build    Build the debug APK"
+        @echo "make mobile-test     Run Android unit tests"
+        @echo "make mobile-lint     Run Android lint"
+        @echo "make mobile-ci       Run Android tests, lint, and assemble"
+  - insertAfter:
+      file: Makefile
+      anchor: mobile-targets
+      marker: mobile:make-targets
+      content: |-
+        mobile-build:
+        	$(MAKE) -C apps/android build
+
+        mobile-test:
+        	$(MAKE) -C apps/android test
+
+        mobile-lint:
+        	$(MAKE) -C apps/android lint
+
+        mobile-ci:
+        	$(MAKE) -C apps/android ci
+  - insertAfter:
+      file: Makefile
+      anchor: mobile-test
+      marker: mobile:make-test
+      content: "\t$(MAKE) -C apps/android test"
+  - insertAfter:
+      file: Makefile
+      anchor: mobile-ci
+      marker: mobile:make-ci
+      content: "\t$(MAKE) -C apps/android ci"
+  - insertAfter:
+      file: Makefile
+      anchor: mobile-clean
+      marker: mobile:make-clean
+      content: "\t$(MAKE) -C apps/android clean"
+  - insertAfter:
+      file: README.md
+      anchor: mobile-readme
+      marker: mobile:readme
+      content: |-
+        ## Android client
+
+        When generated with `--mobile android/compose`, the workspace also contains
+        `apps/android`: a native Compose app with Hilt, API authentication, encrypted
+        token storage, and production build variants.
+
+        ```bash
+        make mobile-build
+        make mobile-test
+        make mobile-lint
+        ```
+
+        The app is connected to the API at `http://10.0.2.2:8080` by default for the
+        Android emulator. See [`apps/android/README.md`](apps/android/README.md) and
+        [`apps/android/docs/AUTH.md`](apps/android/docs/AUTH.md).
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: mobile-context
+      marker: mobile:context
+      content: |-
+        ## Android target
+
+        When `apps/android` exists:
+
+        - Entry point: `apps/android/app`
+        - Domain: `apps/android/core/model`
+        - Data: `apps/android/core/data`
+        - Network: `apps/android/core/network`
+        - Secure storage: `apps/android/core/datastore`
+        - Features: `apps/android/feature/*`
+
+        ```mermaid
+        flowchart LR
+            Android[Compose app] -->|Bearer token| API[Go or Rust API]
+            Android --> Keystore[(Encrypted token store)]
+        ```
+
+        The API remains the source of truth. The Android app never stores raw tokens
+        in plaintext and does not implement a second authoritative database.
