@@ -7,7 +7,11 @@ validates them.
 runs rustfmt, clippy, tests, and the release build, and checks database, auth,
 Docker, CI, and Rust skill files.
 
-Both scripts require `SMOKEFORGE_BIN` pointing to a built smokeforge binary.
+`verify-android.sh` generates standalone and fullstack Android projects and runs
+their tests, lint, and debug APK builds. It requires `SMOKEFORGE_BIN`, an Android
+SDK, JDK 17, and `GRADLE_BIN` or the generated Gradle wrapper.
+
+All scripts require `SMOKEFORGE_BIN` pointing to a built smokeforge binary.
 The Rust script also requires `cargo` and a Rust toolchain.
 
 ```bash

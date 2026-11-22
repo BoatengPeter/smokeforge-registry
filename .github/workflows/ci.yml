@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.3.6
+          ref: v0.3.7
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.3.6
+          ref: v0.3.7
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -92,7 +92,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.3.6
+          ref: v0.3.7
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -149,7 +149,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.3.6
+          ref: v0.3.7
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -238,6 +238,42 @@ jobs:
           make typecheck
           make build
 
+
+  verify-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: registry
+      - uses: actions/checkout@v4
+        with:
+          repository: BoatengPeter/smokeforge
+          ref: v0.3.7
+          path: cli
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-37.1" "build-tools;36.1.0"
+      - name: Build smokeforge
+        run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
+        working-directory: cli
+      - name: Verify Android templates
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: ./tests/verify-android.sh
+        working-directory: registry
+
   verify-egui:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -248,7 +284,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.3.6
+          ref: v0.3.7
           path: cli
       - uses: actions/setup-go@v5
         with:
@@ -291,7 +327,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BoatengPeter/smokeforge
-          ref: v0.3.6
+          ref: v0.3.7
           path: cli
       - uses: actions/setup-go@v5
         with:
