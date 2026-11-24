@@ -7,9 +7,9 @@ mod dashboard;
 mod library;
 mod settings;
 mod states;
+mod welcome;
 
 pub(crate) use crate::*;
-pub(crate) use {{.crate_name}}_ui::*;
 pub(crate) use gpui_kit::base::{StyledExt, h_flex, v_flex};
 pub(crate) use gpui_kit::component::ActiveTheme;
 pub(crate) use gpui_kit::component::WindowExt as _;
@@ -22,8 +22,9 @@ pub(crate) use gpui_kit::component::table::{
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 };
 pub(crate) use gpui_kit::component::tag::Tag;
-pub(crate) use gpui_kit::component::{IconName, Selectable as _, Sizable as _};
+pub(crate) use gpui_kit::component::{Disableable as _, IconName, Selectable as _, Sizable as _};
 pub(crate) use gpui_kit::*;
+pub(crate) use ui::*;
 
 use {{.crate_name}}_core::LibraryStatus;
 
@@ -85,4 +86,54 @@ pub(crate) fn detail_row(
                 .font_family(cx.theme().mono_font_family.clone())
                 .child(value.into()),
         )
+}
+
+impl AppView {
+    /// System / Light / Dark, shared by Settings and the welcome tour.
+    pub(crate) fn theme_choice(&self, id: &'static str, cx: &mut Context<Self>) -> ButtonGroup {
+        const CHOICES: [(&str, &str); 3] = [
+            ("system", "setting.system"),
+            ("light", "setting.light"),
+            ("dark", "setting.dark"),
+        ];
+        ButtonGroup::new(id)
+            .outline()
+            .small()
+            .children(CHOICES.iter().map(|(value, label)| {
+                Button::new(SharedString::from(format!("{id}-{value}")))
+                    .label(t(label))
+                    .selected(self.settings.theme == *value)
+            }))
+            .on_click(cx.listener(|this, clicks: &Vec<usize>, _, cx| {
+                if let Some((value, _)) = clicks.first().and_then(|index| CHOICES.get(*index)) {
+                    (*value).clone_into(&mut this.settings.theme);
+                    let _ = this.settings_store.save(&this.settings);
+                    cx.notify();
+                }
+            }))
+    }
+
+    /// − 100% + for the interface size, shared by Settings and the welcome tour.
+    pub(crate) fn size_stepper(&self, id: &'static str, cx: &mut Context<Self>) -> ValueStepper {
+        let current = self.settings.zoom;
+        let smaller = ui::theme::zoom::step(current, -ui::theme::zoom::STEP);
+        let larger = ui::theme::zoom::step(current, ui::theme::zoom::STEP);
+        ValueStepper::new(
+            ui::theme::zoom::label(current),
+            Button::new(SharedString::from(format!("{id}-smaller")))
+                .ghost()
+                .xsmall()
+                .icon(IconName::Minus)
+                .tooltip(t("setting.size_smaller"))
+                .disabled((smaller - current).abs() < f32::EPSILON)
+                .on_click(cx.listener(move |this, _, _, cx| this.set_zoom(smaller, cx))),
+            Button::new(SharedString::from(format!("{id}-larger")))
+                .ghost()
+                .xsmall()
+                .icon(IconName::Plus)
+                .tooltip(t("setting.size_larger"))
+                .disabled((larger - current).abs() < f32::EPSILON)
+                .on_click(cx.listener(move |this, _, _, cx| this.set_zoom(larger, cx))),
+        )
+    }
 }

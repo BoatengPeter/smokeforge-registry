@@ -8,4 +8,7 @@
 pub mod components;
 pub mod theme;
 
-pub use components::{EmptyState, PageHeader, SectionCard, StatCard, StatusPage, StatusTone};
+pub use components::{
+    EmptyState, FeatureRow, Inset, PageHeader, SectionCard, StatCard, StatusPage, StatusTone,
+    ValueStepper, WindowDrag, WizardWindow, wizard_size,
+};

@@ -22,7 +22,7 @@ Design Guides (`.agents/skills/gpui-kit-design-guides`); read them first.
 | --- | --- | --- |
 | Theme | `crates/ui/themes/smokeforge.json` | every colour, the font family, base size, radii, shadows — light and dark |
 | Theme install | `crates/ui/src/theme.rs` | registers Inter and the themes once at startup; contrast tests |
-| Components | `crates/ui/src/components/` | `PageHeader`, `SectionCard`, `StatCard`, `EmptyState`, `StatusPage` |
+| Components | `crates/ui/src/components/` | `PageHeader`, `SectionCard`, `StatCard`, `EmptyState`, `StatusPage`, `FeatureRow`, `Inset` (`callout`), `ValueStepper`, `WizardWindow` |
 | Shell | `crates/app/src/shell.rs` | title bar, sidebar, content column, status bar, command palette |
 | Pages | `crates/app/src/pages/` | one page per file; compose GPUI Kit and `crates/ui` components |
 | States | `crates/app/src/pages/states.rs`, `docs/STATES.md` | error, empty, degraded, confirmation |
@@ -64,7 +64,9 @@ Rules:
 - Inter is embedded and the base font is 16px, so `text_sm` is 14px body text. Because GPUI Kit uses the base
   font as the rem, **use rem helpers** (`text_sm()`, `text_xl()`, `p_4()`,
   `gap_3()`, `size_4()`, `w_60()`), never `px(...)`. Changing `font.size` in the
-  theme zooms the whole app consistently.
+  theme zooms the whole app consistently, which is how interface size works:
+  `ui::theme::zoom` (`DEFAULT 1.0`, `RANGE 0.7–2.0`, `STEP 0.1`) scales the
+  font size at run time. Never change a token to make "everything bigger".
 - Page title `text_xl` semibold (via `PageHeader`); section title `text_sm`
   semibold (via `SectionCard`); body `text_sm`; captions `text_xs`; large
   numbers `text_2xl` semibold (via `StatCard`).

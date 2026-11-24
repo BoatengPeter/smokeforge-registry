@@ -12,6 +12,7 @@ of inventing new ones; add a new pattern here before using it.
 | The page works but something is degraded | Alert | GPUI Kit `alert::Alert` (`warning`, `error`, `info`) | keyring unavailable (Account) |
 | Work is in progress | Status text or `spinner::Spinner` | GPUI Kit | sign-in, sync |
 | A destructive action without undo | Alert dialog | `window.open_alert_dialog` | delete record (Library) |
+| First launch, or the user asks for an introduction | Welcome tour | `crates/ui` `WizardWindow` | `pages/welcome.rs` |
 | A field is invalid | Inline error near the field | `Input` validation / muted text | sign-in form |
 
 Decision rules:
@@ -37,6 +38,10 @@ Decision rules:
 - **Keyring unavailable.** `Alert::warning` on the Account page.
 - **Delete record.** The Library row's delete button opens an alert dialog;
   the record is deleted only from `on_ok`.
+
+- **First launch.** `AppView::new` opens the welcome tour when
+  `settings.onboarded` is false. It doesn't block the app; closing it any way
+  sets `onboarded`; Settings › Help reopens it. See `docs/UI.md` › Welcome tour.
 
 ## Adding a new state
 

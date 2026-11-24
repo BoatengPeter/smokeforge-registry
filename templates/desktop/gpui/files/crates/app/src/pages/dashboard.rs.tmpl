@@ -70,36 +70,6 @@ impl AppView {
                     .subtitle(t("dashboard.subtitle"))
                     .action(new_record),
             )
-            .when(!self.settings.onboarded, |this| {
-                this.child(
-                    h_flex()
-                        .w_full()
-                        .justify_between()
-                        .gap_3()
-                        .px_4()
-                        .py_3()
-                        .rounded(cx.theme().radius_lg)
-                        .bg(cx.theme().list_active)
-                        .child(
-                            h_flex()
-                                .gap_2()
-                                .text_sm()
-                                .child(gpui_kit::component::Icon::new(IconName::Info).small())
-                                .child(t("onboarding.welcome")),
-                        )
-                        .child(
-                            Button::new("dismiss-onboarding")
-                                .ghost()
-                                .small()
-                                .label(t("onboarding.dismiss"))
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.settings.onboarded = true;
-                                    let _ = this.settings_store.save(&this.settings);
-                                    cx.notify();
-                                })),
-                        ),
-                )
-            })
             .child(
                 h_flex()
                     .w_full()

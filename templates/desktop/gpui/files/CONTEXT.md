@@ -2,6 +2,7 @@
 
 - `crates/core`, `crates/api-client`, and `crates/storage` must not depend on GPUI.
 - `crates/ui` owns GPUI Kit theme tokens and reusable components.
+- Keep `lib.rs` to `AppView` state and wiring. A feature's own state types get their own module (`welcome.rs`), keybindings live in `keymap.rs`, reusable chrome goes in `crates/ui` (`WizardWindow`), and `render` stays short (handlers in `shell.rs`'s `window_handlers`).
 - `crates/app` owns entities, models, views, actions, keybindings, and async state.
 - `crates/desktop` owns application bootstrap, assets, logging, and panic handling.
 - Read `docs/DEVELOPMENT.md` for the `make dev` watch loop.

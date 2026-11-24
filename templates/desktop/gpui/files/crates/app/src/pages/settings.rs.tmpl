@@ -2,29 +2,9 @@ use super::*;
 
 impl AppView {
     pub(crate) fn settings_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let theme_options = [
-            ("light", t("setting.light")),
-            ("dark", t("setting.dark")),
-            ("system", t("setting.system")),
-        ];
         let language_options = [("en", t("setting.english")), ("es", t("setting.spanish"))];
 
-        let theme_group = ButtonGroup::new("theme-choice")
-            .outline()
-            .small()
-            .children(theme_options.iter().map(|(value, label)| {
-                Button::new(format!("theme-{value}"))
-                    .label(label.clone())
-                    .selected(self.settings.theme == *value)
-            }))
-            .on_click(cx.listener(move |this, clicks: &Vec<usize>, _, cx| {
-                if let Some((value, _)) = clicks.first().and_then(|index| theme_options.get(*index))
-                {
-                    (*value).clone_into(&mut this.settings.theme);
-                    let _ = this.settings_store.save(&this.settings);
-                    cx.notify();
-                }
-            }));
+        let theme_group = self.theme_choice("theme-choice", cx);
         let language_group = ButtonGroup::new("language-choice")
             .outline()
             .small()
@@ -60,7 +40,25 @@ impl AppView {
                         t("setting.language_help"),
                         language_group,
                         cx,
+                    ))
+                    .child(setting_row(
+                        t("setting.size"),
+                        t("setting.size_help"),
+                        self.size_stepper("size-choice", cx),
+                        cx,
                     )),
+            )
+            .child(
+                SectionCard::new(t("setting.help")).child(setting_row(
+                    t("setting.tour"),
+                    t("setting.tour_help"),
+                    Button::new("show-welcome")
+                        .outline()
+                        .small()
+                        .label(t("setting.tour_open"))
+                        .on_click(cx.listener(|this, _, window, cx| this.show_welcome(window, cx))),
+                    cx,
+                )),
             )
             .child(
                 SectionCard::new(t("about.diagnostics"))

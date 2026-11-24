@@ -66,6 +66,46 @@ pub fn install(cx: &mut App) -> Result<()> {
     Ok(())
 }
 
+/// Interface size. GPUI Kit sizes everything in rems and sets the rem from
+/// `Theme::font_size` every frame, so scaling the font size scales the whole
+/// UI. Set from Settings, the welcome tour, or Ctrl/Cmd `+` / `−` / `0`.
+pub mod zoom {
+    use std::ops::RangeInclusive;
+
+    use gpui_kit::component::Theme;
+    use gpui_kit::{App, px};
+
+    /// The theme file's `font.size`; the rem at 100%.
+    pub const BASE_FONT_SIZE: f32 = 16.0;
+    pub const DEFAULT: f32 = 1.0;
+    pub const RANGE: RangeInclusive<f32> = 0.7..=2.0;
+    pub const STEP: f32 = 0.1;
+
+    /// `value + delta`, clamped to [`RANGE`] and rounded to two decimals so
+    /// repeated steps do not drift.
+    #[must_use]
+    pub fn step(value: f32, delta: f32) -> f32 {
+        clamp(((value + delta) * 100.0).round() / 100.0)
+    }
+
+    #[must_use]
+    pub fn clamp(value: f32) -> f32 {
+        value.clamp(*RANGE.start(), *RANGE.end())
+    }
+
+    /// `130%`.
+    #[must_use]
+    pub fn label(value: f32) -> String {
+        format!("{:.0}%", value * 100.0)
+    }
+
+    /// Scales the UI. Call after every `Theme::change`, which resets the font
+    /// size from the theme file.
+    pub fn apply(value: f32, cx: &mut App) {
+        Theme::global_mut(cx).font_size = px(BASE_FONT_SIZE * clamp(value));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,5 +197,21 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn zoom_base_matches_the_theme_file() {
+        for theme in themes() {
+            let size = theme["font.size"].as_f64().expect("font.size is a number");
+            assert!((size - f64::from(zoom::BASE_FONT_SIZE)).abs() < f64::EPSILON);
+        }
+    }
+
+    #[test]
+    fn zoom_steps_round_clamp_and_label() {
+        assert!((zoom::step(1.2, zoom::STEP) - 1.3).abs() < f32::EPSILON);
+        assert!((zoom::step(2.0, zoom::STEP) - 2.0).abs() < f32::EPSILON);
+        assert!((zoom::step(0.7, -zoom::STEP) - 0.7).abs() < f32::EPSILON);
+        assert_eq!(zoom::label(1.3), "130%");
     }
 }

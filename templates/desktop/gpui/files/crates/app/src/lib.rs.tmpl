@@ -20,10 +20,15 @@ use gpui_kit::component::status_bar::StatusBar;
 use gpui_kit::component::{Sizable as _, Theme, ThemeMode};
 use gpui_kit::prelude::FluentBuilder as _;
 pub mod credentials;
+pub mod keymap;
 pub mod logging;
 pub mod pages;
 mod shell;
 pub mod sync;
+pub mod welcome;
+
+/// The shared ui crate, under a name non-template files can use.
+pub(crate) use {{.crate_name}}_ui as ui;
 
 use gpui_kit::*;
 
@@ -44,7 +49,11 @@ gpui_kit::actions!(
         ShowAccount,
         ShowAbout,
         ToggleCommand,
-        ToggleTheme
+        ToggleTheme,
+        ZoomIn,
+        ZoomOut,
+        ZoomReset,
+        ShowWelcome
     ]
 );
 
@@ -115,6 +124,13 @@ pub struct AppView {
     database_error: Option<String>,
     title_input: Entity<InputState>,
     tags_input: Entity<InputState>,
+    /// The welcome tour page on screen, if the tour is open.
+    welcome: Option<welcome::WelcomePage>,
+    welcome_drag: ui::WindowDrag,
+    /// Takes Escape, Enter, and arrow keys while the tour is open.
+    welcome_focus: FocusHandle,
+    /// The interface size last applied to the theme; `None` forces a re-apply.
+    applied_zoom: Option<f32>,
 }
 
 impl AppView {
@@ -147,6 +163,11 @@ impl AppView {
                 .placeholder("Password")
                 .masked(true)
         });
+        let welcome = (!settings.onboarded).then_some(welcome::WelcomePage::Intro);
+        let welcome_focus = cx.focus_handle();
+        if welcome.is_some() {
+            window.focus(&welcome_focus, cx);
+        }
         Self {
             active: Pane::Dashboard,
             logo: Arc::new(Image::from_bytes(
@@ -175,6 +196,10 @@ impl AppView {
             sync_status: String::new(),
             focus_requested,
             applied_theme: String::new(),
+            welcome,
+            welcome_drag: ui::WindowDrag::default(),
+            welcome_focus,
+            applied_zoom: None,
         }
     }
 }

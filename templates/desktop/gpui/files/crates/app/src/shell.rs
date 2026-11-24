@@ -28,6 +28,31 @@ impl AppView {
             _ => Theme::change(ThemeMode::Dark, Some(window), cx),
         }
         self.applied_theme.clone_from(&self.settings.theme);
+        // Theme::change resets the font size, which is the interface size.
+        self.applied_zoom = None;
+    }
+
+    /// Applies the interface size from settings (the theme's font size is the
+    /// rem every GPUI Kit size is measured in).
+    fn sync_zoom(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let zoom = ui::theme::zoom::clamp(self.settings.zoom);
+        if self.applied_zoom != Some(zoom) {
+            ui::theme::zoom::apply(zoom, cx);
+            self.applied_zoom = Some(zoom);
+            // Root sets the rem at the start of a frame; draw one more.
+            window.refresh();
+        }
+    }
+
+    /// Sets and saves the interface size.
+    pub(crate) fn set_zoom(&mut self, zoom: f32, cx: &mut Context<Self>) {
+        self.settings.zoom = ui::theme::zoom::clamp(zoom);
+        let _ = self.settings_store.save(&self.settings);
+        cx.notify();
+    }
+
+    fn step_zoom(&mut self, delta: f32, cx: &mut Context<Self>) {
+        self.set_zoom(ui::theme::zoom::step(self.settings.zoom, delta), cx);
     }
 
     /// Flips between light and dark and remembers the choice.
@@ -145,6 +170,7 @@ impl AppView {
 impl Render for AppView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_theme(window, cx);
+        self.sync_zoom(window, cx);
         if self
             .focus_requested
             .swap(false, std::sync::atomic::Ordering::Relaxed)
@@ -152,6 +178,7 @@ impl Render for AppView {
             window.activate_window();
         }
 
+        let welcome = self.welcome_window(window, cx);
         let entity = cx.entity();
         let panes = Pane::available(self.api_mode);
         let command = self.show_command.then(|| {
@@ -211,38 +238,78 @@ impl Render for AppView {
                         .child(command),
                 )
             })
-            .on_action(cx.listener(|this, _: &ShowDashboard, _, cx| {
-                this.active = Pane::Dashboard;
+            .when_some(welcome, gpui_kit::ParentElement::child)
+            .map(|root| Self::window_handlers(root, cx))
+    }
+}
+
+impl AppView {
+    /// Workspace actions (navigation, theme, size, tour) and the pointer
+    /// tracking that drags the welcome tour, attached to the root element.
+    fn window_handlers(root: Div, cx: &mut Context<Self>) -> Div {
+        root.on_action(cx.listener(|this, _: &ShowDashboard, _, cx| {
+            this.active = Pane::Dashboard;
+            cx.notify();
+        }))
+        .on_action(cx.listener(|this, _: &ShowLibrary, _, cx| {
+            this.active = Pane::Library;
+            cx.notify();
+        }))
+        .on_action(cx.listener(|this, _: &ShowActivity, _, cx| {
+            this.active = Pane::Activity;
+            cx.notify();
+        }))
+        .on_action(cx.listener(|this, _: &ShowSettings, _, cx| {
+            this.active = Pane::Settings;
+            cx.notify();
+        }))
+        .on_action(cx.listener(|this, _: &ShowAccount, _, cx| {
+            this.active = Pane::Account;
+            cx.notify();
+        }))
+        .on_action(cx.listener(|this, _: &ShowAbout, _, cx| {
+            this.active = Pane::About;
+            cx.notify();
+        }))
+        .on_action(cx.listener(|this, _: &ToggleCommand, window, cx| {
+            this.show_command = !this.show_command;
+            if this.show_command {
+                this.command_state
+                    .update(cx, |state, cx| state.focus(window, cx));
+            }
+            cx.notify();
+        }))
+        // The tour is dragged by its header but follows the pointer
+        // anywhere in the window, so moves and releases are tracked here.
+        .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {
+            let size = ui::wizard_size(window.viewport_size(), window.rem_size());
+            if this
+                .welcome_drag
+                .drag_to(event.position, window.viewport_size(), size)
+            {
                 cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ShowLibrary, _, cx| {
-                this.active = Pane::Library;
-                cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ShowActivity, _, cx| {
-                this.active = Pane::Activity;
-                cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ShowSettings, _, cx| {
-                this.active = Pane::Settings;
-                cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ShowAccount, _, cx| {
-                this.active = Pane::Account;
-                cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ShowAbout, _, cx| {
-                this.active = Pane::About;
-                cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ToggleCommand, window, cx| {
-                this.show_command = !this.show_command;
-                if this.show_command {
-                    this.command_state
-                        .update(cx, |state, cx| state.focus(window, cx));
+            }
+        }))
+        .on_mouse_up(
+            MouseButton::Left,
+            cx.listener(|this, _: &MouseUpEvent, _, cx| {
+                if this.welcome_drag.end() {
+                    cx.notify();
                 }
-                cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ToggleTheme, _, cx| this.toggle_theme(cx)))
+            }),
+        )
+        .on_action(cx.listener(|this, _: &ToggleTheme, _, cx| this.toggle_theme(cx)))
+        .on_action(cx.listener(|this, _: &ZoomIn, _, cx| {
+            this.step_zoom(ui::theme::zoom::STEP, cx);
+        }))
+        .on_action(cx.listener(|this, _: &ZoomOut, _, cx| {
+            this.step_zoom(-ui::theme::zoom::STEP, cx);
+        }))
+        .on_action(cx.listener(|this, _: &ZoomReset, _, cx| {
+            this.set_zoom(ui::theme::zoom::DEFAULT, cx);
+        }))
+        .on_action(cx.listener(|this, _: &ShowWelcome, window, cx| {
+            this.show_welcome(window, cx);
+        }))
     }
 }

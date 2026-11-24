@@ -15,9 +15,49 @@ The app uses GPUI Kit components and semantic theme tokens. `crates/ui` holds sh
 ```
 
 - `shell.rs` owns the frame, theme switching (`sync_theme`, `toggle_theme`),
-  and the command palette. Pages own their `PageHeader`; the shell draws none.
-- Navigation: sidebar items and `cmd-1`…`cmd-6`; `cmd-k` command palette;
-  `cmd-shift-l` theme toggle.
+  interface size (`sync_zoom`, `set_zoom`), the command palette, and the
+  welcome tour layer. Pages own their `PageHeader`; the shell draws none.
+- Keyboard (`secondary` = Ctrl on Windows/Linux, Cmd on macOS):
+  `secondary-1`…`6` pages, `secondary-k` command palette, `secondary-shift-l`
+  theme, `secondary-=`/`-`/`0` interface size. All bindings live in
+  `crates/app/src/keymap.rs` and load with `KeyBinding::load` (`KeyBinding::new`
+  panics on `secondary`). Show a shortcut with `Kbd::global_binding_for_action`,
+  never a typed string; `keymap::tests` loads every binding.
+- Interface size is `settings.zoom` (tokens in `ui::theme::zoom`). It sets the
+  theme's font size, which is the rem, so every rem-based size scales.
+  `Theme::change` resets it, so `sync_theme` forces a re-apply.
+
+## Welcome tour
+
+```text
+┌ [logo] Welcome to App  v0.1.0 ················· Drag to move  [×] ┐  header: drags the window
+│ Title / paragraph                                                    │
+│ [icon] Feature title / body   × 3                                    │  body: scrolls, fixed height
+│ Appearance  [ System | Light | Dark ]                                 │
+│ Size        [ −  130%  + ]                                            │
+├──────────────────────────────────────────────────────────────────────┤
+└ ▬ • •                                                Back  [Next →] ┘
+```
+
+- Opens on first launch (`settings.onboarded == false`) and from Settings ›
+  Help (`show_welcome`, or the `ShowWelcome` action). Any close sets
+  `onboarded` and logs the `WelcomeOutcome`.
+- Split by layer: `crates/app/src/welcome.rs` is state (`WelcomePage`,
+  `WelcomeOutcome`); `crates/ui` `WizardWindow` + `WindowDrag` +
+  `wizard_size` are the reusable chrome and drag logic; `pages/welcome.rs`
+  owns the transitions and draws pages from `FeatureRow`, `Inset`,
+  `ValueStepper`, and the shared `theme_choice` / `size_stepper` builders in
+  `pages/mod.rs`.
+- It floats over the live app with no backdrop. The header starts the drag;
+  the shell root forwards mouse moves and the release to `welcome_drag`, which
+  keeps the window on screen.
+- Keys go to `welcome_focus`: Escape skips; Enter / → / ← move only while the
+  tour itself (not one of its buttons) has focus.
+- **Add a page:** add a `WelcomePage` variant and list it in `ALL`; add
+  `welcome.*` strings to both locale files; add a match arm in
+  `pages/welcome.rs` built from `crates/ui` components.
+- **Another multi-step flow:** reuse `WizardWindow` and `WindowDrag` with its
+  own page enum; do not copy the welcome page.
 
 ## Recipes
 
