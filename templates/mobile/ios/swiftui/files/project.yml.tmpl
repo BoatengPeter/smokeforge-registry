@@ -1,0 +1,88 @@
+name: {{.project_slug}}
+options:
+  minimumXcodeGenVersion: 2.48.0
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+configs:
+  Debug: debug
+  Staging: debug
+  Release: release
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.0"
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Staging: Config/Staging.xcconfig
+  Release: Config/Release.xcconfig
+packages:
+  Core:
+    path: Packages/Core
+  Networking:
+    path: Packages/Networking
+  Storage:
+    path: Packages/Storage
+  Data:
+    path: Packages/Data
+  DesignSystem:
+    path: Packages/DesignSystem
+  TestSupport:
+    path: Packages/TestSupport
+  AuthFeature:
+    path: Packages/AuthFeature
+  HomeFeature:
+    path: Packages/HomeFeature
+  SettingsFeature:
+    path: Packages/SettingsFeature
+targets:
+  App:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+          - PrivacyInfo.xcprivacy
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: {{quote .project_name}}
+        PRODUCT_BUNDLE_IDENTIFIER: {{quote .bundle_id}}
+        INFOPLIST_FILE: App/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        Staging:
+          PRODUCT_BUNDLE_IDENTIFIER: "{{.bundle_id}}.staging"
+          API_BASE_URL: "https://staging.example.com"
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: "{{.bundle_id}}.debug"
+          API_BASE_URL: {{quote .ios_api_base_url}}
+        Release:
+          API_BASE_URL: "https://api.example.com"
+    dependencies:
+      - package: Core
+      - package: Networking
+      - package: Storage
+      - package: Data
+      - package: DesignSystem
+      - package: AuthFeature
+      - package: HomeFeature
+      - package: SettingsFeature
+schemes:
+  App:
+    build:
+      targets:
+        App: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,5 @@
+id: workspace/mobile
+variables:
+  - name: package_manager
+    prompt: Package manager (reserved for future web targets)
+    default: pnpm

@@ -65,7 +65,7 @@ fullstack="$TMP/fullstack"
   --backend go/gin-layered \
   --mobile android/compose \
   --name "Verify Fullstack Android" \
-  --preset fullstack-api \
+  --preset mobile-api \
   --var module_path=example.com/fullstack \
   --var package_manager=pnpm \
   --var application_id=com.example.fullstack \

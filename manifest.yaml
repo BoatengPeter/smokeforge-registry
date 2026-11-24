@@ -52,6 +52,16 @@ stacks:
     name: Android (Compose)
     template: templates/mobile/android/compose
     variables: [application_id, package_name, api_base_url]
+  - id: ios/swiftui
+    kind: mobile
+    name: iOS (SwiftUI)
+    template: templates/mobile/ios/swiftui
+    variables: [bundle_id, ios_api_base_url]
+  - id: workspace/mobile
+    kind: fullstack
+    name: Mobile workspace
+    template: templates/workspace/mobile
+    variables: [package_manager]
   - id: desktop/electron
     kind: desktop
     name: Electron
@@ -80,12 +90,17 @@ presets:
     kinds: [frontend]
     features: []
   - id: mobile
-    name: Android app
-    description: Native Android app with Compose, Hilt, and API auth
+    name: Native mobile app
+    description: Android Compose or iOS SwiftUI with API auth
     kinds: [mobile]
-    stacks: [android/compose]
+    stacks: [android/compose, ios/swiftui]
     default: true
     features: []
+  - id: mobile-api
+    name: Mobile API
+    description: Postgres and JWT for an API plus Android/iOS clients
+    kinds: [mobile, fullstack]
+    features: [database:postgres, auth:jwt, ci:github]
   - id: desktop
     name: Desktop app
     description: Secure Electron + React desktop app with TanStack Query, Zustand, and SQLite
@@ -134,6 +149,7 @@ features:
       rust/axum: overlays/backend/rust/docker
       next: overlays/next/docker
       workspace/fullstack: overlays/workspace/fullstack/docker
+      workspace/mobile: overlays/workspace/mobile/docker
   - id: ci
     name: CI
     kinds: [backend, frontend, fullstack, desktop]
@@ -149,6 +165,7 @@ features:
           rust/axum: overlays/backend/rust/ci/github
           next: overlays/next/ci/github
           workspace/fullstack: overlays/workspace/fullstack/ci
+          workspace/mobile: overlays/workspace/mobile/ci
           desktop/electron: overlays/desktop/electron/ci/github
           desktop/egui: overlays/desktop/egui/ci/github
           desktop/gpui: overlays/desktop/gpui/ci/github

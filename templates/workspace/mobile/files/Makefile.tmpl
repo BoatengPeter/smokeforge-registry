@@ -1,0 +1,56 @@
+.PHONY: help install api-dev api-test android-build android-test android-lint android-ci ios-project ios-build ios-test ios-ci mobile-build mobile-test test ci clean
+
+help:
+	@echo "make install        Install API dependencies"
+	@echo "make api-dev        Run the API"
+	@echo "make mobile-build   Build the selected mobile app(s)"
+	@echo "make mobile-test    Run mobile tests for selected app(s)"
+	@echo "make test           Run API and mobile tests"
+	@echo "make ci             Run API and mobile CI checks"
+	@echo "make clean          Remove generated build output"
+
+install:
+	$(MAKE) -C apps/api install
+
+api-dev:
+	$(MAKE) -C apps/api run
+
+api-test:
+	$(MAKE) -C apps/api test
+
+android-build:
+	@if [ -d apps/android ]; then $(MAKE) -C apps/android build; fi
+
+android-test:
+	@if [ -d apps/android ]; then $(MAKE) -C apps/android test; fi
+
+android-lint:
+	@if [ -d apps/android ]; then $(MAKE) -C apps/android lint; fi
+
+ios-project:
+	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios project; fi
+
+ios-build:
+	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios build; fi
+
+ios-test:
+	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios test; fi
+
+android-ci:
+	@if [ -d apps/android ]; then $(MAKE) -C apps/android ci; fi
+
+ios-ci:
+	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios ci; fi
+
+mobile-build: android-build ios-build
+
+mobile-test: android-test ios-test
+
+test: api-test mobile-test
+
+ci: api-test android-ci ios-ci
+
+clean:
+	$(MAKE) -C apps/api clean
+	@if [ -d apps/android ]; then $(MAKE) -C apps/android clean; fi
+	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios clean; fi

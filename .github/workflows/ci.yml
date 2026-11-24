@@ -114,7 +114,7 @@ jobs:
         run: |
           "$SMOKEFORGE_BIN" new /tmp/fullstack \
             --registry "$GITHUB_WORKSPACE/registry" \
-            --kind fullstack --backend go/gin-layered \
+            --kind fullstack --backend go/gin-layered --frontend next \
             --name "Fullstack CI" \
             --var module_path=example.com/fullstack \
             --var package_manager=pnpm \
@@ -197,7 +197,7 @@ jobs:
         run: |
           "$SMOKEFORGE_BIN" new /tmp/fullstack-desktop \
             --registry "$GITHUB_WORKSPACE/registry" \
-            --kind fullstack --backend go/gin-layered --desktop electron \
+            --kind fullstack --backend go/gin-layered --frontend next --desktop electron \
             --feature state:zustand \
             --name "Verify Fullstack Desktop" --preset fullstack-api \
             --var module_path=example.com/fullstackdesktop \
@@ -274,6 +274,34 @@ jobs:
         env:
           SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
         run: ./tests/verify-android.sh
+        working-directory: registry
+
+  verify-ios:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: registry
+      - uses: actions/checkout@v4
+        with:
+          repository: BoatengPeter/smokeforge
+          ref: v0.3.7
+          path: cli
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build smokeforge
+        run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
+        working-directory: cli
+      - name: Verify iOS templates
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: ./tests/verify-ios.sh
         working-directory: registry
 
   verify-egui:

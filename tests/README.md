@@ -11,6 +11,10 @@ Docker, CI, and Rust skill files.
 their tests, lint, and debug APK builds. It requires `SMOKEFORGE_BIN`, an Android
 SDK, JDK 17, and `GRADLE_BIN` or the generated Gradle wrapper.
 
+`verify-ios.sh` generates standalone and fullstack iOS projects, generates the
+Xcode project with XcodeGen, runs Swift package tests, and builds for the iOS
+Simulator. It requires macOS, Xcode, XcodeGen, and `SMOKEFORGE_BIN`.
+
 All scripts require `SMOKEFORGE_BIN` pointing to a built smokeforge binary.
 The Rust script also requires `cargo` and a Rust toolchain.
 

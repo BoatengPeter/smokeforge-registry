@@ -19,7 +19,7 @@ lint:
 
 check: test lint
 
-ci: test lint assembleDebug
+ci: test lint build
 
 clean:
 	./gradlew clean

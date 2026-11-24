@@ -1,0 +1,15 @@
+.DS_Store
+.idea/
+.env
+*.log
+
+# Android
+.gradle/
+**/build/
+local.properties
+
+# iOS
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.build/

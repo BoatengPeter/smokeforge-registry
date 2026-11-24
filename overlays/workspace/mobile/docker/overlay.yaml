@@ -1,0 +1,7 @@
+id: docker
+name: Mobile workspace Docker wiring
+files: files
+ops:
+  - addFiles:
+      - path: docs/DOCKER.md
+        dest: docs/DOCKER.md

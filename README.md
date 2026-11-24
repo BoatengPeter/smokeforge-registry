@@ -3,8 +3,8 @@
 Versioned template registry for [smokeforge](https://github.com/BoatengPeter/smokeforge).
 
 **Status:** Next.js, the four Go/Gin architectures, the Rust/Axum backend, the
-full Electron app shell, the native egui desktop base, the Android Compose
-production base, and optional fullstack mobile/desktop composition are implemented. The desktop shell includes React Router, shadcn/ui, Drizzle SQLite,
+full Electron app shell, the native egui desktop base, the Android Compose and
+iOS SwiftUI production bases, and optional fullstack mobile/desktop composition are implemented. The desktop shell includes React Router, shadcn/ui, Drizzle SQLite,
 Library CRUD, utility-process Activity, Settings/Diagnostics, auto-update
 wiring, OAuth PKCE, offline Library sync with idempotency/retries/manual
 conflicts, and an optional tray. Go includes PostgreSQL,
@@ -30,6 +30,8 @@ templates/
     axum/
   frontend/next/
   mobile/android/compose/             # Android Compose production base + Kotlin skills
+  mobile/ios/swiftui/                 # iOS SwiftUI base + Swift/XcodeGen skills
+  workspace/mobile/                   # API + mobile workspace root
   desktop/electron/                   # secure TypeScript Electron base
   desktop/egui/                       # native Rust egui base + component/Rust skills
   workspace/fullstack/                # root CONTEXT-MAP, Makefile, env docs
@@ -37,7 +39,8 @@ overlays/
   backend/go/                          # database, auth, cache, queue, media, search, pagination
   backend/rust/                        # database, auth, cache, queue, scheduler, dedupe, media, search, sync, pagination
   next/                                # database, auth, bff, state, data, testing, posthog, docker, ci
-  workspace/fullstack/mobile/           # Android workspace wiring and root CI
+  workspace/fullstack/mobile/           # web + mobile workspace wiring
+  workspace/mobile/                    # API + mobile workspace wiring and root CI
   desktop/electron/                    # data, state, storage:sqlite, testing, CI
   desktop/egui/                         # egui base CI overlay
   workspace/fullstack/                 # root compose and CI aggregation
@@ -56,18 +59,30 @@ tests/                                 # contract/build matrix
   shutdown.
 - Presets: `api` (default backend: Postgres + JWT) and `api-custom` (choose features).
 - Frontend presets: `fullstack` (default) and `frontend`.
-- Android preset: `mobile` (Compose, Material 3, Hilt/KSP, Retrofit, encrypted
-  DataStore, email/password auth, debug/staging/release variants, CI).
+- Mobile presets: `mobile` (client-only) and `mobile-api` (API + Postgres/JWT).
+- Android base: Compose, Material 3, Hilt/KSP, Retrofit, encrypted DataStore,
+  email/password auth, debug/staging/release variants, CI.
+- iOS base: SwiftUI, local Swift packages, XcodeGen, Keychain, Swift Testing,
+  debug/staging/release xcconfigs, macOS CI.
 - Desktop presets: `desktop` (Electron + React + TypeScript, TanStack Query,
   Zustand, SQLite) and `desktop-egui` (native Rust, rusqlite/refinery, keyring,
   egui_tiles, full CI). Electron package manager is selectable (pnpm, npm, or
   bun).
-- Fullstack mobile: opt in with `--mobile android/compose`; adds `apps/android`.
-- Fullstack desktop: opt in with `--desktop electron`; adds the same desktop
+- Desktop dev loops: Electron `make dev` is `electron-vite dev --watch`
+  (React Fast Refresh with a dev-only CSP from `src/shared/csp.ts`, preload
+  reload, main restart; `make dev-inspect` adds the V8 inspector). egui and
+  GPUI `make dev` use pinned cargo-watch to rebuild and restart on save
+  (`make dev-tools`, `make watch-check`, `make watch-test`). Each base ships
+  `docs/DEVELOPMENT.md`.
+- Fullstack mobile: opt in with repeatable `--mobile android/compose` and/or
+  `--mobile ios/swiftui`; adds `apps/android` and/or `apps/ios`. Web is generated
+  only with explicit `--frontend next`. API + mobile without web uses
+  `workspace/mobile`.
+- Fullstack desktop: opt in with `--desktop electron` and explicit `--frontend next`; adds the same desktop
   base with main-process auth, SQLite, and the offline Library sync outbox. The
   egui stack is available as a standalone base and will gain the same API/sync
   composition in its milestone issues.
-- Fullstack preset: `fullstack-api` (Next.js + Go/Rust API, BFF auth, TanStack Query, Docker, CI).
+- Fullstack presets: `fullstack-api` (web + API) and `mobile-api` (API + mobile, no web).
 - Rust: `rust/axum` single-crate layered base with SQLx/Postgres, JWT auth,
   Redis cache, signed pagination, TOTP login/recovery, RabbitMQ retries/search
   sync, Redis dedupe/leader election, MinIO/imgproxy media, Meilisearch, Docker,
@@ -103,8 +118,8 @@ Full stack and version details: [STACKS.md](https://github.com/BoatengPeter/smok
 
 Generated apps receive their own agent skills under `.agents/skills` and
 `.claude/skills`, plus `AGENTS.md`, `CLAUDE.md`, and `skills-lock.json`.
-Next, Go, Rust, Android/Kotlin, and the egui component skills are scoped to the
-generated app, not to the smokeforge CLI repo.
+Next, Go, Rust, Android/Kotlin, Swift/SwiftUI, and the egui component skills are
+scoped to the generated app, not to the smokeforge CLI repo.
 
 ## Release format
 

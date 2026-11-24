@@ -1,5 +1,5 @@
 id: mobile
-name: Fullstack Android wiring
+name: Fullstack mobile wiring
 files: files
 ops:
   - insertAfter:
@@ -13,51 +13,40 @@ ops:
       anchor: mobile-help
       marker: mobile:make-help
       content: |-
-        @echo "make mobile-build    Build the debug APK"
-        @echo "make mobile-test     Run Android unit tests"
+        @echo "make mobile-build    Build the selected mobile app(s)"
+        @echo "make mobile-test     Run mobile tests"
         @echo "make mobile-lint     Run Android lint"
-        @echo "make mobile-ci       Run Android tests, lint, and assemble"
+        @echo "make mobile-ci       Run mobile CI checks"
   - insertAfter:
       file: Makefile
       anchor: mobile-targets
       marker: mobile:make-targets
-      content: |-
-        mobile-build:
-        	$(MAKE) -C apps/android build
-
-        mobile-test:
-        	$(MAKE) -C apps/android test
-
-        mobile-lint:
-        	$(MAKE) -C apps/android lint
-
-        mobile-ci:
-        	$(MAKE) -C apps/android ci
+      content: "mobile-build:\n\t@if [ -d apps/android ]; then $(MAKE) -C apps/android build; fi\n\t@if [ -d apps/ios ]; then $(MAKE) -C apps/ios build; fi\n\nmobile-test:\n\t@if [ -d apps/android ]; then $(MAKE) -C apps/android test; fi\n\t@if [ -d apps/ios ]; then $(MAKE) -C apps/ios test; fi\n\nmobile-lint:\n\t@if [ -d apps/android ]; then $(MAKE) -C apps/android lint; fi\n\nmobile-ci:\n\t@if [ -d apps/android ]; then $(MAKE) -C apps/android ci; fi\n\t@if [ -d apps/ios ]; then $(MAKE) -C apps/ios ci; fi\n\nmobile-clean:\n\t@if [ -d apps/android ]; then $(MAKE) -C apps/android clean; fi\n\t@if [ -d apps/ios ]; then $(MAKE) -C apps/ios clean; fi"
   - insertAfter:
       file: Makefile
       anchor: mobile-test
       marker: mobile:make-test
-      content: "\t$(MAKE) -C apps/android test"
+      content: "\t$(MAKE) mobile-test"
   - insertAfter:
       file: Makefile
       anchor: mobile-ci
       marker: mobile:make-ci
-      content: "\t$(MAKE) -C apps/android ci"
+      content: "\t$(MAKE) mobile-ci"
   - insertAfter:
       file: Makefile
       anchor: mobile-clean
       marker: mobile:make-clean
-      content: "\t$(MAKE) -C apps/android clean"
+      content: "\t$(MAKE) mobile-clean"
   - insertAfter:
       file: README.md
       anchor: mobile-readme
       marker: mobile:readme
       content: |-
-        ## Android client
+        ## Mobile clients
 
-        When generated with `--mobile android/compose`, the workspace also contains
-        `apps/android`: a native Compose app with Hilt, API authentication, encrypted
-        token storage, and production build variants.
+        When generated with `--mobile`, the workspace contains one or both native
+        clients: `apps/android` (Compose/Hilt) and `apps/ios` (SwiftUI/XcodeGen).
+        Both use the API auth contract and keep tokens in platform secure storage.
 
         ```bash
         make mobile-build
@@ -65,30 +54,31 @@ ops:
         make mobile-lint
         ```
 
-        The app is connected to the API at `http://10.0.2.2:8080` by default for the
-        Android emulator. See [`apps/android/README.md`](apps/android/README.md) and
-        [`apps/android/docs/AUTH.md`](apps/android/docs/AUTH.md).
+        Android defaults to `http://10.0.2.2:8080` from the emulator. iOS defaults to
+        `http://127.0.0.1:8080` from the simulator. See each app's `README.md`.
   - insertAfter:
       file: CONTEXT-MAP.md
       anchor: mobile-context
       marker: mobile:context
       content: |-
-        ## Android target
+        ## Mobile targets
 
         When `apps/android` exists:
 
-        - Entry point: `apps/android/app`
-        - Domain: `apps/android/core/model`
-        - Data: `apps/android/core/data`
-        - Network: `apps/android/core/network`
-        - Secure storage: `apps/android/core/datastore`
-        - Features: `apps/android/feature/*`
+        - Android entry point: `apps/android/app`
+        - Android domain/data/network: `apps/android/core/*`
+        - Android features: `apps/android/feature/*`
+        - iOS app: `apps/ios/App`
+        - iOS packages: `apps/ios/Packages/*`
+        - iOS project spec: `apps/ios/project.yml`
 
         ```mermaid
         flowchart LR
             Android[Compose app] -->|Bearer token| API[Go or Rust API]
+            iOS[SwiftUI app] -->|Bearer token| API
             Android --> Keystore[(Encrypted token store)]
+            iOS --> Keychain[(Keychain)]
         ```
 
-        The API remains the source of truth. The Android app never stores raw tokens
-        in plaintext and does not implement a second authoritative database.
+        The API remains the source of truth. Each app stores tokens in platform
+        secure storage and does not implement a second authoritative database.

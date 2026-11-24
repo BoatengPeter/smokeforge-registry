@@ -1,0 +1,17 @@
+"auth.login.title" = "Welcome back";
+"auth.login.subtitle" = "Sign in to continue to your workspace.";
+"auth.register.title" = "Create an account";
+"auth.register.subtitle" = "Start with a secure account tied to your API.";
+"auth.forgot.title" = "Reset your password";
+"auth.forgot.subtitle" = "We will send a reset link when the account exists.";
+"auth.email" = "Email";
+"auth.password" = "Password";
+"auth.confirm_password" = "Confirm password";
+"auth.sign_in" = "Sign in";
+"auth.create_account" = "Create account";
+"auth.send_reset" = "Send reset link";
+"auth.have_account" = "Already have an account? Sign in";
+"auth.need_account" = "New here? Create an account";
+"auth.forgot_password" = "Forgot password?";
+"auth.notice.account_created" = "Account created. Sign in to continue.";
+"auth.notice.reset_sent" = "If the account exists, a reset link has been sent.";

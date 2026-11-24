@@ -1,0 +1,30 @@
+PROJECT := {{.project_slug}}.xcodeproj
+SIMULATOR := platform=iOS Simulator,name=iPhone 17,OS=26.5
+
+.PHONY: help project test build ci clean
+
+help:
+	@echo "make project   Generate the Xcode project with XcodeGen"
+	@echo "make test      Run Swift package tests"
+	@echo "make build     Build the app for the iOS Simulator"
+	@echo "make ci        Generate, test, and build"
+	@echo "make clean     Remove generated project and build output"
+
+project:
+	xcodegen generate
+
+test: project
+	@for package in Packages/*; do \
+		if [ -d "$$package/Tests" ] && find "$$package/Tests" -name '*.swift' | grep -q .; then \
+			swift test --package-path "$$package" || exit 1; \
+		fi; \
+	done
+
+build: project
+	xcodebuild -project "$(PROJECT)" -scheme App -destination "$(SIMULATOR)" CODE_SIGNING_ALLOWED=NO build
+
+ci: test build
+
+clean:
+	rm -rf "$(PROJECT)" .build .swiftpm DerivedData
+	@for package in Packages/*; do rm -rf "$$package/.build"; done

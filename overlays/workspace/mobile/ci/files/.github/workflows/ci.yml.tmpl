@@ -1,0 +1,70 @@
+name: mobile-api-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - if: hashFiles('apps/api/go.mod') != ''
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/api/go.mod
+          cache: false
+      - if: hashFiles('apps/api/Cargo.toml') != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - if: hashFiles('apps/api/Cargo.toml') != ''
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/api
+      - name: Install API dependencies
+        run: make -C apps/api install
+      - name: Go checks
+        if: hashFiles('apps/api/go.mod') != ''
+        run: |
+          cd apps/api
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+          go build ./...
+      - name: Rust checks
+        if: hashFiles('apps/api/Cargo.toml') != ''
+        run: make -C apps/api fmt-check clippy test build
+
+  android:
+    if: hashFiles('apps/android/settings.gradle.kts') != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses >/dev/null
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-37.1" "build-tools;36.1.0"
+      - run: make -C apps/android ci
+
+  ios:
+    if: hashFiles('apps/ios/project.yml') != ''
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - run: make -C apps/ios ci

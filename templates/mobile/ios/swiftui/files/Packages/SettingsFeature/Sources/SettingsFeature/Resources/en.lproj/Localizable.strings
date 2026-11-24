@@ -1,0 +1,13 @@
+"settings.title" = "Settings";
+"settings.subtitle" = "Environment, appearance, and session.";
+"settings.appearance" = "Appearance";
+"settings.environment" = "Environment";
+"settings.environment_value" = "Environment: %@";
+"settings.version" = "Version: %@";
+"settings.account" = "Session";
+"settings.sign_out" = "Sign out";
+"settings.nav_title" = "Settings";
+
+"settings.theme.system" = "System";
+"settings.theme.light" = "Light";
+"settings.theme.dark" = "Dark";

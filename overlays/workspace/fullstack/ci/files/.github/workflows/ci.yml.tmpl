@@ -115,3 +115,13 @@ jobs:
       - name: Install Android SDK
         run: sdkmanager "platforms;android-37.1" "build-tools;36.1.0"
       - run: make -C apps/android ci
+
+  ios:
+    if: hashFiles('apps/ios/project.yml') != ''
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - run: make -C apps/ios ci

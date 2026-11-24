@@ -1,0 +1,11 @@
+"home.title" = "Workspace";
+"home.subtitle" = "A production shell connected to your API.";
+"home.greeting" = "Signed in as %@";
+"home.api_panel" = "API status";
+"home.api_pending" = "Checking…";
+"home.account_panel" = "Account";
+"home.account_role" = "Role: %@";
+"home.account_verified" = "Email verified";
+"home.account_unverified" = "Email not verified";
+"home.refresh" = "Refresh status";
+"home.nav_title" = "Home";
