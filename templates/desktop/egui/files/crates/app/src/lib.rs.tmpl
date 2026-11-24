@@ -346,7 +346,7 @@ impl DesktopApp {
         }
     }
 
-    #[expect(clippy::too_many_lines, reason = "one match arm per action")]
+    #[allow(clippy::too_many_lines)]
     pub fn dispatch(&mut self, action: Action) {
         match action {
             Action::Navigate(pane) => {

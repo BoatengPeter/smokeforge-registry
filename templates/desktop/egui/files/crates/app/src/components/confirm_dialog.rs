@@ -50,6 +50,7 @@ impl<'a> ConfirmDialog<'a> {
     }
 
     /// Draws the modal; returns the choice in the frame it is made.
+    #[must_use]
     pub fn show(self, ctx: &Context) -> Option<ConfirmChoice> {
         let palette = theme::palette(ctx);
         let mut choice = None;

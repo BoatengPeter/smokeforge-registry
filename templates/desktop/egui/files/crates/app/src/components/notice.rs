@@ -83,9 +83,8 @@ impl<'a> Notice<'a> {
                     .1
             })
             .inner
-            .map(|response| {
+            .inspect(|_| {
                 ui.add_space(space::XS);
-                response
             })
     }
 }

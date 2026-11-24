@@ -140,7 +140,7 @@ impl eframe::App for DesktopShell {
         };
         match action {
             Some({{.crate_name}}_app::startup::StartupAction::Retry) => {
-                self.screen = Screen::start()
+                self.screen = Screen::start();
             }
             Some({{.crate_name}}_app::startup::StartupAction::Quit) => {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);

@@ -84,27 +84,24 @@ impl Widget for ListRow<'_> {
                 palette.text,
                 text_width,
             );
-            match self.subtitle {
-                Some(subtitle) => {
-                    let sub = super::single_line(
-                        ui,
-                        subtitle,
-                        TextStyle::Small.resolve(ui.style()),
-                        palette.text_secondary,
-                        text_width,
-                    );
-                    let top = rect.center().y - (title.size().y + sub.size().y + 2.0) / 2.0;
-                    let sub_top = top + title.size().y + 2.0;
-                    ui.painter()
-                        .galley(egui::pos2(left, top), title, palette.text);
-                    ui.painter()
-                        .galley(egui::pos2(left, sub_top), sub, palette.text_secondary);
-                }
-                None => {
-                    let top = rect.center().y - title.size().y / 2.0;
-                    ui.painter()
-                        .galley(egui::pos2(left, top), title, palette.text);
-                }
+            if let Some(subtitle) = self.subtitle {
+                let sub = super::single_line(
+                    ui,
+                    subtitle,
+                    TextStyle::Small.resolve(ui.style()),
+                    palette.text_secondary,
+                    text_width,
+                );
+                let top = rect.center().y - (title.size().y + sub.size().y + 2.0) / 2.0;
+                let sub_top = top + title.size().y + 2.0;
+                ui.painter()
+                    .galley(egui::pos2(left, top), title, palette.text);
+                ui.painter()
+                    .galley(egui::pos2(left, sub_top), sub, palette.text_secondary);
+            } else {
+                let top = rect.center().y - title.size().y / 2.0;
+                ui.painter()
+                    .galley(egui::pos2(left, top), title, palette.text);
             }
 
             if let Some((label, tone)) = self.badge {

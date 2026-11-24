@@ -79,6 +79,7 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
 
 /// The shapes that draw `icon` inside the square `rect`.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn shapes(icon: Icon, rect: Rect, color: Color32) -> Vec<Shape> {
     let mut pen = Pen::new(rect, color);
     match icon {

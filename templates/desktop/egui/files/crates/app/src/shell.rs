@@ -400,9 +400,7 @@ impl Behavior<Pane> for PaneBehavior<'_> {
             .auto_shrink(false)
             .show(ui, |ui| {
                 let available = ui.available_width();
-                let width = (available - 2.0 * PAGE_GUTTER)
-                    .min(CONTENT_MAX_WIDTH)
-                    .max(0.0);
+                let width = (available - 2.0 * PAGE_GUTTER).clamp(0.0, CONTENT_MAX_WIDTH);
                 let left = ((available - width) / 2.0).max(0.0);
                 ui.horizontal(|ui| {
                     ui.add_space(left);

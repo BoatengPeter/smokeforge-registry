@@ -14,6 +14,7 @@ const RECENT_LIMIT: usize = 5;
 const BAR_HEIGHT: f32 = 6.0;
 
 impl DesktopApp {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn dashboard_view(&mut self, ui: &mut Ui) {
         let palette = theme::palette(ui.ctx());
         let mut action = None;

@@ -41,10 +41,9 @@ impl DesktopApp {
             if ui
                 .add(Button::secondary(&t("state.open_logs")).icon(Icon::Terminal))
                 .clicked()
+                && let Err(error) = system::open_folder(&self.paths.logs)
             {
-                if let Err(error) = system::open_folder(&self.paths.logs) {
-                    self.toasts.error(error.to_string());
-                }
+                self.toasts.error(error.to_string());
             }
         });
     }

@@ -16,11 +16,11 @@ let package = Package(
     targets: [
         .target(
             name: "AuthFeature",
-            resources: [.process("Resources")],
             dependencies: [
                 .product(name: "Core", package: "Core"),
                 .product(name: "DesignSystem", package: "DesignSystem"),
             ],
+            resources: [.process("Resources")],
         ),
         .testTarget(
             name: "AuthFeatureTests",
