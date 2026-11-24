@@ -23,6 +23,9 @@ fn main() {
         .with_assets(gpui_kit::assets::Assets)
         .run(move |cx| {
             gpui_kit::init(cx);
+            if let Err(error) = {{.crate_name}}_app::init(cx) {
+                eprintln!("theme setup failed, using GPUI Kit defaults: {error:#}");
+            }
             cx.bind_keys([
                 KeyBinding::new("cmd-1", {{.crate_name}}_app::ShowDashboard, None),
                 KeyBinding::new("cmd-2", {{.crate_name}}_app::ShowLibrary, None),

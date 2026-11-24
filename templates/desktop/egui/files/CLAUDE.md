@@ -23,7 +23,12 @@ For Rust work, read the matching vendored skill:
 - Use theme tokens; no raw colors in components.
 - Use stable widget IDs and `push_id`/`id_salt` in loops.
 - Tokens belong in the OS keyring, never JSON or SQLite.
-- Read `DESIGN.md` before visual changes and `docs/UI.md` before shell changes.
+- Read `DESIGN.md` before visual changes, `docs/UI.md` before shell, page, or
+  component changes, and `docs/STATES.md` before adding any error, empty,
+  loading, offline, or confirmation state.
+- Reuse `crate::components` and `crate::icons`; add new primitives there, never
+  inline in a page. Document every new token, icon, component, page, or state in
+  the matching doc in the same change.
 
 ## Local development
 

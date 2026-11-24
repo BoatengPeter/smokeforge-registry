@@ -1,5 +1,9 @@
 use super::*;
 
+use {{.crate_name}}_core::LibraryStatus;
+
+const RECENT_LIMIT: usize = 5;
+
 impl AppView {
     pub(crate) fn dashboard_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let items = self
@@ -7,73 +11,86 @@ impl AppView {
             .as_ref()
             .and_then(|database| database.list("", None).ok())
             .unwrap_or_default();
-        let recent = items.iter().take(5).map(|item| {
-            h_flex().gap_2().child(item.title.clone()).child(
-                div()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(item.status.label()),
-            )
-        });
-        v_flex()
-            .gap_5()
-            .max_w(px(860.))
-            .child(
+        let count =
+            |status: LibraryStatus| items.iter().filter(|item| item.status == status).count();
+
+        let recent: Vec<_> = items
+            .iter()
+            .take(RECENT_LIMIT)
+            .map(|item| {
+                let tags = if item.tags.is_empty() {
+                    t("library.no_tags")
+                } else {
+                    item.tags.join(", ")
+                };
                 h_flex()
-                    .gap_4()
+                    .id(SharedString::from(format!("recent-{}", item.id)))
+                    .w_full()
+                    .justify_between()
+                    .gap_3()
+                    .px_3()
+                    .py_2()
+                    .rounded(cx.theme().radius)
+                    .hover(|style| style.bg(cx.theme().list_hover))
                     .child(
                         v_flex()
-                            .w(px(220.))
-                            .p_5()
-                            .rounded_lg()
-                            .bg(cx.theme().secondary)
-                            .border_1()
-                            .border_color(cx.theme().border)
-                            .gap_1()
+                            .min_w_0()
+                            .child(div().text_sm().truncate().child(item.title.clone()))
                             .child(
                                 div()
-                                    .text_sm()
+                                    .text_xs()
+                                    .truncate()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child("Library records"),
-                            )
-                            .child(
-                                div()
-                                    .text_3xl()
-                                    .font_semibold()
-                                    .child(items.len().to_string()),
+                                    .child(tags),
                             ),
                     )
-                    .child(
-                        v_flex()
-                            .w(px(220.))
-                            .p_5()
-                            .rounded_lg()
-                            .bg(cx.theme().secondary)
-                            .border_1()
-                            .border_color(cx.theme().border)
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child("Workspace"),
-                            )
-                            .child(div().text_3xl().font_semibold().child("Local")),
-                    ),
+                    .child(status_tag(item.status))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.active = Pane::Library;
+                        cx.notify();
+                    }))
+            })
+            .collect();
+
+        let new_record = Button::new("dashboard-new-record")
+            .primary()
+            .icon(IconName::Plus)
+            .label(t("library.new"))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.active = Pane::Library;
+                cx.notify();
+            }));
+
+        v_flex()
+            .w_full()
+            .gap_6()
+            .child(
+                PageHeader::new(t("nav.dashboard"))
+                    .subtitle(t("dashboard.subtitle"))
+                    .action(new_record),
             )
             .when(!self.settings.onboarded, |this| {
                 this.child(
-                    v_flex()
+                    h_flex()
+                        .w_full()
+                        .justify_between()
                         .gap_3()
-                        .p_4()
-                        .rounded_lg()
-                        .bg(cx.theme().secondary)
-                        .border_1()
-                        .border_color(cx.theme().border)
-                        .child("Welcome to Smokeforge. Start in the Library.")
+                        .px_4()
+                        .py_3()
+                        .rounded(cx.theme().radius_lg)
+                        .bg(cx.theme().list_active)
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .text_sm()
+                                .child(gpui_kit::component::Icon::new(IconName::Info).small())
+                                .child(t("onboarding.welcome")),
+                        )
                         .child(
                             Button::new("dismiss-onboarding")
+                                .ghost()
                                 .small()
-                                .label("Got it")
+                                .label(t("onboarding.dismiss"))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.settings.onboarded = true;
                                     let _ = this.settings_store.save(&this.settings);
@@ -83,16 +100,43 @@ impl AppView {
                 )
             })
             .child(
-                v_flex()
-                    .gap_2()
-                    .p_4()
-                    .rounded_lg()
-                    .bg(cx.theme().secondary)
-                    .border_1()
-                    .border_color(cx.theme().border)
-                    .child(div().text_lg().font_semibold().child("Recent records"))
-                    .children(recent),
+                h_flex()
+                    .w_full()
+                    .flex_wrap()
+                    .gap_3()
+                    .child(StatCard::new(
+                        IconName::BookOpen,
+                        t("dashboard.records"),
+                        items.len().to_string(),
+                    ))
+                    .child(StatCard::new(
+                        IconName::CircleCheck,
+                        t("dashboard.active"),
+                        count(LibraryStatus::Active).to_string(),
+                    ))
+                    .child(StatCard::new(
+                        IconName::FileText,
+                        t("dashboard.drafts"),
+                        count(LibraryStatus::Draft).to_string(),
+                    ))
+                    .child(StatCard::new(
+                        IconName::FolderClosed,
+                        t("dashboard.archived"),
+                        count(LibraryStatus::Archived).to_string(),
+                    )),
             )
+            .child(if recent.is_empty() {
+                SectionCard::new(t("dashboard.recent"))
+                    .child(
+                        EmptyState::new(IconName::BookOpen, t("dashboard.empty_title"))
+                            .body(t("dashboard.empty_body")),
+                    )
+                    .into_any_element()
+            } else {
+                SectionCard::new(t("dashboard.recent"))
+                    .child(v_flex().gap_0p5().children(recent))
+                    .into_any_element()
+            })
             .into_any_element()
     }
 }

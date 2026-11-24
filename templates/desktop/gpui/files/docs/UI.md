@@ -4,6 +4,49 @@ Read `.agents/skills/gpui-kit-design-guides/SKILL.md` before any screen change.
 
 The app uses GPUI Kit components and semantic theme tokens. `crates/ui` holds shared theme helpers and reusable components; feature views stay in `crates/app`. Store stateful GPUI Kit component state as `Entity<T>` in the owning model/view. Use domain-derived `ElementId`s. Keep command palette, dialogs, forms, and tables accessible and keyboard reachable.
 
+## Shell
+
+```text
+┌ title bar ── logo · app name ···························· [⌕ Search or run a command  Ctrl K] [☀] ┐
+│ sidebar (w_60) │ content column (max_w_5xl, px_8 py_6), scrolls                                     │
+│  icon · label  │   PageHeader (title, subtitle, one primary action)                                 │
+│                │   SectionCard / StatCard / Table / EmptyState / StatusPage …                       │
+└ status bar ── ● Local ································································ version ┘
+```
+
+- `shell.rs` owns the frame, theme switching (`sync_theme`, `toggle_theme`),
+  and the command palette. Pages own their `PageHeader`; the shell draws none.
+- Navigation: sidebar items and `cmd-1`…`cmd-6`; `cmd-k` command palette;
+  `cmd-shift-l` theme toggle.
+
+## Recipes
+
+### Add a page
+
+1. Add a `Pane` variant (title key, `IconName` in `Pane::icon`, position in
+   `Pane::available`) and an action in the `actions!` list with a keybinding in
+   `crates/desktop/src/main.rs`.
+2. Create `crates/app/src/pages/<page>.rs.tmpl` with
+   `pub(crate) fn <page>_body(&mut self, cx) -> AnyElement`, register it in
+   `pages/mod.rs.tmpl`, and route it in `pane_body`.
+3. Start with `PageHeader`, then `SectionCard`s. Handle errors and empties per
+   `docs/STATES.md`.
+4. Add strings to both locale files.
+
+### Add a shared component
+
+Follow the sourcing order below. A wrapper in `crates/ui/src/components/`
+gets a builder API (`new`, chainable setters, `#[must_use]`), reads
+`cx.theme()`, uses rem helpers, and is re-exported from `crates/ui/src/lib.rs`.
+List it in `DESIGN.md`.
+
+### Change or add a colour
+
+Edit `crates/ui/themes/smokeforge.json` for **both** themes, keep the hex
+values identical to the egui template's palette when the role exists there,
+add the pair to the contrast tests in `crates/ui/src/theme.rs`, and update the
+table in `DESIGN.md`.
+
 ## Component sourcing and creation
 
 Use this order before writing UI:

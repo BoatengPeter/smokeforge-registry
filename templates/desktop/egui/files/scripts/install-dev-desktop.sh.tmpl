@@ -12,17 +12,21 @@ exec_path="$project_dir/target/debug/{{.crate_name}}"
 entry_dir="$HOME/.local/share/applications"
 icon_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
 
+icon_path="$icon_dir/$app_id.png"
+
 mkdir -p "$entry_dir" "$icon_dir"
-cp "$project_dir/assets/icon.png" "$icon_dir/$app_id.png"
+cp "$project_dir/assets/icon.png" "$icon_path"
 # printf writes the values verbatim; nothing in them is expanded. Exec is
-# quoted so project paths with spaces still launch.
+# quoted so project paths with spaces still launch. Icon is an absolute path:
+# GNOME and KDE match the window's app_id to this file's name and load the
+# icon directly, without depending on the icon-theme cache or icon size.
 printf '%s\n' \
   '[Desktop Entry]' \
   'Type=Application' \
   "Name=$app_name" \
   'Comment=Local development build' \
   "Exec=\"$exec_path\"" \
-  "Icon=$app_id" \
+  "Icon=$icon_path" \
   'Terminal=false' \
   "StartupWMClass=$app_id" \
   'Categories=Utility;' \

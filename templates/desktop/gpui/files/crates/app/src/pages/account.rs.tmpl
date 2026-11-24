@@ -1,10 +1,24 @@
 use super::*;
 
 impl AppView {
-    #[expect(clippy::too_many_lines, reason = "Account states stay together.")]
     pub(crate) fn account_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let form = self.account_form(cx);
         v_flex()
-            .gap_2()
+            .w_full()
+            .gap_6()
+            .child(PageHeader::new(t("nav.account")).subtitle(t("account.subtitle")))
+            .child(
+                div()
+                    .max_w_96()
+                    .child(SectionCard::new(t("account.session")).child(form)),
+            )
+            .into_any_element()
+    }
+
+    #[expect(clippy::too_many_lines, reason = "Account states stay together.")]
+    fn account_form(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        v_flex()
+            .gap_3()
             .when_some(self.access_token.as_ref(), |this, token| {
                 this.child(format!(
                     "Signed in · token {}",
@@ -108,7 +122,9 @@ impl AppView {
             })
             .children(self.conflict_rows(cx))
             .when_some(self.tokens.warning().map(str::to_owned), |this, warning| {
-                this.child(div().text_color(cx.theme().warning).child(warning))
+                this.child(
+                    Alert::warning("keyring-warning", warning).title(t("state.keyring_title")),
+                )
             })
             .into_any_element()
     }

@@ -7,6 +7,22 @@ description: Use when building or changing egui/eframe 0.36 or 0.37 components, 
 
 Build small, reusable Rust UI components that feel native to the product and behave correctly under keyboard, mouse, IME, resizing, and accessibility use.
 
+## This Template's Design System
+
+Before writing UI, read `DESIGN.md`, `docs/UI.md`, and `docs/STATES.md`. Then
+reuse what exists instead of drawing new widgets:
+
+- Tokens: `crate::theme` (palette, `space`, `radius`, `size`, text styles).
+- Icons: `crate::icons::Icon` (drawn in code; add new ones there).
+- Components: `crate::components` — `Button`, `IconButton`, `NavItem`, `card`,
+  `section`, `PageHeader`, `StatCard`, `ListRow`, `Badge`, `Segmented`,
+  `Switch`, fields, `Kbd`, `EmptyState`, `StatusPage`, `Notice`, `ConfirmDialog`.
+- States: pick the pattern from `docs/STATES.md` (status page, notice, empty
+  state, confirmation, undo) — do not invent ad-hoc error frames.
+
+When you add a token, icon, component, page, or state, update the matching
+section of `DESIGN.md`, `docs/UI.md`, or `docs/STATES.md` in the same change.
+
 ## Before Writing Code
 
 1. Read `DESIGN.md`, `docs/UI.md`, and `crates/app/src/theme.rs`.
@@ -102,9 +118,9 @@ Every interactive component must be usable without a mouse.
 
 ## Visual Quality
 
-- Follow the CraftAnything tokens in `theme.rs`; never add a second palette or raw component colors.
+- Follow the tokens in `theme.rs` (`theme::palette(ctx)`, `space`, `radius`, `size`); never add a second palette or raw component colors. `DESIGN.md` documents every token.
 - Use density appropriate to desktop: roughly 28–36 px control heights, 12–16 px card padding, and one clear primary action per group.
-- Mark the primary action with `ui.visuals().selection` colours; do not make every button primary.
+- Mark the primary action with `components::Button::primary`; use `secondary`, `ghost`, or `danger` for everything else. One primary per area.
 - Avoid generic dashboard cards, oversized heading blocks, gradients, and decorative shadows.
 - Use hierarchy: page title, section label, body, helper text. Configure three or four text sizes through `TextStyle`, not per-widget `.size()`.
 - Show real empty, loading, error, and permission states. Empty states should name the next useful action.

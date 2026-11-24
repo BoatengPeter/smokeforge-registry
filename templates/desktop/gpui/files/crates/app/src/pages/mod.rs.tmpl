@@ -6,14 +6,83 @@ mod activity;
 mod dashboard;
 mod library;
 mod settings;
+mod states;
 
 pub(crate) use crate::*;
 pub(crate) use {{.crate_name}}_ui::*;
 pub(crate) use gpui_kit::base::{StyledExt, h_flex, v_flex};
 pub(crate) use gpui_kit::component::ActiveTheme;
-pub(crate) use gpui_kit::component::button::{Button, ButtonVariants as _};
+pub(crate) use gpui_kit::component::WindowExt as _;
+pub(crate) use gpui_kit::component::alert::Alert;
+pub(crate) use gpui_kit::component::button::{
+    Button, ButtonGroup, ButtonVariant, ButtonVariants as _,
+};
 pub(crate) use gpui_kit::component::input::{Input, InputState};
 pub(crate) use gpui_kit::component::table::{
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 };
+pub(crate) use gpui_kit::component::tag::Tag;
+pub(crate) use gpui_kit::component::{IconName, Selectable as _, Sizable as _};
 pub(crate) use gpui_kit::*;
+
+use {{.crate_name}}_core::LibraryStatus;
+
+/// A status chip. Only "Active" gets a colour; drafts and archived records
+/// stay neutral so lists stay calm.
+pub(crate) fn status_tag(status: LibraryStatus) -> Tag {
+    let tag = match status {
+        LibraryStatus::Active => Tag::success(),
+        LibraryStatus::Draft | LibraryStatus::Archived => Tag::secondary(),
+    };
+    tag.small().child(status.label())
+}
+
+/// A settings row: label and help text on the leading side, a control on the
+/// trailing side.
+pub(crate) fn setting_row(
+    label: impl Into<SharedString>,
+    help: impl Into<SharedString>,
+    control: impl IntoElement,
+    cx: &App,
+) -> impl IntoElement {
+    h_flex()
+        .w_full()
+        .justify_between()
+        .gap_4()
+        .py_1()
+        .child(
+            v_flex()
+                .gap_0p5()
+                .child(div().text_sm().child(label.into()))
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(help.into()),
+                ),
+        )
+        .child(control)
+}
+
+/// A key–value line for details sections.
+pub(crate) fn detail_row(
+    key: impl Into<SharedString>,
+    value: impl Into<SharedString>,
+    cx: &App,
+) -> impl IntoElement {
+    h_flex()
+        .gap_4()
+        .text_sm()
+        .child(
+            div()
+                .w_32()
+                .flex_none()
+                .text_color(cx.theme().muted_foreground)
+                .child(key.into()),
+        )
+        .child(
+            div()
+                .font_family(cx.theme().mono_font_family.clone())
+                .child(value.into()),
+        )
+}

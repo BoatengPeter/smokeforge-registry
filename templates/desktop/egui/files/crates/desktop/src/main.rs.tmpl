@@ -41,13 +41,13 @@ fn main() -> eframe::Result<()> {
         "{{.project_name}}",
         options,
         Box::new(|cc| {
-            let _ = cc;
-            let mut app = {{.crate_name}}_app::DesktopApp::new("{{.project_name}}")?;
-            if let Some(storage) = cc.storage {
+            {{.crate_name}}_app::theme::install_fonts(&cc.egui_ctx);
+            let mut screen = Screen::start();
+            if let (Screen::App(app), Some(storage)) = (&mut screen, cc.storage) {
                 app.restore_layout(storage);
             }
 
-            Ok(Box::new(DesktopShell { app, focus }))
+            Ok(Box::new(DesktopShell { screen, focus }))
         }),
     )
 }
@@ -100,8 +100,29 @@ fn start_instance_listener() -> (Arc<AtomicBool>, Option<std::thread::JoinHandle
     (focus, Some(handle))
 }
 
+/// What the window shows: the app, or why it could not start.
+enum Screen {
+    App(Box<{{.crate_name}}_app::DesktopApp>),
+    Failed({{.crate_name}}_app::startup::StartupFailure),
+}
+
+impl Screen {
+    fn start() -> Self {
+        match {{.crate_name}}_app::DesktopApp::new("{{.project_name}}") {
+            Ok(app) => Self::App(Box::new(app)),
+            Err(error) => {
+                let logs = {{.crate_name}}_app::startup::logs_folder("{{.project_name}}");
+                Self::Failed({{.crate_name}}_app::startup::StartupFailure::new(
+                    format!("{error:#}"),
+                    logs,
+                ))
+            }
+        }
+    }
+}
+
 struct DesktopShell {
-    app: {{.crate_name}}_app::DesktopApp,
+    screen: Screen,
     focus: Arc<AtomicBool>,
 }
 
@@ -110,10 +131,25 @@ impl eframe::App for DesktopShell {
         if self.focus.swap(false, Ordering::Relaxed) {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Focus);
         }
-        self.app.render(ui);
+        let action = match &mut self.screen {
+            Screen::App(app) => {
+                app.render(ui);
+                None
+            }
+            Screen::Failed(failure) => failure.show(ui),
+        };
+        match action {
+            Some({{.crate_name}}_app::startup::StartupAction::Retry) => self.screen = Screen::start(),
+            Some({{.crate_name}}_app::startup::StartupAction::Quit) => {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            None => {}
+        }
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        self.app.save_layout(storage);
+        if let Screen::App(app) = &self.screen {
+            app.save_layout(storage);
+        }
     }
 }

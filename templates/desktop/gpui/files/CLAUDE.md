@@ -6,6 +6,8 @@ Read the installed `.agents/skills/gpui-kit/SKILL.md` and `.agents/skills/gpui-k
 
 Never guess a GPUI or GPUI Kit API; inspect the pinned source/docs. Keep models separate from views, store every task/subscription, and never block the GPUI executor.
 
+Before visual work read `DESIGN.md` and `docs/STATES.md`. Colours come only from `crates/ui/themes/smokeforge.json` via `cx.theme()`; size with rem helpers; shared presentation lives in `crates/ui`; every error, empty, degraded, or confirmation state follows `docs/STATES.md`. Document new theme keys, components, pages, and states in the same change.
+
 Local development: use `make dev` (cargo-watch rebuild + restart on save) or `make watch-check`; see `docs/DEVELOPMENT.md`. Watch targets are for humans, not for verification: run the quality gate below before reporting completion.
 
 Quality gate:

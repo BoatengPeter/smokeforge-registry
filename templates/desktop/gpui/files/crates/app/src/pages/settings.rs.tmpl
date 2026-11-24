@@ -3,55 +3,88 @@ use super::*;
 impl AppView {
     pub(crate) fn settings_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let theme_options = [
-            ("dark", t("setting.dark")),
             ("light", t("setting.light")),
+            ("dark", t("setting.dark")),
             ("system", t("setting.system")),
         ];
         let language_options = [("en", t("setting.english")), ("es", t("setting.spanish"))];
 
-        let appearance =
-            SectionCard::new(t("setting.appearance"))
-                .child(h_flex().gap_2().children(theme_options.into_iter().map(
-                    |(value, label)| {
-                        Button::new(format!("theme-{value}"))
-                            .when(
-                                self.settings.theme == value,
-                                gpui_kit::component::button::ButtonVariants::primary,
-                            )
-                            .label(label)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                value.clone_into(&mut this.settings.theme);
-                                let _ = this.settings_store.save(&this.settings);
-                                cx.notify();
-                            }))
-                    },
-                )))
-                .child(h_flex().gap_2().children(language_options.into_iter().map(
-                    |(value, label)| {
-                        Button::new(format!("language-{value}"))
-                            .when(
-                                self.settings.language == value,
-                                gpui_kit::component::button::ButtonVariants::primary,
-                            )
-                            .label(label)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.dispatch(crate::Action::SetLanguage(value.to_owned()));
-                                cx.notify();
-                            }))
-                    },
-                )));
-
-        let data = SectionCard::new(t("about.diagnostics"))
-            .child(format!("Data: {}", self.paths.data.display()))
-            .child(format!("Logs: {}", self.paths.logs.display()))
-            .child(format!("Config: {}", self.paths.config.display()))
-            .child(format!("Log level: {}", self.settings.log_level));
+        let theme_group = ButtonGroup::new("theme-choice")
+            .outline()
+            .small()
+            .children(theme_options.iter().map(|(value, label)| {
+                Button::new(format!("theme-{value}"))
+                    .label(label.clone())
+                    .selected(self.settings.theme == *value)
+            }))
+            .on_click(cx.listener(move |this, clicks: &Vec<usize>, _, cx| {
+                if let Some((value, _)) = clicks.first().and_then(|index| theme_options.get(*index))
+                {
+                    (*value).clone_into(&mut this.settings.theme);
+                    let _ = this.settings_store.save(&this.settings);
+                    cx.notify();
+                }
+            }));
+        let language_group = ButtonGroup::new("language-choice")
+            .outline()
+            .small()
+            .children(language_options.iter().map(|(value, label)| {
+                Button::new(format!("language-{value}"))
+                    .label(label.clone())
+                    .selected(self.settings.language == *value)
+            }))
+            .on_click(cx.listener(move |this, clicks: &Vec<usize>, _, cx| {
+                if let Some((value, _)) = clicks
+                    .first()
+                    .and_then(|index| language_options.get(*index))
+                {
+                    this.dispatch(crate::Action::SetLanguage((*value).to_owned()));
+                    cx.notify();
+                }
+            }));
 
         v_flex()
             .w_full()
-            .gap_4()
-            .child(PageHeader::new(t("nav.settings")).subtitle("Preferences and local data."))
-            .child(h_flex().gap_4().items_start().child(appearance).child(data))
+            .gap_6()
+            .child(PageHeader::new(t("nav.settings")).subtitle(t("setting.subtitle")))
+            .child(
+                SectionCard::new(t("setting.appearance"))
+                    .child(setting_row(
+                        t("setting.theme"),
+                        t("setting.theme_help"),
+                        theme_group,
+                        cx,
+                    ))
+                    .child(setting_row(
+                        t("setting.language"),
+                        t("setting.language_help"),
+                        language_group,
+                        cx,
+                    )),
+            )
+            .child(
+                SectionCard::new(t("about.diagnostics"))
+                    .child(detail_row(
+                        t("about.data"),
+                        self.paths.data.display().to_string(),
+                        cx,
+                    ))
+                    .child(detail_row(
+                        t("about.logs"),
+                        self.paths.logs.display().to_string(),
+                        cx,
+                    ))
+                    .child(detail_row(
+                        t("setting.config"),
+                        self.paths.config.display().to_string(),
+                        cx,
+                    ))
+                    .child(detail_row(
+                        t("setting.log_level"),
+                        self.settings.log_level.clone(),
+                        cx,
+                    )),
+            )
             .into_any_element()
     }
 }

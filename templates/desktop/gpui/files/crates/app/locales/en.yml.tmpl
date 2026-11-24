@@ -1,27 +1,92 @@
 app:
-  name: "{{.project_name}}"
+  name: '{{.project_name}}'
+  tagline: A local-first desktop workspace.
 nav:
-  dashboard: "Home"
-  library: "Library"
-  activity: "Activity"
-  settings: "Settings"
-  account: "Account"
-  about: "About"
+  dashboard: Home
+  library: Library
+  activity: Activity
+  settings: Settings
+  account: Account
+  about: About
 sidebar:
-  workspace: "Workspace"
-  footer: "Local · Rust · GPUI"
+  workspace: Workspace
+  footer: Local · Rust · GPUI
 status:
-  local: "Local"
-  version: "GPUI Kit 0.10 · pinned 0.3.12"
+  local: Local
+  version: GPUI Kit 0.10 · GPUI 0.3.12
 setting:
-  appearance: "Appearance"
-  theme: "Theme"
-  dark: "Dark"
-  light: "Light"
-  system: "System"
-  language: "Language"
-  english: "English"
-  spanish: "Spanish"
+  appearance: Appearance
+  theme: Theme
+  dark: Dark
+  light: Light
+  system: System
+  language: Language
+  english: English
+  spanish: Spanish
+  subtitle: Preferences and local data.
+  theme_help: Light, dark, or follow the system.
+  language_help: Language for menus and labels.
+  config: Config folder
+  log_level: Log level
 about:
-  github: "GitHub"
-  diagnostics: "Data and logs"
+  github: GitHub
+  diagnostics: Data and logs
+  subtitle: Runtime information.
+  version: Version
+  toolkit: Toolkit
+  platform: Platform
+  data: Data folder
+  logs: Logs folder
+shell:
+  search: Search or run a command…
+  light_theme: Switch to light theme
+  dark_theme: Switch to dark theme
+dashboard:
+  subtitle: A local-first desktop workspace.
+  records: Library records
+  active: Active
+  drafts: Drafts
+  archived: Archived
+  recent: Recent records
+  empty_title: No records yet
+  empty_body: Create your first record and it will show up here.
+library:
+  subtitle: Local records backed by SQLite.
+  new: New record
+  new_title: New record
+  list: Records
+  title_field: Title
+  tags_field: Tags
+  tags_hint: design, research
+  status: Status
+  delete: Delete record
+  create: Create record
+  no_tags: No tags
+activity:
+  subtitle: Background work and sync status.
+  sync: Sync
+  last_sync: Last sync
+  last_sync_help: The most recent push to the API.
+  never: Not synced yet
+  conflicts: Pending conflicts
+  conflicts_help: Records changed both here and on the server.
+  jobs: Background jobs
+  empty: No background jobs are running
+  empty_body: Imports and sync runs show up here while they work.
+account:
+  subtitle: API account session.
+  session: Session
+onboarding:
+  welcome: Welcome. Start in the Library.
+  dismiss: Got it
+state:
+  retry: Try again
+  open_logs: Open logs folder
+  database_title: Can't read the local database
+  database_body: Your records are still on disk. Try again, or open the logs folder for details.
+  keyring_title: Sign-in won't be remembered
+  delete_title: Delete
+  delete_body: The record is removed from this computer and from the server on the next sync.
+  delete_confirm: Delete record
+common:
+  cancel: Cancel

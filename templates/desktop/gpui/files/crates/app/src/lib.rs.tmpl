@@ -111,6 +111,8 @@ pub struct AppView {
     focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
     applied_theme: String,
     database: Option<{{.crate_name}}_storage::Database>,
+    /// Why the database could not be opened, shown as a status page.
+    database_error: Option<String>,
     title_input: Entity<InputState>,
     tags_input: Entity<InputState>,
 }
@@ -131,11 +133,7 @@ impl AppView {
         let settings_store = {{.crate_name}}_storage::SettingsStore::new(&paths.config);
         let settings = settings_store.load().unwrap_or_default();
         let logging_guard = logging::init(&paths.logs, &settings.log_level);
-        let database = {{.crate_name}}_storage::Database::open(&paths.data.join("local.sqlite"))
-            .ok()
-            .inspect(|database| {
-                let _ = database.seed_if_empty();
-            });
+        let (database, database_error) = open_database(&paths);
         let title_input = cx.new(|cx| InputState::new(window, cx).placeholder("Title"));
         let tags_input =
             cx.new(|cx| InputState::new(window, cx).placeholder("tags, comma separated"));
@@ -162,6 +160,7 @@ impl AppView {
             settings_store,
             _logging_guard: logging_guard,
             database,
+            database_error,
             title_input,
             tags_input,
             tokens: credentials::TokenStore::new("{{.bundle_id}}", "auth"),
@@ -192,21 +191,22 @@ impl AppView {
         }
     }
 
-    fn subtitle(&self, _cx: &mut Context<Self>) -> String {
-        match self.active {
-            Pane::Settings => "Preferences, local data, and diagnostics.".to_owned(),
-            Pane::Account => {
-                if self.tokens.warning().is_some() {
-                    "API account · keyring unavailable; tokens will stay in memory.".to_owned()
-                } else {
-                    "API account session.".to_owned()
-                }
-            }
-            _ => "Local-first desktop workspace.".to_owned(),
-        }
+    /// Reopens the database after a failure.
+    fn reopen_database(&mut self, cx: &mut Context<Self>) {
+        let (database, error) = open_database(&self.paths);
+        self.database = database;
+        self.database_error = error;
+        cx.notify();
     }
 
     fn pane_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let needs_records = matches!(
+            self.active,
+            Pane::Dashboard | Pane::Library | Pane::Activity
+        );
+        if needs_records && let Some(error) = self.database_error.clone() {
+            return self.database_error_page(error, cx);
+        }
         match self.active {
             Pane::Dashboard => self.dashboard_body(cx),
             Pane::Activity => self.activity_body(cx),
@@ -216,6 +216,29 @@ impl AppView {
             Pane::Library => self.library_body(cx).into_any_element(),
         }
     }
+}
+
+/// Opens and seeds the local database, or returns why it failed.
+fn open_database(
+    paths: &{{.crate_name}}_storage::Paths,
+) -> (Option<{{.crate_name}}_storage::Database>, Option<String>) {
+    match {{.crate_name}}_storage::Database::open(&paths.data.join("local.sqlite")) {
+        Ok(database) => {
+            let _ = database.seed_if_empty();
+            (Some(database), None)
+        }
+        Err(error) => (None, Some(error.to_string())),
+    }
+}
+
+/// Registers the app's font and themes. Call once, right after
+/// `gpui_kit::init`, before opening a window.
+///
+/// # Errors
+///
+/// Returns an error when the embedded font or theme file is invalid.
+pub fn init(cx: &mut App) -> anyhow::Result<()> {
+    {{.crate_name}}_ui::theme::install(cx)
 }
 
 fn t(key: &str) -> String {

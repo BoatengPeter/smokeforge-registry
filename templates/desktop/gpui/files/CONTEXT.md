@@ -30,6 +30,9 @@ Component state belongs in an `Entity<T>` owned by the view or model. Do not kee
 
 ## UI composition
 
+- Theme: `crates/ui/themes/smokeforge.json` + `crates/ui/src/theme.rs`. See `DESIGN.md`.
+- States (errors, empties, degraded, confirmations): `docs/STATES.md`.
+
 - Shared presentational components live in `crates/ui/src/components`; shell composition lives in `crates/app/src/shell.rs`.
 - Feature pages live in `crates/app/src/pages`, one file per page.
 - `crates/app/src/lib.rs` is wiring only: application state, actions, and shell composition.

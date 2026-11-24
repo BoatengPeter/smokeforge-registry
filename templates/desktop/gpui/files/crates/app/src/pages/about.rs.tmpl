@@ -1,23 +1,53 @@
 use super::*;
 
 impl AppView {
-    pub(crate) fn about_body(&self, _cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn about_body(&self, cx: &mut Context<Self>) -> AnyElement {
         v_flex()
             .w_full()
-            .gap_4()
-            .child(PageHeader::new(t("app.name")).subtitle("Desktop application"))
+            .gap_6()
+            .child(PageHeader::new(t("nav.about")).subtitle(t("about.subtitle")))
             .child(
-                SectionCard::new("Application")
-                    .child("GPUI Kit 0.10.0 · GPUI 0.3.12")
-                    .child(format!("Workspace data: {}", self.paths.data.display()))
-                    .child(format!("Logs: {}", self.paths.logs.display())),
-            )
-            .child(
-                SectionCard::new("Links").child(
-                    Button::new("open-github")
-                        .label(t("about.github"))
-                        .on_click(|_, _, cx| cx.open_url("https://github.com/BoatengPeter")),
-                ),
+                SectionCard::new(t("app.name"))
+                    .child(
+                        h_flex()
+                            .gap_3()
+                            .child(img(self.logo.clone()).size_10())
+                            .child(
+                                v_flex()
+                                    .child(div().text_lg().font_semibold().child(t("app.name")))
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child(t("app.tagline")),
+                                    ),
+                            ),
+                    )
+                    .child(detail_row(
+                        t("about.version"),
+                        env!("CARGO_PKG_VERSION"),
+                        cx,
+                    ))
+                    .child(detail_row(
+                        t("about.toolkit"),
+                        "GPUI Kit 0.10 · GPUI 0.3.12",
+                        cx,
+                    ))
+                    .child(detail_row(
+                        t("about.platform"),
+                        format!("{} · {}", std::env::consts::OS, std::env::consts::ARCH),
+                        cx,
+                    ))
+                    .child(detail_row(
+                        t("about.data"),
+                        self.paths.data.display().to_string(),
+                        cx,
+                    ))
+                    .child(detail_row(
+                        t("about.logs"),
+                        self.paths.logs.display().to_string(),
+                        cx,
+                    )),
             )
             .into_any_element()
     }

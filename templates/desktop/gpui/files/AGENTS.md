@@ -12,6 +12,24 @@ Read and follow the installed project skills:
 
 Do not invent GPUI APIs. Search the pinned source or GPUI Kit documentation.
 
+## Design system (do not deviate)
+
+Read `DESIGN.md` (theme and rules) and `docs/STATES.md` (error, empty,
+degraded, confirmation states) before any visual change.
+
+- Colours, font, base size, and radii come only from
+  `crates/ui/themes/smokeforge.json`, installed by `crates/ui/src/theme.rs`.
+  Application code reads `cx.theme()`; no hex, `rgb`, or `hsla` anywhere else.
+- Size with rem helpers (`p_4()`, `gap_3()`, `text_sm()`, `w_60()`), not `px(...)`.
+- Shared presentation lives in `crates/ui/src/components/`. Pages compose GPUI
+  Kit components and these wrappers; they do not restyle components locally.
+- Every failure, empty, degraded, or destructive situation uses a pattern from
+  `docs/STATES.md`. Never show an empty state when a read failed.
+- One primary button per area. Tags stay neutral unless the state has meaning.
+- When you add a theme key, component, page, or state, update `DESIGN.md`,
+  `docs/UI.md`, or `docs/STATES.md` in the same change, and add a test.
+- Check every visual change in light and dark.
+
 ## Rules
 
 - Keep GPUI out of `core`, `api-client`, and `storage`.

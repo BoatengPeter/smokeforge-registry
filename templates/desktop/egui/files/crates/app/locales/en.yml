@@ -1,79 +1,161 @@
 app:
-  name: "Smokeforge"
-  tagline: "A local-first desktop workspace."
+  name: Smokeforge
+  tagline: A local-first desktop workspace.
 nav:
-  home: "Home"
-  library: "Library"
-  activity: "Activity"
-  settings: "Settings"
-  account: "Account"
-  about: "About"
+  home: Home
+  library: Library
+  activity: Activity
+  settings: Settings
+  account: Account
+  about: About
 dashboard:
-  title: "Home"
-  subtitle: "A local-first desktop workspace."
-  stats: "Workspace"
-  records: "Library records"
-  recent: "Recent records"
+  title: Home
+  subtitle: A local-first desktop workspace.
+  stats: Workspace
+  records: Library records
+  recent: Recent records
+  active: Active
+  drafts: Drafts
+  archived: Archived
+  status: Records by status
+  empty_title: No records yet
+  empty_body: Create your first record and it will show up here.
 library:
-  title: "Library"
-  subtitle: "Local records backed by SQLite."
-  search: "Search records…"
-  new: "New record"
-  empty: "No records match this view."
-  title_field: "Title"
-  description_field: "Description"
-  tags_field: "Tags"
-  save: "Save"
-  delete: "Delete"
-  select: "Select a record to edit it."
+  title: Library
+  subtitle: Local records backed by SQLite.
+  search: Search records…
+  new: New record
+  empty: No records match this view.
+  title_field: Title
+  description_field: Description
+  tags_field: Tags
+  save: Save
+  delete: Delete
+  select: No record selected
+  no_matches: No matches
+  no_matches_body: Try a different search, or create a new record.
+  select_body: Pick a record from the list, or create a new one.
+  new_title: New record
+  untitled: Untitled record
+  tags_hint: design, research
+  no_tags: No tags
 common:
-  all: "All"
-  loading: "Loading…"
-  error: "Something went wrong."
-  cancel: "Cancel"
+  all: All
+  loading: Loading…
+  error: Something went wrong.
+  cancel: Cancel
 settings:
-  title: "Settings"
-  subtitle: "Preferences and local data."
-  theme: "Theme"
-  language: "Language"
-  dark: "Dark"
-  light: "Light"
-  system: "System"
-  data: "Local data"
-  database: "Database"
-  high_contrast: "High contrast"
-  sync_policy: "Sync policy"
-  log_level: "Log level"
-  launch_at_login: "Launch at login"
-  backup: "Back up"
+  title: Settings
+  subtitle: Preferences and local data.
+  theme: Theme
+  language: Language
+  dark: Dark
+  light: Light
+  system: System
+  data: Local data
+  database: Database
+  high_contrast: High contrast
+  sync_policy: Sync policy
+  log_level: Log level
+  launch_at_login: Launch at login
+  backup: Back up
+  appearance: Appearance
+  theme_help: Light, dark, or follow the system.
+  language_help: Language for menus and labels.
+  high_contrast_help: Stronger text, borders, and focus rings.
+  behaviour: Sync and system
+  sync_help: When local changes are sent to the API.
+  log_help: How much detail goes into the log files.
+  launch_help: Open the app when you sign in to your computer.
+  manual: Manual
+  automatic: Automatic
+  database_help: Library records are stored in this SQLite file.
+  export: Export
+  import: Import
+  clear: Clear local data
+  conflicts: Sync conflicts
+  keep_local: Keep local
+  use_server: Use server
 about:
-  title: "About"
-  subtitle: "Runtime information."
+  title: About
+  subtitle: Runtime information.
+  version: Version
+  toolkit: Toolkit
+  platform: Platform
+  data: Data folder
+  logs: Logs folder
 command:
-  title: "Command palette"
-  placeholder: "Type a command…"
-  dashboard: "Go to Home"
-  library: "Go to Library"
-  activity: "Go to Activity"
-  settings: "Go to Settings"
-  account: "Go to Account"
-  about: "Go to About"
-  new_record: "New record"
-  toggle_sidebar: "Toggle sidebar"
-  toggle_theme: "Toggle light/dark theme"
-  toggle_contrast: "Toggle high contrast"
-  empty: "No matching commands."
+  title: Command palette
+  placeholder: Type a command…
+  dashboard: Go to Home
+  library: Go to Library
+  activity: Go to Activity
+  settings: Go to Settings
+  account: Go to Account
+  about: Go to About
+  new_record: New record
+  toggle_sidebar: Toggle sidebar
+  toggle_theme: Toggle light/dark theme
+  toggle_contrast: Toggle high contrast
+  empty: No matching commands.
 account:
-  title: "Account"
-  subtitle: "API account session."
-  sign_in: "Sign in"
-  sign_out: "Sign out"
-  email: "Email"
-  password: "Password"
+  title: Account
+  subtitle: API account session.
+  sign_in: Sign in
+  sign_out: Sign out
+  email: Email
+  password: Password
+  signed_in: Signed in
+  sync_now: Sync now
 activity:
-  title: "Activity"
-  subtitle: "Background work and sync status."
-  empty: "No background jobs are running."
+  title: Activity
+  subtitle: Background work and sync status.
+  empty: No background jobs are running.
+  sync: Sync
+  last_sync: Last sync
+  last_sync_help: The most recent push to the API.
+  never: Not synced yet
+  conflicts: Pending conflicts
+  conflicts_help: Records changed both here and on the server.
+  jobs: Background jobs
+  empty_body: Imports and sync runs show up here while they work.
 onboarding:
-  welcome: "Welcome to Smokeforge. Start in the Library."
-  dismiss: "Got it"
+  welcome: Welcome to Smokeforge. Start in the Library.
+  dismiss: Got it
+shell:
+  search: Search or run a command…
+  light_theme: Switch to light theme
+  dark_theme: Switch to dark theme
+  minimize: Minimize
+  maximize: Maximize
+  close: Close
+  collapse: Collapse sidebar
+  expand: Expand sidebar
+  workspace: Workspace
+status:
+  local: Local
+  undo: Undo delete
+  commands: Commands
+startup:
+  title: The app couldn't start
+  body: Something went wrong while opening your local data. Nothing was deleted. Try again, or open the
+    logs folder and share the details below.
+  retry: Try again
+  open_logs: Open logs folder
+  quit: Quit
+state:
+  retry: Try again
+  open_logs: Open logs folder
+  database_title: Can't read the local database
+  database_body: Your records are still on disk. Try again, or open the logs folder for details.
+  missing_title: Record not found
+  missing_body: It may have been deleted, here or on another device.
+  back_to_records: Back to records
+  keyring_title: Sign-in won't be remembered
+  sync_failed_title: Last sync failed
+  sign_in_failed_title: Couldn't sign in
+  syncing: Syncing…
+  clear_title: Clear all local records?
+  clear_body: This deletes every Library record on this computer. Records already synced stay on the server.
+    This can't be undone.
+  clear_confirm: Clear local data

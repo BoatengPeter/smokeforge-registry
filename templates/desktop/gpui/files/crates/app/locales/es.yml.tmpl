@@ -1,27 +1,93 @@
 app:
-  name: "{{.project_name}}"
+  name: '{{.project_name}}'
+  tagline: Un espacio de trabajo de escritorio local.
 nav:
-  dashboard: "Inicio"
-  library: "Biblioteca"
-  activity: "Actividad"
-  settings: "Ajustes"
-  account: "Cuenta"
-  about: "Acerca de"
+  dashboard: Inicio
+  library: Biblioteca
+  activity: Actividad
+  settings: Ajustes
+  account: Cuenta
+  about: Acerca de
 sidebar:
-  workspace: "Espacio"
-  footer: "Local · Rust · GPUI"
+  workspace: Espacio
+  footer: Local · Rust · GPUI
 status:
-  local: "Local"
-  version: "GPUI Kit 0.10 · fijado 0.3.12"
+  local: Local
+  version: GPUI Kit 0.10 · GPUI 0.3.12
 setting:
-  appearance: "Apariencia"
-  theme: "Tema"
-  dark: "Oscuro"
-  light: "Claro"
-  system: "Sistema"
-  language: "Idioma"
-  english: "Inglés"
-  spanish: "Español"
+  appearance: Apariencia
+  theme: Tema
+  dark: Oscuro
+  light: Claro
+  system: Sistema
+  language: Idioma
+  english: Inglés
+  spanish: Español
+  subtitle: Preferencias y datos locales.
+  theme_help: Claro, oscuro o el del sistema.
+  language_help: Idioma de menús y etiquetas.
+  config: Carpeta de configuración
+  log_level: Nivel de registro
 about:
-  github: "GitHub"
-  diagnostics: "Datos y registros"
+  github: GitHub
+  diagnostics: Datos y registros
+  subtitle: Información de ejecución.
+  version: Versión
+  toolkit: Herramientas
+  platform: Plataforma
+  data: Carpeta de datos
+  logs: Carpeta de registros
+shell:
+  search: Buscar o ejecutar un comando…
+  light_theme: Cambiar a tema claro
+  dark_theme: Cambiar a tema oscuro
+dashboard:
+  subtitle: Un espacio de trabajo de escritorio local.
+  records: Registros
+  active: Activos
+  drafts: Borradores
+  archived: Archivados
+  recent: Registros recientes
+  empty_title: Aún no hay registros
+  empty_body: Crea tu primer registro y aparecerá aquí.
+library:
+  subtitle: Registros locales en SQLite.
+  new: Nuevo registro
+  new_title: Nuevo registro
+  list: Registros
+  title_field: Título
+  tags_field: Etiquetas
+  tags_hint: diseño, investigación
+  status: Estado
+  delete: Eliminar registro
+  create: Crear registro
+  no_tags: Sin etiquetas
+activity:
+  subtitle: Trabajo en segundo plano y sincronización.
+  sync: Sincronización
+  last_sync: Última sincronización
+  last_sync_help: El envío más reciente a la API.
+  never: Aún sin sincronizar
+  conflicts: Conflictos pendientes
+  conflicts_help: Registros cambiados aquí y en el servidor.
+  jobs: Tareas en segundo plano
+  empty: No hay tareas en ejecución
+  empty_body: Las importaciones y sincronizaciones aparecen aquí mientras se ejecutan.
+account:
+  subtitle: Sesión de la cuenta API.
+  session: Sesión
+onboarding:
+  welcome: Bienvenido. Empieza en la Biblioteca.
+  dismiss: Entendido
+state:
+  retry: Reintentar
+  open_logs: Abrir carpeta de registros
+  database_title: No se puede leer la base de datos local
+  database_body: Tus registros siguen en el disco. Inténtalo de nuevo o abre la carpeta de registros para
+    ver detalles.
+  keyring_title: No se recordará la sesión
+  delete_title: ¿Eliminar
+  delete_body: El registro se elimina de este equipo y del servidor en la próxima sincronización.
+  delete_confirm: Eliminar registro
+common:
+  cancel: Cancelar

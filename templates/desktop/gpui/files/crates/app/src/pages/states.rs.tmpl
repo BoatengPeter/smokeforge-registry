@@ -1,0 +1,41 @@
+use super::*;
+
+use {{.crate_name}}_ui::{StatusPage, StatusTone};
+
+impl AppView {
+    /// The "local database can't be read" state, shared by every page that
+    /// lists records.
+    pub(crate) fn database_error_page(&self, error: String, cx: &mut Context<Self>) -> AnyElement {
+        let logs = self.paths.logs.clone();
+        v_flex()
+            .w_full()
+            .gap_6()
+            .child(PageHeader::new(self.active.label()))
+            .child(
+                SectionCard::new(t("state.database_title")).child(
+                    StatusPage::new(
+                        IconName::HardDrive,
+                        StatusTone::Danger,
+                        t("state.database_title"),
+                        t("state.database_body"),
+                    )
+                    .details(error)
+                    .action(
+                        Button::new("open-logs")
+                            .outline()
+                            .label(t("state.open_logs"))
+                            .on_click(move |_, _, cx| {
+                                cx.open_url(&format!("file://{}", logs.display()));
+                            }),
+                    )
+                    .action(
+                        Button::new("reopen-database")
+                            .primary()
+                            .label(t("state.retry"))
+                            .on_click(cx.listener(|this, _, _, cx| this.reopen_database(cx))),
+                    ),
+                ),
+            )
+            .into_any_element()
+    }
+}

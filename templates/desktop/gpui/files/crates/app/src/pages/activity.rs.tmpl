@@ -1,26 +1,50 @@
 use super::*;
 
 impl AppView {
-    pub(crate) fn activity_body(&self, _cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn activity_body(&self, cx: &mut Context<Self>) -> AnyElement {
         let conflicts = self
             .database
             .as_ref()
             .and_then(|database| database.conflicts().ok())
             .map_or(0, |rows| rows.len());
         let status = if self.sync_status.is_empty() {
-            "No sync activity.".to_owned()
+            t("activity.never")
         } else {
             self.sync_status.clone()
+        };
+        let conflict_tag = if conflicts == 0 {
+            Tag::success()
+        } else {
+            Tag::warning()
         };
 
         v_flex()
             .w_full()
-            .gap_4()
-            .child(PageHeader::new(t("nav.activity")).subtitle("Background work and sync status."))
+            .gap_6()
+            .child(PageHeader::new(t("nav.activity")).subtitle(t("activity.subtitle")))
             .child(
-                SectionCard::new("Sync")
-                    .child(status)
-                    .child(format!("{conflicts} pending conflicts")),
+                SectionCard::new(t("activity.sync"))
+                    .child(setting_row(
+                        t("activity.last_sync"),
+                        t("activity.last_sync_help"),
+                        div()
+                            .text_sm()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(status),
+                        cx,
+                    ))
+                    .child(setting_row(
+                        t("activity.conflicts"),
+                        t("activity.conflicts_help"),
+                        conflict_tag.small().child(conflicts.to_string()),
+                        cx,
+                    )),
+            )
+            .child(
+                SectionCard::new(t("activity.jobs")).child(
+                    EmptyState::new(IconName::ChartPie, t("activity.empty"))
+                        .body(t("activity.empty_body")),
+                ),
             )
             .into_any_element()
     }

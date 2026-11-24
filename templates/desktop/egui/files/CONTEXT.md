@@ -4,7 +4,9 @@
 - All views emit `Action`; apply business mutations in `DesktopApp::dispatch`, not inside widget closures.
 - Never block the UI thread. Tokio/API/storage work runs off the frame loop and must call `Context::request_repaint`.
 - Pin egui/eframe exactly. Read the upstream changelog before upgrading.
-- Use one theme token module. Do not hardcode colors in feature files.
+- Use one theme token module (`theme.rs`). Do not hardcode colors or sizes in feature files.
+- UI layers: `theme.rs` tokens → `icons.rs` → `components/` → `shell.rs` and `views/`. See `DESIGN.md` and `docs/UI.md`.
+- Error, empty, offline, not-found, and confirmation screens follow `docs/STATES.md`.
 - Use stable widget IDs and `push_id` in loops.
 - Store refresh tokens only in the OS keyring. Never in SQLite or JSON.
 - Use manual conflict resolution by default for user-authored records.

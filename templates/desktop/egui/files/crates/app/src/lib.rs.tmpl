@@ -1,27 +1,40 @@
-//! Thin egui application shell and feature views.
+//! egui application: state, actions, and data operations.
+//!
+//! Drawing lives in [`shell`] (title bar, sidebar, status bar, command palette,
+//! workspace tabs) and [`views`] (one module per page). Shared primitives live
+//! in [`components`], colours and sizes in [`theme`], and icons in [`icons`].
 
 use std::sync::Mutex;
 
 use eframe::egui;
-use egui::{Color32, Key, KeyboardShortcut, Modifiers, RichText};
-use egui_plot::{Bar, BarChart, Plot};
-use egui_tiles::{Behavior, Tile, TileId, Tree, UiResponse};
+use egui::{Key, KeyboardShortcut, Modifiers};
+use egui_tiles::{Tile, Tree};
 use garde::Validate;
 
-use {{.crate_name}}_core::{LibraryDraft, LibraryStatus};
+pub(crate) use {{.crate_name}}_core as domain;
+use {{.crate_name}}_core::LibraryDraft;
+pub(crate) use {{.crate_name}}_storage as storage;
 use {{.crate_name}}_storage::{Database, Paths, Settings, SettingsStore};
 
 pub mod commands;
+pub mod components;
 pub mod credentials;
+pub mod icons;
 pub mod logging;
+mod shell;
+pub mod startup;
 pub mod sync;
+pub mod system;
 pub mod theme;
+mod views;
 
 use commands::Command;
+use icons::Icon;
+use theme::{Contrast, ThemePreference, ThemeSettings};
 
 rust_i18n::i18n!("locales");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Pane {
     Dashboard,
     Library,
@@ -43,6 +56,17 @@ impl Pane {
         }
     }
 
+    const fn icon(self) -> Icon {
+        match self {
+            Self::Dashboard => Icon::Dashboard,
+            Self::Library => Icon::Library,
+            Self::Activity => Icon::Activity,
+            Self::Settings => Icon::Settings,
+            Self::Account => Icon::Account,
+            Self::About => Icon::About,
+        }
+    }
+
     fn all(api_mode: bool) -> Vec<Self> {
         let mut panes = vec![
             Self::Dashboard,
@@ -58,11 +82,44 @@ impl Pane {
     }
 }
 
+/// What the Library editor is showing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Editor {
+    /// Nothing selected; the editor shows an empty state.
+    #[default]
+    Closed,
+    /// A new, unsaved record.
+    New,
+    /// An existing record.
+    Record(uuid::Uuid),
+    /// A record that was selected but no longer exists (deleted elsewhere).
+    Missing(uuid::Uuid),
+}
+
+impl Editor {
+    /// The record being edited, if it already exists.
+    #[must_use]
+    pub const fn record(self) -> Option<uuid::Uuid> {
+        match self {
+            Self::Record(id) => Some(id),
+            Self::Closed | Self::New | Self::Missing(_) => None,
+        }
+    }
+}
+
+/// A destructive action waiting for the user's confirmation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confirmation {
+    /// Delete every local Library record.
+    ClearLocalData,
+}
+
 #[derive(Debug, Clone)]
 pub enum Action {
     Navigate(Pane),
     ToggleSidebar,
     ToggleTheme,
+    SetTheme(ThemePreference),
     SearchChanged(String),
     Select(Option<uuid::Uuid>),
     NewRecord,
@@ -74,9 +131,19 @@ pub enum Action {
     RunCommand(Command),
     ToggleHighContrast,
     UndoDelete,
+    DismissOnboarding,
+    /// Reopens the database after a read failure.
+    ReopenDatabase,
+    /// Asks the user to confirm a destructive action.
+    RequestConfirmation(Confirmation),
+    /// Runs the pending confirmation.
+    Confirm,
+    /// Drops the pending confirmation.
+    CancelConfirmation,
 }
 
 pub struct DesktopApp {
+    pub app_name: String,
     pub paths: Paths,
     pub settings: Settings,
     pub settings_store: SettingsStore,
@@ -84,11 +151,13 @@ pub struct DesktopApp {
     pub tree: Tree<Pane>,
     pub pane: Pane,
     pub search: String,
-    pub selected: Option<uuid::Uuid>,
+    pub editor: Editor,
     pub draft: LibraryDraft,
     pub toasts: egui_notify::Toasts,
     pub palette_open: bool,
     pub palette_query: String,
+    pub palette_selection: usize,
+    palette_needs_focus: bool,
     pub logging_guard: logging::LoggingGuard,
     pub last_deleted: Option<uuid::Uuid>,
     pub form_error: Option<String>,
@@ -102,6 +171,14 @@ pub struct DesktopApp {
     pub access_token: Option<String>,
     pub sync_rx: Option<std::sync::mpsc::Receiver<sync::SyncReport>>,
     pub sync_status: String,
+    /// The last sync's error, shown as a notice until the next sync.
+    pub sync_error: Option<String>,
+    /// A destructive action waiting for confirmation.
+    pub confirmation: Option<Confirmation>,
+    /// Wakes the UI when background work finishes.
+    repaint: Option<egui::Context>,
+    applied_theme: Option<ThemeSettings>,
+    resolved_theme: egui::Theme,
 }
 
 #[derive(Debug)]
@@ -136,42 +213,20 @@ impl DesktopApp {
         if !api_mode {
             database.seed_if_empty()?;
         }
-        let panes = Pane::all(api_mode)
-            .into_iter()
-            .map(|pane| (pane, true))
-            .collect::<Vec<_>>();
-        let tree = Tree::new_tabs(
-            egui::Id::unique("workspace"),
-            panes.into_iter().map(|(pane, _)| pane).collect(),
-        );
-        Ok(Self {
+        let tree = Tree::new_tabs(egui::Id::unique("workspace"), Pane::all(api_mode));
+        Ok(Self::with_parts(
+            app_name,
             paths,
             settings,
             settings_store,
-            database: Mutex::new(database),
+            database,
             tree,
-            pane: Pane::Dashboard,
-            search: String::new(),
-            selected: None,
-            draft: LibraryDraft::default(),
-            toasts: egui_notify::Toasts::default(),
-            palette_open: false,
-            palette_query: String::new(),
             logging_guard,
-            last_deleted: None,
-            form_error: None,
-            tokens: credentials::TokenStore::new("{{.bundle_id}}", "auth"),
+            credentials::TokenStore::new("{{.bundle_id}}", "auth"),
             api_mode,
-            api_base: std::env::var("SMOKEFORGE_API_URL")
+            std::env::var("SMOKEFORGE_API_URL")
                 .unwrap_or_else(|_| "http://localhost:8080".to_owned()),
-            auth_state: AuthState::SignedOut,
-            auth_email: String::new(),
-            auth_password: String::new(),
-            auth_rx: None,
-            access_token: None,
-            sync_rx: None,
-            sync_status: String::new(),
-        })
+        ))
     }
 
     /// Builds a temporary app for UI tests.
@@ -191,32 +246,63 @@ impl DesktopApp {
             config: root.join("config"),
             logs: root.join("logs"),
         };
-        let database = Database::open(&paths.data.join("local.sqlite")).unwrap();
-        database.seed_if_empty().unwrap();
-        let tree = Tree::new_tabs(
-            egui::Id::unique("workspace-test"),
-            Pane::all(false).into_iter().collect(),
-        );
+        let database = Database::open(&paths.data.join("local.sqlite"))
+            .expect("temporary test database opens");
+        database.seed_if_empty().expect("test database seeds");
+        let tree = Tree::new_tabs(egui::Id::unique("workspace-test"), Pane::all(false));
         let settings_store = SettingsStore::new(&paths.config);
-        Self {
+        Self::with_parts(
+            "Test App",
             paths,
-            settings: Settings::default(),
+            Settings::default(),
+            settings_store,
+            database,
+            tree,
+            logging::LoggingGuard::disabled(),
+            credentials::TokenStore::memory_only(),
+            false,
+            "http://localhost:8080".to_owned(),
+        )
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "private constructor shared by new and tests"
+    )]
+    fn with_parts(
+        app_name: &str,
+        paths: Paths,
+        settings: Settings,
+        settings_store: SettingsStore,
+        database: Database,
+        tree: Tree<Pane>,
+        logging_guard: logging::LoggingGuard,
+        tokens: credentials::TokenStore,
+        api_mode: bool,
+        api_base: String,
+    ) -> Self {
+        Self {
+            app_name: app_name.to_owned(),
+            paths,
+            settings,
             settings_store,
             database: Mutex::new(database),
             tree,
             pane: Pane::Dashboard,
             search: String::new(),
-            selected: None,
+            editor: Editor::Closed,
             draft: LibraryDraft::default(),
             toasts: egui_notify::Toasts::default(),
             palette_open: false,
             palette_query: String::new(),
-            logging_guard: logging::LoggingGuard::disabled(),
+            palette_selection: 0,
+            palette_needs_focus: false,
+            logging_guard,
             last_deleted: None,
             form_error: None,
-            tokens: credentials::TokenStore::memory_only(),
-            api_mode: false,
-            api_base: "http://localhost:8080".to_owned(),
+            tokens,
+            api_mode,
+            api_base,
             auth_state: AuthState::SignedOut,
             auth_email: String::new(),
             auth_password: String::new(),
@@ -224,6 +310,11 @@ impl DesktopApp {
             access_token: None,
             sync_rx: None,
             sync_status: String::new(),
+            sync_error: None,
+            confirmation: None,
+            repaint: None,
+            applied_theme: None,
+            resolved_theme: egui::Theme::Dark,
         }
     }
 
@@ -242,7 +333,20 @@ impl DesktopApp {
         eframe::set_value(storage, eframe::APP_KEY, &state);
     }
 
-    #[allow(clippy::too_many_lines)]
+    /// The theme the settings ask for.
+    #[must_use]
+    pub fn theme_settings(&self) -> ThemeSettings {
+        ThemeSettings {
+            preference: ThemePreference::from_setting(&self.settings.theme),
+            contrast: if self.settings.high_contrast {
+                Contrast::High
+            } else {
+                Contrast::Standard
+            },
+        }
+    }
+
+    #[expect(clippy::too_many_lines, reason = "one match arm per action")]
     pub fn dispatch(&mut self, action: Action) {
         match action {
             Action::Navigate(pane) => {
@@ -252,95 +356,41 @@ impl DesktopApp {
             }
             Action::ToggleSidebar => self.settings.sidebar_open = !self.settings.sidebar_open,
             Action::ToggleTheme => {
-                self.settings.theme = match self.settings.theme.as_str() {
-                    "dark" => "light".to_owned(),
-                    _ => "dark".to_owned(),
+                let next = match self.resolved_theme {
+                    egui::Theme::Dark => ThemePreference::Light,
+                    egui::Theme::Light => ThemePreference::Dark,
                 };
+                next.as_setting().clone_into(&mut self.settings.theme);
+            }
+            Action::SetTheme(preference) => {
+                preference.as_setting().clone_into(&mut self.settings.theme);
             }
             Action::SearchChanged(search) => self.search = search,
             Action::Select(id) => {
-                self.selected = id;
-                self.draft = id
-                    .and_then(|id| {
-                        self.database
-                            .lock()
-                            .ok()
-                            .and_then(|db| db.get(id).ok().flatten())
-                    })
+                self.form_error = None;
+                let item = id.and_then(|id| {
+                    self.database
+                        .lock()
+                        .ok()
+                        .and_then(|db| db.get(id).ok().flatten())
+                });
+                self.editor = match (id, &item) {
+                    (None, _) => Editor::Closed,
+                    (Some(id), Some(_)) => Editor::Record(id),
+                    (Some(id), None) => Editor::Missing(id),
+                };
+                self.draft = item
                     .map(|item| LibraryDraft::from(&item))
                     .unwrap_or_default();
             }
             Action::NewRecord => {
-                self.selected = None;
                 self.form_error = None;
                 self.draft = LibraryDraft::default();
                 self.dispatch(Action::Navigate(Pane::Library));
+                self.editor = Editor::New;
             }
-            Action::SaveDraft => {
-                if let Err(report) = self.draft.validate() {
-                    self.form_error = Some(report.to_string());
-                    self.toasts
-                        .error("Fix the highlighted fields before saving.");
-                    return;
-                }
-                self.form_error = None;
-
-                let result = self
-                    .database
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("database lock"));
-                if let Ok(database) = result {
-                    if let Some(id) = self.selected {
-                        match database.update(id, &self.draft) {
-                            Ok(Some(item)) => {
-                                Self::queue_outbox(&database, "update", &item);
-                                self.toasts.success("Record saved.");
-                            }
-                            Ok(None) => {
-                                self.toasts.error("Record not found.");
-                            }
-                            Err(error) => {
-                                self.toasts.error(error.to_string());
-                            }
-                        }
-                    } else {
-                        match database.create(&self.draft) {
-                            Ok(item) => {
-                                Self::queue_outbox(&database, "create", &item);
-                                self.selected = Some(item.id);
-                                self.toasts.success("Record created.");
-                            }
-                            Err(error) => {
-                                self.toasts.error(error.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            Action::DeleteRecord => {
-                if let Some(id) = self.selected
-                    && let Ok(database) = self.database.lock()
-                {
-                    match database.soft_delete(id) {
-                        Ok(true) => {
-                            if let Ok(Some(item)) = database.get(id) {
-                                Self::queue_outbox(&database, "delete", &item);
-                            }
-                            self.last_deleted = Some(id);
-                            self.selected = None;
-                            self.draft = LibraryDraft::default();
-                            self.toasts
-                                .success("Record deleted. Use Undo in the status bar.");
-                        }
-                        Ok(false) => {
-                            self.toasts.error("Record not found.");
-                        }
-                        Err(error) => {
-                            self.toasts.error(error.to_string());
-                        }
-                    }
-                }
-            }
+            Action::SaveDraft => self.save_draft(),
+            Action::DeleteRecord => self.delete_record(),
             Action::SetLanguage(language) => {
                 self.settings.language.clone_from(&language);
                 self.settings.locale.clone_from(&language);
@@ -349,26 +399,27 @@ impl DesktopApp {
             Action::OpenPalette => {
                 self.palette_open = true;
                 self.palette_query.clear();
+                self.palette_selection = 0;
+                self.palette_needs_focus = true;
             }
             Action::ClosePalette => self.palette_open = false,
             Action::RunCommand(command) => self.run_command(command),
             Action::ToggleHighContrast => {
                 self.settings.high_contrast = !self.settings.high_contrast;
             }
-            Action::UndoDelete => {
-                if let Some(id) = self.last_deleted.take()
-                    && let Ok(database) = self.database.lock()
-                {
-                    match database.restore(id) {
-                        Ok(Some(item)) => {
-                            self.selected = Some(item.id);
-                            self.toasts.success("Record restored.");
-                        }
-                        Ok(None) => {
-                            self.toasts.error("Record no longer exists.");
+            Action::UndoDelete => self.undo_delete(),
+            Action::DismissOnboarding => self.settings.onboarded = true,
+            Action::ReopenDatabase => self.reopen_database(),
+            Action::RequestConfirmation(confirmation) => self.confirmation = Some(confirmation),
+            Action::CancelConfirmation => self.confirmation = None,
+            Action::Confirm => {
+                if let Some(Confirmation::ClearLocalData) = self.confirmation.take() {
+                    match self.clear_local_data() {
+                        Ok(count) => {
+                            self.toasts.success(format!("Cleared {count} records."));
                         }
                         Err(error) => {
-                            self.toasts.error(error.to_string());
+                            self.toasts.error(error);
                         }
                     }
                 }
@@ -377,34 +428,117 @@ impl DesktopApp {
         let _ = self.settings_store.save(&self.settings);
     }
 
+    fn save_draft(&mut self) {
+        if let Err(report) = self.draft.validate() {
+            self.form_error = Some(report.to_string());
+            self.toasts
+                .error("Fix the highlighted fields before saving.");
+            return;
+        }
+        self.form_error = None;
+
+        let Ok(database) = self.database.lock() else {
+            self.toasts.error("The local database is unavailable.");
+            return;
+        };
+        match self.editor {
+            Editor::Record(id) => match database.update(id, &self.draft) {
+                Ok(Some(item)) => {
+                    Self::queue_outbox(&database, "update", &item);
+                    self.toasts.success("Record saved.");
+                }
+                Ok(None) => {
+                    self.toasts.error("Record not found.");
+                }
+                Err(error) => {
+                    self.toasts.error(error.to_string());
+                }
+            },
+            Editor::New | Editor::Closed | Editor::Missing(_) => match database.create(&self.draft)
+            {
+                Ok(item) => {
+                    Self::queue_outbox(&database, "create", &item);
+                    self.editor = Editor::Record(item.id);
+                    self.toasts.success("Record created.");
+                }
+                Err(error) => {
+                    self.toasts.error(error.to_string());
+                }
+            },
+        }
+    }
+
+    fn delete_record(&mut self) {
+        let Some(id) = self.editor.record() else {
+            return;
+        };
+        let Ok(database) = self.database.lock() else {
+            self.toasts.error("The local database is unavailable.");
+            return;
+        };
+        match database.soft_delete(id) {
+            Ok(true) => {
+                if let Ok(Some(item)) = database.get(id) {
+                    Self::queue_outbox(&database, "delete", &item);
+                }
+                self.last_deleted = Some(id);
+                self.editor = Editor::Closed;
+                self.draft = LibraryDraft::default();
+                self.toasts
+                    .success("Record deleted. Use Undo in the status bar.");
+            }
+            Ok(false) => {
+                self.toasts.error("Record not found.");
+            }
+            Err(error) => {
+                self.toasts.error(error.to_string());
+            }
+        }
+    }
+
+    fn undo_delete(&mut self) {
+        let Some(id) = self.last_deleted.take() else {
+            return;
+        };
+        let Ok(database) = self.database.lock() else {
+            self.toasts.error("The local database is unavailable.");
+            return;
+        };
+        match database.restore(id) {
+            Ok(Some(item)) => {
+                self.editor = Editor::Record(item.id);
+                self.toasts.success("Record restored.");
+            }
+            Ok(None) => {
+                self.toasts.error("Record no longer exists.");
+            }
+            Err(error) => {
+                self.toasts.error(error.to_string());
+            }
+        }
+    }
+
     pub fn render(&mut self, ui: &mut egui::Ui) {
         self.poll_auth();
         self.poll_sync();
+        self.sync_theme(ui);
         self.handle_shortcuts(ui);
         egui_extras::install_image_loaders(ui.ctx());
-        theme::apply_visuals(ui.ctx(), &self.settings.theme, self.settings.high_contrast);
-        Self::title_bar(ui);
-        let content_height = (ui.available_height() - 30.0).max(80.0);
-        ui.horizontal(|ui| {
-            self.sidebar(ui, content_height);
-            ui.separator();
-            ui.allocate_ui_with_layout(
-                egui::vec2(ui.available_width(), content_height),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    let mut tree = std::mem::replace(
-                        &mut self.tree,
-                        Tree::empty(egui::Id::unique("workspace")),
-                    );
-                    let mut behavior = PaneBehavior { app: self };
-                    tree.ui(&mut behavior, ui);
-                    self.tree = tree;
-                },
-            );
-        });
-        self.status_bar(ui);
-        self.command_palette(ui);
-        self.toasts.show(ui.ctx());
+        self.shell(ui);
+    }
+
+    /// Installs the theme when its settings changed and remembers which theme
+    /// (light or dark) is on screen, including when following the system.
+    fn sync_theme(&mut self, ui: &mut egui::Ui) {
+        if self.repaint.is_none() {
+            self.repaint = Some(ui.ctx().clone());
+        }
+        let wanted = self.theme_settings();
+        if self.applied_theme != Some(wanted) {
+            theme::apply_now(ui, wanted);
+            self.applied_theme = Some(wanted);
+        }
+        self.resolved_theme = ui.ctx().theme();
     }
 
     fn handle_shortcuts(&mut self, ui: &mut egui::Ui) {
@@ -413,60 +547,17 @@ impl DesktopApp {
         const SIDEBAR: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::B);
 
         if ui.input_mut(|input| input.consume_shortcut(&PALETTE)) {
-            self.palette_open = !self.palette_open;
-            self.palette_query.clear();
+            if self.palette_open {
+                self.dispatch(Action::ClosePalette);
+            } else {
+                self.dispatch(Action::OpenPalette);
+            }
         }
         if ui.input_mut(|input| input.consume_shortcut(&NEW_RECORD)) {
             self.dispatch(Action::NewRecord);
         }
         if ui.input_mut(|input| input.consume_shortcut(&SIDEBAR)) {
             self.dispatch(Action::ToggleSidebar);
-        }
-        if self.palette_open && ui.input(|input| input.key_pressed(Key::Escape)) {
-            self.palette_open = false;
-        }
-    }
-
-    fn command_palette(&mut self, ui: &mut egui::Ui) {
-        if !self.palette_open {
-            return;
-        }
-
-        let mut chosen = None;
-        let mut close = false;
-        egui::Window::new(t("command.title"))
-            .id(egui::Id::unique("command-palette"))
-            .collapsible(false)
-            .resizable(false)
-            .default_width(440.0)
-            .show(ui.ctx(), |ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.palette_query)
-                        .hint_text(t("command.placeholder")),
-                );
-                ui.add_space(6.0);
-                let commands =
-                    commands::filter_commands(
-                        &self.palette_query,
-                        |command| t(command.label_key()),
-                    );
-                if commands.is_empty() {
-                    ui.label(RichText::new(t("command.empty")).color(theme::TEXT_SECONDARY));
-                }
-                for command in commands {
-                    if ui.button(t(command.label_key())).clicked() {
-                        chosen = Some(command);
-                        close = true;
-                    }
-                }
-            });
-
-        if close {
-            self.palette_open = false;
-            self.palette_query.clear();
-        }
-        if let Some(command) = chosen {
-            self.dispatch(Action::RunCommand(command));
         }
     }
 
@@ -480,500 +571,33 @@ impl DesktopApp {
         }
     }
 
-    fn title_bar(ui: &mut egui::Ui) {
-        let (rect, response) = ui.allocate_exact_size(
-            egui::vec2(ui.available_width(), 38.0),
-            egui::Sense::click_and_drag(),
-        );
-        if response.drag_started() {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-        }
-
-        ui.painter().rect_filled(rect, 0.0, theme::TITLE_BAR);
-        let left_padding = if cfg!(target_os = "macos") {
-            78.0
-        } else {
-            16.0
-        };
-        let logo_size = 16.0;
-        let logo_rect = egui::Rect::from_center_size(
-            rect.left_center() + egui::vec2(left_padding + logo_size / 2.0, 0.0),
-            egui::vec2(logo_size, logo_size),
-        );
-        egui::Image::new(egui::include_image!("../../../assets/logo.png"))
-            .fit_to_exact_size(egui::vec2(logo_size, logo_size))
-            .tint(theme::TEXT)
-            .paint_at(ui, logo_rect);
-
-        if cfg!(target_os = "macos") {
-            return;
-        }
-
-        let controls = [
-            ("-", "Minimize", egui::ViewportCommand::Minimized(true)),
-            ("[]", "Maximize", egui::ViewportCommand::Maximized(true)),
-            ("x", "Close", egui::ViewportCommand::Close),
-        ];
-        let mut right = rect.right() - 6.0;
-        for (label, name, command) in controls {
-            let button_rect = egui::Rect::from_min_size(
-                egui::pos2(right - 30.0, rect.center().y - 13.0),
-                egui::vec2(28.0, 26.0),
-            );
-            if ui
-                .put(button_rect, egui::Button::new(label).frame(false))
-                .on_hover_text(name)
-                .clicked()
-            {
-                ui.ctx().send_viewport_cmd(command);
-            }
-            right -= 32.0;
-        }
-    }
-
-    fn sidebar(&mut self, ui: &mut egui::Ui, height: f32) {
-        let width = if self.settings.sidebar_open {
-            208.0
-        } else {
-            48.0
-        };
-        ui.allocate_ui_with_layout(
-            egui::vec2(width, height),
-            egui::Layout::top_down(egui::Align::Min),
-            |ui| {
-                ui.add_space(8.0);
-                for pane in Pane::all(self.api_mode) {
-                    let label = if self.settings.sidebar_open {
-                        t(pane.title_key())
-                    } else {
-                        icon(pane).to_owned()
-                    };
-                    let selected = pane == self.pane;
-                    if ui
-                        .add_sized(
-                            egui::vec2(ui.available_width(), 32.0),
-                            egui::Button::new(RichText::new(label).color(if selected {
-                                theme::ON_SELECTION
-                            } else {
-                                theme::TEXT_SECONDARY
-                            }))
-                            .fill(if selected {
-                                theme::SELECTED_BACKGROUND
-                            } else {
-                                Color32::TRANSPARENT
-                            }),
-                        )
-                        .clicked()
-                    {
-                        self.dispatch(Action::Navigate(pane));
-                    }
-                }
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                    let toggle = if self.settings.sidebar_open { "<" } else { ">" };
-                    if ui.button(toggle).on_hover_text("Toggle sidebar").clicked() {
-                        self.dispatch(Action::ToggleSidebar);
-                    }
-                });
-            },
-        );
-    }
-
-    fn status_bar(&mut self, ui: &mut egui::Ui) {
-        ui.separator();
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new("Online · Local".to_owned())
-                    .small()
-                    .color(theme::SUCCESS),
-            );
-            if self.last_deleted.is_some() && ui.small_button("Undo").clicked() {
-                self.dispatch(Action::UndoDelete);
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(RichText::new("v0.1.0").small().color(theme::TEXT_SECONDARY));
-                ui.label(
-                    RichText::new("Ctrl/Cmd+K")
-                        .small()
-                        .color(theme::TEXT_SECONDARY),
-                );
-            });
-        });
-    }
-
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "Chart counts are presentation-only values."
-    )]
-    fn dashboard(&mut self, ui: &mut egui::Ui) {
-        ui.heading(t("dashboard.title"));
-        ui.label(RichText::new(t("dashboard.subtitle")).color(theme::TEXT_SECONDARY));
-        if !self.settings.onboarded {
-            ui.add_space(8.0);
-            egui::Frame::new()
-                .fill(theme::PANEL)
-                .stroke(theme::BORDER_STROKE)
-                .show(ui, |ui| {
-                    ui.label(t("onboarding.welcome"));
-                    if ui.button(t("onboarding.dismiss")).clicked() {
-                        self.settings.onboarded = true;
-                    }
-                });
-        }
-        ui.add_space(16.0);
-        let items = self
+    /// Library records matching `search`, or why they could not be read.
+    pub(crate) fn records(&self, search: &str) -> Result<Vec<domain::LibraryItem>, String> {
+        let database = self
             .database
             .lock()
-            .ok()
-            .and_then(|db| db.list("", None).ok())
-            .unwrap_or_default();
-        ui.horizontal(|ui| {
-            stat(ui, t("dashboard.records"), items.len().to_string());
-            stat(
-                ui,
-                t("dashboard.stats"),
-                format!(
-                    "{} active",
-                    items
-                        .iter()
-                        .filter(|item| item.status == LibraryStatus::Active)
-                        .count()
-                ),
-            );
-        });
-        let counts = [
-            items
-                .iter()
-                .filter(|item| item.status == LibraryStatus::Draft)
-                .count() as f64,
-            items
-                .iter()
-                .filter(|item| item.status == LibraryStatus::Active)
-                .count() as f64,
-            items
-                .iter()
-                .filter(|item| item.status == LibraryStatus::Archived)
-                .count() as f64,
-        ];
-        Plot::new("dashboard-status")
-            .height(140.0)
-            .show_axes([false, false])
-            .show_grid(false)
-            .allow_drag(false)
-            .allow_zoom(false)
-            .allow_scroll(false)
-            .show(ui, |plot_ui| {
-                let bars = vec![
-                    Bar::new(0.0, counts[0]).name("Draft").fill(theme::ACCENT),
-                    Bar::new(1.0, counts[1]).name("Active").fill(theme::ACCENT),
-                    Bar::new(2.0, counts[2])
-                        .name("Archived")
-                        .fill(theme::ACCENT),
-                ];
-                plot_ui.bar_chart(BarChart::new("Library", bars).width(0.55));
-            });
-        ui.add_space(16.0);
-        ui.heading(t("dashboard.recent"));
-        for item in items.iter().take(5) {
-            if ui
-                .add_sized(
-                    [ui.available_width(), 30.0],
-                    egui::Button::new(format!("{}  ·  {}", item.title, item.status.label())),
-                )
-                .clicked()
-            {
-                self.dispatch(Action::Navigate(Pane::Library));
-                self.dispatch(Action::Select(Some(item.id)));
+            .map_err(|_| "The database lock was poisoned by an earlier crash.".to_owned())?;
+        database
+            .list(search, None)
+            .map_err(|error| error.to_string())
+    }
+
+    fn reopen_database(&mut self) {
+        match Database::open(&self.paths.data.join("local.sqlite")) {
+            Ok(database) => {
+                self.database = Mutex::new(database);
+                self.toasts.success("Database reopened.");
+            }
+            Err(error) => {
+                self.toasts.error(format!("Still unavailable: {error}"));
             }
         }
     }
 
-    fn library(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.heading(t("library.title"));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(t("library.new")).clicked() {
-                    self.dispatch(Action::NewRecord);
-                }
-            });
-        });
-        let mut search = self.search.clone();
-        ui.add(egui::TextEdit::singleline(&mut search).hint_text(t("library.search")));
-        if search != self.search {
-            self.dispatch(Action::SearchChanged(search));
-        }
-        let items = self
-            .database
-            .lock()
-            .ok()
-            .and_then(|db| db.list(&self.search, None).ok())
-            .unwrap_or_default();
-        ui.horizontal(|ui| {
-            ui.allocate_ui_with_layout(
-                egui::vec2(ui.available_width() * 0.42, ui.available_height()),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    if items.is_empty() {
-                        ui.label(t("library.empty"));
-                    } else {
-                        egui::ScrollArea::vertical().show_rows(
-                            ui,
-                            34.0,
-                            items.len(),
-                            |ui, range| {
-                                for index in range {
-                                    let item = &items[index];
-                                    let selected = self.selected == Some(item.id);
-                                    if ui
-                                        .add_sized(
-                                            egui::vec2(ui.available_width(), 34.0),
-                                            egui::Button::new(format!(
-                                                "{}  ·  {}",
-                                                item.title,
-                                                item.status.label()
-                                            ))
-                                            .selected(selected),
-                                        )
-                                        .clicked()
-                                    {
-                                        self.dispatch(Action::Select(Some(item.id)));
-                                    }
-                                }
-                            },
-                        );
-                    }
-                },
-            );
-            ui.separator();
-            ui.vertical(|ui| {
-                if self.selected.is_none() {
-                    ui.label(RichText::new(t("library.select")).color(theme::TEXT_SECONDARY));
-                } else {
-                    if let Some(error) = &self.form_error {
-                        ui.label(RichText::new(error).color(ui.visuals().error_fg_color));
-                    }
-                    ui.label(t("library.title_field"));
-                    ui.text_edit_singleline(&mut self.draft.title);
-                    ui.label(t("library.description_field"));
-                    ui.text_edit_multiline(&mut self.draft.description);
-                    ui.label(t("library.tags_field"));
-                    let mut tags = self.draft.tags.join(", ");
-                    if ui.text_edit_singleline(&mut tags).changed() {
-                        self.draft.tags = tags
-                            .split(',')
-                            .map(str::trim)
-                            .filter(|tag| !tag.is_empty())
-                            .map(str::to_owned)
-                            .collect();
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.button(t("library.save")).clicked() {
-                            self.dispatch(Action::SaveDraft);
-                        }
-                        if ui.button(t("library.delete")).clicked() {
-                            self.dispatch(Action::DeleteRecord);
-                        }
-                    });
-                }
-            });
-        });
-    }
-
-    fn activity(&mut self, ui: &mut egui::Ui) {
-        ui.heading(t("activity.title"));
-        ui.label(RichText::new(t("activity.subtitle")).color(theme::TEXT_SECONDARY));
-        ui.add_space(16.0);
-        if !self.sync_status.is_empty() {
-            ui.label(&self.sync_status);
-        }
-        let conflicts = self.database.lock().ok().map_or(0, |database| {
-            database.conflicts().map_or(0, |rows| rows.len())
-        });
-        ui.label(format!("{conflicts} pending sync conflicts"));
-        ui.add_space(12.0);
-        ui.label(t("activity.empty"));
-    }
-
-    fn settings(&mut self, ui: &mut egui::Ui) {
-        ui.heading(t("settings.title"));
-        ui.label(RichText::new(t("settings.subtitle")).color(theme::TEXT_SECONDARY));
-        ui.add_space(16.0);
-        self.settings_appearance(ui);
-        self.settings_data(ui);
-    }
-
-    fn settings_appearance(&mut self, ui: &mut egui::Ui) {
-        ui.label(t("settings.theme"));
-        ui.horizontal(|ui| {
-            for (value, label) in [("dark", "dark"), ("light", "light"), ("system", "system")] {
-                if ui
-                    .selectable_label(
-                        self.settings.theme == value,
-                        t(&format!("settings.{label}")),
-                    )
-                    .clicked()
-                {
-                    value.clone_into(&mut self.settings.theme);
-                    let _ = self.settings_store.save(&self.settings);
-                }
-            }
-        });
-        ui.label(t("settings.language"));
-        ui.horizontal(|ui| {
-            for (value, label) in [("en", "English"), ("es", "Español")] {
-                if ui
-                    .selectable_label(self.settings.language == value, label)
-                    .clicked()
-                {
-                    self.dispatch(Action::SetLanguage(value.to_owned()));
-                }
-            }
-        });
-        let mut high_contrast = self.settings.high_contrast;
-        if ui
-            .checkbox(&mut high_contrast, t("settings.high_contrast"))
-            .changed()
-        {
-            self.settings.high_contrast = high_contrast;
-            let _ = self.settings_store.save(&self.settings);
-        }
-    }
-
-    #[expect(
-        clippy::too_many_lines,
-        reason = "Settings data actions stay together for one panel."
-    )]
-    fn settings_data(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(16.0);
-        ui.label(t("settings.database"));
-        ui.label(RichText::new(self.paths.data.join("local.sqlite").display().to_string()).small());
-        ui.label(t("settings.sync_policy"));
-        ui.horizontal(|ui| {
-            for value in ["manual", "automatic"] {
-                if ui
-                    .selectable_label(self.settings.sync_policy == value, value)
-                    .clicked()
-                {
-                    value.clone_into(&mut self.settings.sync_policy);
-                }
-            }
-        });
-        ui.label(t("settings.log_level"));
-        ui.horizontal(|ui| {
-            for value in ["info", "debug", "warn"] {
-                if ui
-                    .selectable_label(self.settings.log_level == value, value)
-                    .clicked()
-                {
-                    value.clone_into(&mut self.settings.log_level);
-                }
-            }
-        });
-        if ui
-            .checkbox(
-                &mut self.settings.launch_at_login,
-                t("settings.launch_at_login"),
-            )
-            .changed()
-        {
-            let _ = self.settings_store.save(&self.settings);
-        }
-        if let Some(warning) = self.tokens.warning() {
-            ui.label(RichText::new(warning).color(ui.visuals().warn_fg_color));
-        }
-        let conflicts = self
-            .database
-            .lock()
-            .ok()
-            .and_then(|database| database.conflicts().ok())
-            .unwrap_or_default();
-        for (item_id, _, _) in conflicts {
-            ui.horizontal(|ui| {
-                ui.label(format!("Conflict: {item_id}"));
-                if ui.small_button("Keep local").clicked() {
-                    match self.resolve_conflict(&item_id, true) {
-                        Ok(()) => {
-                            self.toasts.success("Kept local record.");
-                        }
-                        Err(error) => {
-                            self.toasts.error(error);
-                        }
-                    }
-                }
-                if ui.small_button("Use server").clicked() {
-                    match self.resolve_conflict(&item_id, false) {
-                        Ok(()) => {
-                            self.toasts.success("Applied server record.");
-                        }
-                        Err(error) => {
-                            self.toasts.error(error);
-                        }
-                    }
-                }
-            });
-        }
-        ui.horizontal(|ui| {
-            if ui.button("Export Library").clicked()
-                && let Some(path) = rfd::FileDialog::new()
-                    .set_file_name("library.json")
-                    .save_file()
-            {
-                match self.export_library(&path) {
-                    Ok(()) => {
-                        self.toasts.success("Library exported.");
-                    }
-                    Err(error) => {
-                        self.toasts.error(error);
-                    }
-                }
-            }
-
-            if ui.button("Import Library").clicked()
-                && let Some(path) = rfd::FileDialog::new().pick_file()
-            {
-                match self.import_library(&path) {
-                    Ok(count) => {
-                        self.toasts.success(format!("Imported {count} records."));
-                    }
-                    Err(error) => {
-                        self.toasts.error(error);
-                    }
-                }
-            }
-
-            if ui.button("Back up database").clicked()
-                && let Some(path) = rfd::FileDialog::new()
-                    .set_file_name("local-backup.sqlite")
-                    .save_file()
-            {
-                match self.backup_database(&path) {
-                    Ok(()) => {
-                        self.toasts.success("Database backed up.");
-                    }
-                    Err(error) => {
-                        self.toasts.error(error);
-                    }
-                }
-            }
-
-            if ui.button("Clear local data").clicked() {
-                let confirmed = rfd::MessageDialog::new()
-                    .set_title("Clear local data")
-                    .set_description("Delete all local Library records? This cannot be undone.")
-                    .set_buttons(rfd::MessageButtons::YesNo)
-                    .show()
-                    == rfd::MessageDialogResult::Yes;
-                if confirmed {
-                    match self.clear_local_data() {
-                        Ok(count) => {
-                            self.toasts.success(format!("Cleared {count} records."));
-                        }
-                        Err(error) => {
-                            self.toasts.error(error);
-                        }
-                    }
-                }
-            }
-        });
+    /// Whether a sync is running in the background.
+    #[must_use]
+    pub fn is_syncing(&self) -> bool {
+        self.sync_rx.is_some()
     }
 
     fn export_library(&self, path: &std::path::Path) -> Result<(), String> {
@@ -1062,15 +686,15 @@ impl DesktopApp {
         let Some(receiver) = &self.sync_rx else {
             return;
         };
-        while let Ok(report) = receiver.try_recv() {
-            self.sync_status = format!(
-                "Synced {} · conflicts {} · retried {}",
-                report.pushed, report.conflicts, report.retried
-            );
-            if let Some(error) = report.error {
-                self.sync_status = error;
-            }
-        }
+        let Ok(report) = receiver.try_recv() else {
+            return;
+        };
+        self.sync_rx = None;
+        self.sync_status = format!(
+            "Synced {} · conflicts {} · retried {}",
+            report.pushed, report.conflicts, report.retried
+        );
+        self.sync_error = report.error;
     }
 
     fn start_sync(&mut self) {
@@ -1080,50 +704,17 @@ impl DesktopApp {
         };
         let (sender, receiver) = std::sync::mpsc::channel();
         self.sync_rx = Some(receiver);
+        self.sync_error = None;
         let path = self.paths.data.join("local.sqlite");
         let base = self.api_base.clone();
+        let context = self.repaint.clone();
         std::thread::spawn(move || {
             let report = sync::run(&path, &base, token);
             let _ = sender.send(report);
+            if let Some(context) = context {
+                context.request_repaint();
+            }
         });
-    }
-
-    fn account(&mut self, ui: &mut egui::Ui) {
-        ui.heading(t("account.title"));
-        ui.label(RichText::new(t("account.subtitle")).color(theme::TEXT_SECONDARY));
-        ui.add_space(16.0);
-        match &self.auth_state {
-            AuthState::SignedIn(email) => {
-                ui.label(format!("Signed in as {email}"));
-                if ui.button("Sync now").clicked() {
-                    self.start_sync();
-                }
-                if !self.sync_status.is_empty() {
-                    ui.label(&self.sync_status);
-                }
-                if ui.button(t("account.sign_out")).clicked() {
-                    self.access_token = None;
-                    self.tokens.delete().ok();
-                    self.auth_state = AuthState::SignedOut;
-                }
-            }
-            AuthState::Loading => {
-                ui.spinner();
-                ui.label(t("common.loading"));
-            }
-            AuthState::SignedOut | AuthState::Failed(_) => {
-                if let AuthState::Failed(error) = &self.auth_state {
-                    ui.label(RichText::new(error).color(ui.visuals().error_fg_color));
-                }
-                ui.label(t("account.email"));
-                ui.text_edit_singleline(&mut self.auth_email);
-                ui.label(t("account.password"));
-                ui.add(egui::TextEdit::singleline(&mut self.auth_password).password(true));
-                if ui.button(t("account.sign_in")).clicked() {
-                    self.start_login(ui.ctx());
-                }
-            }
-        }
     }
 
     fn start_login(&mut self, ctx: &egui::Context) {
@@ -1157,75 +748,12 @@ impl DesktopApp {
             context.request_repaint();
         });
     }
-
-    fn about(&mut self, ui: &mut egui::Ui) {
-        ui.heading(t("about.title"));
-        ui.label(RichText::new(t("about.subtitle")).color(theme::TEXT_SECONDARY));
-        ui.add_space(16.0);
-        ui.label("App 0.1.0 · Rust · eframe/egui 0.37");
-        ui.label(format!(
-            "{} · {}",
-            std::env::consts::OS,
-            std::env::consts::ARCH
-        ));
-        ui.label(self.paths.logs.display().to_string());
-    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct LayoutState {
     tree: Tree<Pane>,
     pane: Pane,
-}
-
-struct PaneBehavior<'a> {
-    app: &'a mut DesktopApp,
-}
-
-impl Behavior<Pane> for PaneBehavior<'_> {
-    fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
-        t(pane.title_key()).into()
-    }
-
-    fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut Pane) -> UiResponse {
-        egui::Frame::new()
-            .inner_margin(egui::Margin::same(16))
-            .show(ui, |ui| {
-                ui.set_min_height(ui.available_height());
-                match pane {
-                    Pane::Dashboard => self.app.dashboard(ui),
-                    Pane::Library => self.app.library(ui),
-                    Pane::Activity => self.app.activity(ui),
-                    Pane::Settings => self.app.settings(ui),
-                    Pane::Account => self.app.account(ui),
-                    Pane::About => self.app.about(ui),
-                }
-            });
-        UiResponse::None
-    }
-}
-
-fn stat(ui: &mut egui::Ui, label: String, value: String) {
-    egui::Frame::new()
-        .fill(theme::PANEL)
-        .stroke(theme::BORDER_STROKE)
-        .inner_margin(16.0)
-        .show(ui, |ui| {
-            ui.set_min_width(190.0);
-            ui.label(RichText::new(label).small().color(theme::TEXT_SECONDARY));
-            ui.heading(value);
-        });
-}
-
-fn icon(pane: Pane) -> &'static str {
-    match pane {
-        Pane::Dashboard => "H",
-        Pane::Library => "L",
-        Pane::Activity => "!",
-        Pane::Settings => "S",
-        Pane::Account => "A",
-        Pane::About => "?",
-    }
 }
 
 fn t(key: &str) -> String {
@@ -1238,16 +766,78 @@ mod tests {
     use egui_kittest::Harness;
     use egui_kittest::kittest::Queryable;
 
+    fn harness(app: DesktopApp) -> Harness<'static, DesktopApp> {
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(1180.0, 760.0))
+            .build_ui_state(|ui, app: &mut DesktopApp| app.render(ui), app);
+        harness.run();
+        harness
+    }
+
     #[test]
     fn command_palette_navigates_and_names_controls() {
         let mut app = DesktopApp::for_tests();
-        app.palette_open = true;
+        app.dispatch(Action::OpenPalette);
 
-        let mut harness = Harness::new_ui_state(|ui, app| app.render(ui), app);
-        harness.run();
+        let mut harness = harness(app);
         harness.get_by_label("Go to Library").click();
         harness.run();
 
         assert_eq!(harness.state().pane, Pane::Library);
+        assert!(
+            !harness.state().palette_open,
+            "running a command closes the palette"
+        );
+    }
+
+    #[test]
+    fn sidebar_items_are_named_and_navigate() {
+        let mut harness = harness(DesktopApp::for_tests());
+        // The workspace tab is also called "Settings"; the sidebar item is a Tab role.
+        harness
+            .get_by_role_and_label(egui::Role::Tab, "Settings")
+            .click();
+        harness.run();
+        assert_eq!(harness.state().pane, Pane::Settings);
+    }
+
+    #[test]
+    fn new_record_opens_an_empty_editor() {
+        let mut app = DesktopApp::for_tests();
+        app.dispatch(Action::NewRecord);
+        let harness = harness(app);
+
+        assert_eq!(harness.state().pane, Pane::Library);
+        assert_eq!(harness.state().editor, Editor::New);
+        harness.get_by_label("Title");
+    }
+
+    #[test]
+    fn title_bar_theme_button_switches_theme() {
+        let mut app = DesktopApp::for_tests();
+        app.dispatch(Action::SetTheme(ThemePreference::Dark));
+        let mut harness = harness(app);
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark);
+
+        harness.get_by_label("Switch to light theme").click();
+        harness.run();
+
+        assert_eq!(harness.state().settings.theme, "light");
+        assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+    }
+
+    #[test]
+    fn theme_is_applied_once_and_follows_settings() {
+        let mut app = DesktopApp::for_tests();
+        app.dispatch(Action::SetTheme(ThemePreference::Light));
+        let mut harness = harness(app);
+        assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+
+        harness.state_mut().dispatch(Action::ToggleHighContrast);
+        harness.run();
+        assert_eq!(
+            theme::palette(&harness.ctx),
+            theme::Palette::for_theme(egui::Theme::Light, Contrast::High)
+        );
     }
 }

@@ -1,79 +1,162 @@
 app:
-  name: "Smokeforge"
-  tagline: "Un espacio de trabajo local."
+  name: Smokeforge
+  tagline: Un espacio de trabajo local.
 nav:
-  home: "Inicio"
-  library: "Biblioteca"
-  activity: "Actividad"
-  settings: "Ajustes"
-  account: "Cuenta"
-  about: "Acerca de"
+  home: Inicio
+  library: Biblioteca
+  activity: Actividad
+  settings: Ajustes
+  account: Cuenta
+  about: Acerca de
 dashboard:
-  title: "Inicio"
-  subtitle: "Un espacio de trabajo local."
-  stats: "Espacio"
-  records: "Registros"
-  recent: "Recientes"
+  title: Inicio
+  subtitle: Un espacio de trabajo local.
+  stats: Espacio
+  records: Registros
+  recent: Recientes
+  active: Activos
+  drafts: Borradores
+  archived: Archivados
+  status: Registros por estado
+  empty_title: Aún no hay registros
+  empty_body: Crea tu primer registro y aparecerá aquí.
 library:
-  title: "Biblioteca"
-  subtitle: "Registros locales en SQLite."
-  search: "Buscar registros…"
-  new: "Nuevo registro"
-  empty: "No hay registros que coincidan."
-  title_field: "Título"
-  description_field: "Descripción"
-  tags_field: "Etiquetas"
-  save: "Guardar"
-  delete: "Eliminar"
-  select: "Selecciona un registro para editarlo."
+  title: Biblioteca
+  subtitle: Registros locales en SQLite.
+  search: Buscar registros…
+  new: Nuevo registro
+  empty: No hay registros que coincidan.
+  title_field: Título
+  description_field: Descripción
+  tags_field: Etiquetas
+  save: Guardar
+  delete: Eliminar
+  select: Ningún registro seleccionado
+  no_matches: Sin resultados
+  no_matches_body: Prueba otra búsqueda o crea un registro nuevo.
+  select_body: Elige un registro de la lista o crea uno nuevo.
+  new_title: Nuevo registro
+  untitled: Registro sin título
+  tags_hint: diseño, investigación
+  no_tags: Sin etiquetas
 common:
-  all: "Todos"
-  loading: "Cargando…"
-  error: "Algo salió mal."
-  cancel: "Cancelar"
+  all: Todos
+  loading: Cargando…
+  error: Algo salió mal.
+  cancel: Cancelar
 settings:
-  title: "Ajustes"
-  subtitle: "Preferencias y datos locales."
-  theme: "Tema"
-  language: "Idioma"
-  dark: "Oscuro"
-  light: "Claro"
-  system: "Sistema"
-  data: "Datos locales"
-  database: "Base de datos"
-  high_contrast: "Alto contraste"
-  sync_policy: "Política de sincronización"
-  log_level: "Nivel de registro"
-  launch_at_login: "Abrir al iniciar"
-  backup: "Copia de seguridad"
+  title: Ajustes
+  subtitle: Preferencias y datos locales.
+  theme: Tema
+  language: Idioma
+  dark: Oscuro
+  light: Claro
+  system: Sistema
+  data: Datos locales
+  database: Base de datos
+  high_contrast: Alto contraste
+  sync_policy: Política de sincronización
+  log_level: Nivel de registro
+  launch_at_login: Abrir al iniciar
+  backup: Copia de seguridad
+  appearance: Apariencia
+  theme_help: Claro, oscuro o el del sistema.
+  language_help: Idioma de menús y etiquetas.
+  high_contrast_help: Texto, bordes y foco más marcados.
+  behaviour: Sincronización y sistema
+  sync_help: Cuándo se envían los cambios locales a la API.
+  log_help: Cuánto detalle se guarda en los registros.
+  launch_help: Abrir la app al iniciar sesión en el equipo.
+  manual: Manual
+  automatic: Automática
+  database_help: Los registros de la biblioteca se guardan en este archivo SQLite.
+  export: Exportar
+  import: Importar
+  clear: Borrar datos locales
+  conflicts: Conflictos de sincronización
+  keep_local: Mantener local
+  use_server: Usar servidor
 about:
-  title: "Acerca de"
-  subtitle: "Información del entorno."
+  title: Acerca de
+  subtitle: Información del entorno.
+  version: Versión
+  toolkit: Herramientas
+  platform: Plataforma
+  data: Carpeta de datos
+  logs: Carpeta de registros
 command:
-  title: "Paleta de comandos"
-  placeholder: "Escribe un comando…"
-  dashboard: "Ir a Inicio"
-  library: "Ir a Biblioteca"
-  activity: "Ir a Actividad"
-  settings: "Ir a Ajustes"
-  account: "Ir a Cuenta"
-  about: "Ir a Acerca de"
-  new_record: "Nuevo registro"
-  toggle_sidebar: "Mostrar u ocultar barra lateral"
-  toggle_theme: "Cambiar tema claro/oscuro"
-  toggle_contrast: "Cambiar alto contraste"
-  empty: "No hay comandos coincidentes."
+  title: Paleta de comandos
+  placeholder: Escribe un comando…
+  dashboard: Ir a Inicio
+  library: Ir a Biblioteca
+  activity: Ir a Actividad
+  settings: Ir a Ajustes
+  account: Ir a Cuenta
+  about: Ir a Acerca de
+  new_record: Nuevo registro
+  toggle_sidebar: Mostrar u ocultar barra lateral
+  toggle_theme: Cambiar tema claro/oscuro
+  toggle_contrast: Cambiar alto contraste
+  empty: No hay comandos coincidentes.
 account:
-  title: "Cuenta"
-  subtitle: "API account session."
-  sign_in: "Iniciar sesión"
-  sign_out: "Cerrar sesión"
-  email: "Correo"
-  password: "Contraseña"
+  title: Cuenta
+  subtitle: API account session.
+  sign_in: Iniciar sesión
+  sign_out: Cerrar sesión
+  email: Correo
+  password: Contraseña
+  signed_in: Sesión iniciada
+  sync_now: Sincronizar ahora
 activity:
-  title: "Actividad"
-  subtitle: "Trabajo en segundo plano y estado de sincronización."
-  empty: "No hay trabajos en segundo plano."
+  title: Actividad
+  subtitle: Trabajo en segundo plano y estado de sincronización.
+  empty: No hay trabajos en segundo plano.
+  sync: Sincronización
+  last_sync: Última sincronización
+  last_sync_help: El envío más reciente a la API.
+  never: Aún sin sincronizar
+  conflicts: Conflictos pendientes
+  conflicts_help: Registros cambiados aquí y en el servidor.
+  jobs: Tareas en segundo plano
+  empty_body: Las importaciones y sincronizaciones aparecen aquí mientras se ejecutan.
 onboarding:
-  welcome: "Bienvenido a Smokeforge. Empieza en la Biblioteca."
-  dismiss: "Entendido"
+  welcome: Bienvenido a Smokeforge. Empieza en la Biblioteca.
+  dismiss: Entendido
+shell:
+  search: Buscar o ejecutar un comando…
+  light_theme: Cambiar a tema claro
+  dark_theme: Cambiar a tema oscuro
+  minimize: Minimizar
+  maximize: Maximizar
+  close: Cerrar
+  collapse: Contraer barra lateral
+  expand: Expandir barra lateral
+  workspace: Espacio de trabajo
+status:
+  local: Local
+  undo: Deshacer borrado
+  commands: Comandos
+startup:
+  title: La app no pudo iniciarse
+  body: Algo falló al abrir tus datos locales. No se borró nada. Inténtalo de nuevo o abre la carpeta
+    de registros y comparte los detalles.
+  retry: Reintentar
+  open_logs: Abrir carpeta de registros
+  quit: Salir
+state:
+  retry: Reintentar
+  open_logs: Abrir carpeta de registros
+  database_title: No se puede leer la base de datos local
+  database_body: Tus registros siguen en el disco. Inténtalo de nuevo o abre la carpeta de registros para
+    ver detalles.
+  missing_title: Registro no encontrado
+  missing_body: Puede que se haya eliminado aquí o en otro dispositivo.
+  back_to_records: Volver a los registros
+  keyring_title: No se recordará la sesión
+  sync_failed_title: La última sincronización falló
+  sign_in_failed_title: No se pudo iniciar sesión
+  syncing: Sincronizando…
+  clear_title: ¿Borrar todos los registros locales?
+  clear_body: Esto borra todos los registros de la biblioteca en este equipo. Los ya sincronizados siguen
+    en el servidor. No se puede deshacer.
+  clear_confirm: Borrar datos locales
