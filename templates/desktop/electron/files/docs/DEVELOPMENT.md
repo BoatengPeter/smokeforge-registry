@@ -54,3 +54,24 @@ builds.
   it automatically.
 - **Changes to `.env` are ignored.** Environment is read at main-process start;
   rerun `make dev`.
+
+## Dock and taskbar icon
+
+On Linux (Wayland, GNOME/KDE) the dock does not use the window icon. It
+matches the window's `app_id` to a desktop entry of the same name and shows
+that entry's icon; with no match it shows a generic one.
+
+- `package.json` `"desktopName": "<bundle id>.desktop"` makes Electron send the
+  bundle id as its `app_id` in dev and in packaged builds. (The `--class`
+  switch does not change it.)
+- `make dev` runs `scripts/install-dev-desktop.sh`, which installs
+  `~/.local/share/applications/<bundle id>.desktop` pointing at
+  `resources/icon.png` by absolute path. Run `make desktop-entry` alone to
+  refresh it after changing the icon.
+- Packaged Linux builds get the same match from `electron-builder.yml`
+  (`linux.desktop.entry.StartupWMClass`).
+- macOS dev builds set the dock icon in `bootstrap.ts`; Windows uses the
+  `BrowserWindow` icon.
+
+To check what a running window reports, start it with `WAYLAND_DEBUG=1` and
+look for `xdg_toplevel.set_app_id`.

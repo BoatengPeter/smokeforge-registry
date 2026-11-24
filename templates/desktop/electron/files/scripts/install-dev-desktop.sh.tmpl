@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+# Installs a Linux launcher for development builds so GNOME/KDE show the app
+# icon in the dock instead of a generic one. On Wayland the dock matches the
+# window's app_id, which package.json "desktopName" sets to the bundle id, to a
+# desktop entry with the same name. macOS and Windows need nothing here.
+set -eu
+
+[ "$(uname -s)" = "Linux" ] || exit 0
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+# Template values are single-quoted data, never shell code.
+app_id='{{.bundle_id}}'
+app_name='{{.project_name}}'
+entry_dir="$HOME/.local/share/applications"
+icon_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
+icon_path="$icon_dir/$app_id.png"
+
+mkdir -p "$entry_dir" "$icon_dir"
+cp "$project_dir/resources/icon.png" "$icon_path"
+# printf writes the values verbatim. Exec starts the last `make build` output;
+# the entry exists mainly so the running dev window gets its icon.
+printf '%s\n' \
+  '[Desktop Entry]' \
+  'Type=Application' \
+  "Name=$app_name (dev)" \
+  'Comment=Local development build' \
+  "Exec=\"$project_dir/node_modules/.bin/electron\" \"$project_dir\"" \
+  "Icon=$icon_path" \
+  'Terminal=false' \
+  "StartupWMClass=$app_id" \
+  'Categories=Utility;' \
+  > "$entry_dir/$app_id.desktop"
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$entry_dir" >/dev/null 2>&1 || true
+fi

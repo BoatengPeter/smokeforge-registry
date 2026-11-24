@@ -9,13 +9,14 @@ RUN := bun run
 INSTALL := bun install
 {{end}}
 
-.PHONY: help install dev dev-inspect build start package package-dir lint typecheck test test-watch ci clean
+.PHONY: help install dev dev-inspect desktop-entry build start package package-dir lint typecheck test test-watch ci clean
 # smokeforge:anchor test-phony
 
 help:
 	@echo "make install      Install dependencies"
 	@echo "make dev          Start Electron with hot reload (renderer HMR, main/preload watch)"
 	@echo "make dev-inspect  Same as dev, with the V8 inspector on the main process (port 5858)"
+	@echo "make desktop-entry Install a Linux launcher so the dock shows the app icon in dev"
 	@echo "make build        Build main, preload, and renderer"
 	@echo "make start        Preview the production build"
 	@echo "make package      Build an installer for the current platform"
@@ -31,10 +32,13 @@ help:
 install:
 	$(INSTALL)
 
-dev:
+dev: desktop-entry
 	$(RUN) dev
 
-dev-inspect:
+desktop-entry:
+	@sh scripts/install-dev-desktop.sh
+
+dev-inspect: desktop-entry
 	$(RUN) dev:inspect
 
 build:

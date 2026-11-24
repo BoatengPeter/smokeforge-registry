@@ -56,3 +56,13 @@ are not watched, so the running app never retriggers itself. Change the
   (see [CRASH.md](CRASH.md)).
 - **A compile error stops the loop.** Fix it and save again; cargo-watch
   retries automatically.
+
+## Dock and taskbar icon
+
+On Linux (Wayland, GNOME/KDE) the dock matches the window's `app_id` (the
+bundle id, set in `crates/desktop/src/main.rs`) to a desktop entry of the same
+name. `make run` and `make dev` install that entry with
+`scripts/install-dev-desktop.sh`, pointing at `assets/icon.png` by absolute
+path. Launching the binary without that entry shows a generic icon. To check
+what a window reports, run it with `WAYLAND_DEBUG=1` and look for
+`xdg_toplevel.set_app_id`.

@@ -39,3 +39,10 @@ flowchart LR
 
 Do not commit signing certificates. The default config intentionally contains
 no credentials.
+
+## Linux desktop integration
+
+`electron-builder.yml` sets `linux.desktop.entry.StartupWMClass` to the bundle
+id, and `package.json` `desktopName` makes the running window report the same
+`app_id`, so the installed launcher's icon appears in the dock. Keep the two in
+sync if you change the bundle id.

@@ -31,3 +31,9 @@ linux:
     - AppImage
     - deb
   category: Utility
+  # GNOME/KDE on Wayland pick the dock icon by matching the window's app_id to
+  # a desktop entry. package.json "desktopName" makes the app_id the bundle id;
+  # this makes the installed entry claim it.
+  desktop:
+    entry:
+      StartupWMClass: {{.bundle_id}}
