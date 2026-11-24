@@ -1,12 +1,12 @@
 //! Home: counts, status chart, and recent records.
 
-use egui::{CornerRadius, Frame, Margin, RichText, Ui};
+use egui::{RichText, Ui};
 
 use super::status_tone;
 use crate::components::{Badge, Button, EmptyState, ListRow, PageHeader, StatCard, section};
 use crate::domain::LibraryStatus;
-use crate::icons::{self, Icon};
-use crate::theme::{self, radius, space};
+use crate::icons::Icon;
+use crate::theme::{self, space};
 use crate::{Action, DesktopApp, Pane, t};
 
 const RECENT_LIMIT: usize = 5;
@@ -48,30 +48,6 @@ impl DesktopApp {
                     action = Some(Action::NewRecord);
                 }
             });
-
-        if !self.settings.onboarded {
-            Frame::new()
-                .fill(palette.selected)
-                .corner_radius(CornerRadius::same(radius::LG))
-                .inner_margin(Margin::symmetric(14, 10))
-                .show(ui, |ui| {
-                    egui::Sides::new().show(
-                        ui,
-                        |ui| {
-                            let (rect, _) = ui
-                                .allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
-                            icons::paint(ui.painter(), rect, Icon::About, palette.accent_text);
-                            ui.label(t("onboarding.welcome"));
-                        },
-                        |ui| {
-                            if ui.add(Button::ghost(&t("onboarding.dismiss"))).clicked() {
-                                action = Some(Action::DismissOnboarding);
-                            }
-                        },
-                    );
-                });
-            ui.add_space(space::L);
-        }
 
         let stats = [
             (Icon::Library, t("dashboard.records"), items.len()),

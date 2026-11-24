@@ -37,6 +37,14 @@ pub mod radius {
 }
 
 /// Shell and control metrics in points.
+/// Interface size (egui zoom factor). 1.0 is 100%; set from Settings, the
+/// welcome tour, or Ctrl/Cmd `+` / `−` / `0`.
+pub mod zoom {
+    pub const DEFAULT: f32 = 1.0;
+    pub const RANGE: std::ops::RangeInclusive<f32> = 0.7..=2.0;
+    pub const STEP: f32 = 0.1;
+}
+
 pub mod size {
     /// Minimum height of buttons, fields, and list rows.
     pub const CONTROL: f32 = 32.0;

@@ -45,6 +45,8 @@ pub struct Settings {
     pub log_level: String,
     pub launch_at_login: bool,
     pub onboarded: bool,
+    /// Interface size as a zoom factor; 1.0 is 100%.
+    pub zoom: f32,
 }
 
 impl Default for Settings {
@@ -61,6 +63,7 @@ impl Default for Settings {
             log_level: "info".to_owned(),
             launch_at_login: false,
             onboarded: false,
+            zoom: 1.0,
         }
     }
 }

@@ -1,11 +1,13 @@
-//! Settings: appearance, sync, system, local data, and conflicts.
+//! Settings: appearance, sync, system, help, local data, and conflicts.
 
 use egui::{RichText, Ui};
 
 use super::{detail_row, setting_row};
-use crate::components::{Button, Notice, PageHeader, Segmented, Switch, Tone, section};
+use crate::components::{
+    Button, Notice, PageHeader, Segmented, Stepper, StepperFormat, Switch, Tone, section,
+};
 use crate::icons::Icon;
-use crate::theme::{self, ThemePreference, space};
+use crate::theme::{self, ThemePreference, space, zoom};
 use crate::{Action, Confirmation, DesktopApp, t};
 
 impl DesktopApp {
@@ -17,6 +19,8 @@ impl DesktopApp {
         self.appearance_section(ui, &mut actions);
         ui.add_space(space::L);
         let behaviour_changed = self.behaviour_section(ui);
+        ui.add_space(space::L);
+        help_section(ui, &mut actions);
         ui.add_space(space::L);
         self.data_section(ui);
         if behaviour_changed {
@@ -79,6 +83,23 @@ impl DesktopApp {
                     }
                 },
             );
+            setting_row(ui, &t("settings.size"), &t("settings.size_help"), |ui| {
+                let mut zoom = self.settings.zoom;
+                if Stepper::new(
+                    "settings-size",
+                    &mut zoom,
+                    zoom::RANGE,
+                    zoom::STEP,
+                    &t("settings.size_smaller"),
+                    &t("settings.size_larger"),
+                )
+                .format(StepperFormat::Percent)
+                .show(ui)
+                .changed()
+                {
+                    actions.push(Action::SetZoom(zoom));
+                }
+            });
         });
     }
 
@@ -283,4 +304,18 @@ impl DesktopApp {
             self.dispatch(Action::RequestConfirmation(Confirmation::ClearLocalData));
         }
     }
+}
+
+/// Help: reopen the welcome tour.
+fn help_section(ui: &mut Ui, actions: &mut Vec<Action>) {
+    section(ui, &t("settings.help"), |ui| {
+        setting_row(ui, &t("settings.tour"), &t("settings.tour_help"), |ui| {
+            if ui
+                .add(Button::secondary(&t("settings.tour_open")))
+                .clicked()
+            {
+                actions.push(Action::ShowWelcome);
+            }
+        });
+    });
 }

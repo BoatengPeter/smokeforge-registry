@@ -7,7 +7,6 @@
 use std::sync::Mutex;
 
 use eframe::egui;
-use egui::{Key, KeyboardShortcut, Modifiers};
 use egui_tiles::{Tile, Tree};
 use garde::Validate;
 
@@ -22,15 +21,18 @@ pub mod credentials;
 pub mod icons;
 pub mod logging;
 mod shell;
+pub mod shortcuts;
 pub mod startup;
 pub mod sync;
 pub mod system;
 pub mod theme;
 mod views;
+pub mod welcome;
 
 use commands::Command;
 use icons::Icon;
 use theme::{Contrast, ThemePreference, ThemeSettings};
+use welcome::{WelcomeOutcome, WelcomePage};
 
 rust_i18n::i18n!("locales");
 
@@ -131,7 +133,14 @@ pub enum Action {
     RunCommand(Command),
     ToggleHighContrast,
     UndoDelete,
-    DismissOnboarding,
+    /// Opens the welcome tour on its first page.
+    ShowWelcome,
+    /// Shows another page of the welcome tour.
+    WelcomeGo(WelcomePage),
+    /// Closes the welcome tour and remembers it was seen.
+    CloseWelcome(WelcomeOutcome),
+    /// Sets the interface size (zoom factor, clamped to [`theme::zoom::RANGE`]).
+    SetZoom(f32),
     /// Reopens the database after a read failure.
     ReopenDatabase,
     /// Asks the user to confirm a destructive action.
@@ -175,10 +184,13 @@ pub struct DesktopApp {
     pub sync_error: Option<String>,
     /// A destructive action waiting for confirmation.
     pub confirmation: Option<Confirmation>,
+    /// The welcome tour page on screen, if the tour is open.
+    pub welcome: Option<WelcomePage>,
     /// Wakes the UI when background work finishes.
     repaint: Option<egui::Context>,
     applied_theme: Option<ThemeSettings>,
     resolved_theme: egui::Theme,
+    applied_zoom: Option<f32>,
 }
 
 #[derive(Debug)]
@@ -251,10 +263,15 @@ impl DesktopApp {
         database.seed_if_empty().expect("test database seeds");
         let tree = Tree::new_tabs(egui::Id::unique("workspace-test"), Pane::all(false));
         let settings_store = SettingsStore::new(&paths.config);
+        // Tests start past the welcome tour; tour tests open it with ShowWelcome.
+        let settings = Settings {
+            onboarded: true,
+            ..Settings::default()
+        };
         Self::with_parts(
             "Test App",
             paths,
-            Settings::default(),
+            settings,
             settings_store,
             database,
             tree,
@@ -281,6 +298,7 @@ impl DesktopApp {
         api_mode: bool,
         api_base: String,
     ) -> Self {
+        let welcome = (!settings.onboarded).then_some(WelcomePage::Intro);
         Self {
             app_name: app_name.to_owned(),
             paths,
@@ -312,9 +330,11 @@ impl DesktopApp {
             sync_status: String::new(),
             sync_error: None,
             confirmation: None,
+            welcome,
             repaint: None,
             applied_theme: None,
             resolved_theme: egui::Theme::Dark,
+            applied_zoom: None,
         }
     }
 
@@ -408,7 +428,17 @@ impl DesktopApp {
                 self.settings.high_contrast = !self.settings.high_contrast;
             }
             Action::UndoDelete => self.undo_delete(),
-            Action::DismissOnboarding => self.settings.onboarded = true,
+            Action::ShowWelcome => self.welcome = Some(WelcomePage::Intro),
+            Action::WelcomeGo(page) => self.welcome = Some(page),
+            Action::CloseWelcome(outcome) => {
+                self.welcome = None;
+                self.settings.onboarded = true;
+                tracing::info!(?outcome, "welcome tour closed");
+            }
+            Action::SetZoom(zoom) => {
+                self.settings.zoom =
+                    zoom.clamp(*theme::zoom::RANGE.start(), *theme::zoom::RANGE.end());
+            }
             Action::ReopenDatabase => self.reopen_database(),
             Action::RequestConfirmation(confirmation) => self.confirmation = Some(confirmation),
             Action::CancelConfirmation => self.confirmation = None,
@@ -522,6 +552,7 @@ impl DesktopApp {
         self.poll_auth();
         self.poll_sync();
         self.sync_theme(ui);
+        self.sync_zoom(ui);
         self.handle_shortcuts(ui);
         egui_extras::install_image_loaders(ui.ctx());
         self.shell(ui);
@@ -541,10 +572,45 @@ impl DesktopApp {
         self.resolved_theme = ui.ctx().theme();
     }
 
+    /// Applies the interface size from settings. egui's own Ctrl +/− zoom is
+    /// turned off so the setting stays the single source of truth;
+    /// [`Self::handle_shortcuts`] maps those keys to [`Action::SetZoom`].
+    fn sync_zoom(&mut self, ui: &egui::Ui) {
+        let zoom = self
+            .settings
+            .zoom
+            .clamp(*theme::zoom::RANGE.start(), *theme::zoom::RANGE.end());
+        if self.applied_zoom != Some(zoom) {
+            let ctx = ui.ctx();
+            ctx.options_mut(|options| options.zoom_with_keyboard = false);
+            ctx.set_zoom_factor(zoom);
+            self.applied_zoom = Some(zoom);
+        }
+    }
+
     fn handle_shortcuts(&mut self, ui: &mut egui::Ui) {
-        const PALETTE: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::K);
-        const NEW_RECORD: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
-        const SIDEBAR: KeyboardShortcut = KeyboardShortcut::new(Modifiers::COMMAND, Key::B);
+        use egui::gui_zoom::kb_shortcuts::{ZOOM_IN, ZOOM_IN_SECONDARY, ZOOM_OUT, ZOOM_RESET};
+        use shortcuts::{NEW_RECORD, PALETTE, SIDEBAR};
+        use theme::zoom;
+
+        let current = self.settings.zoom;
+        if ui.input_mut(|input| input.consume_shortcut(&ZOOM_RESET)) {
+            self.dispatch(Action::SetZoom(zoom::DEFAULT));
+        } else if ui.input_mut(|input| {
+            input.consume_shortcut(&ZOOM_IN) || input.consume_shortcut(&ZOOM_IN_SECONDARY)
+        }) {
+            self.dispatch(Action::SetZoom(components::step_value(
+                current,
+                zoom::STEP,
+                &zoom::RANGE,
+            )));
+        } else if ui.input_mut(|input| input.consume_shortcut(&ZOOM_OUT)) {
+            self.dispatch(Action::SetZoom(components::step_value(
+                current,
+                -zoom::STEP,
+                &zoom::RANGE,
+            )));
+        }
 
         if ui.input_mut(|input| input.consume_shortcut(&PALETTE)) {
             if self.palette_open {
@@ -839,5 +905,69 @@ mod tests {
             theme::palette(&harness.ctx),
             theme::Palette::for_theme(egui::Theme::Light, Contrast::High)
         );
+    }
+
+    #[test]
+    fn welcome_tour_walks_forward_and_back_then_finishes() {
+        let mut app = DesktopApp::for_tests();
+        app.dispatch(Action::ShowWelcome);
+        let mut harness = harness(app);
+        assert!(harness.query_by_label("Skip the tour").is_some());
+
+        harness.get_by_label("Next").click();
+        harness.run();
+        assert_eq!(harness.state().welcome, Some(WelcomePage::Shortcuts));
+
+        harness.get_by_label("Back").click();
+        harness.run();
+        assert_eq!(harness.state().welcome, Some(WelcomePage::Intro));
+
+        harness.get_by_label("Next").click();
+        harness.run();
+        harness.get_by_label("Next").click();
+        harness.run();
+        harness.get_by_label("Get started").click();
+        harness.run();
+        assert_eq!(harness.state().welcome, None);
+        assert!(harness.state().settings.onboarded);
+    }
+
+    #[test]
+    fn escape_skips_the_welcome_tour_and_remembers_it() {
+        let mut app = DesktopApp::for_tests();
+        app.settings.onboarded = false;
+        app.dispatch(Action::ShowWelcome);
+        let mut harness = harness(app);
+
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert_eq!(harness.state().welcome, None);
+        assert!(harness.state().settings.onboarded);
+        assert!(harness.query_by_label("Skip the tour").is_none());
+    }
+
+    #[test]
+    fn welcome_size_stepper_changes_the_zoom() {
+        let mut app = DesktopApp::for_tests();
+        app.dispatch(Action::ShowWelcome);
+        let mut harness = harness(app);
+
+        harness
+            .get_all_by_label("Make the interface larger")
+            .next()
+            .expect("size stepper is visible")
+            .click();
+        harness.run();
+        assert!((harness.state().settings.zoom - 1.1).abs() < f32::EPSILON);
+        assert!((harness.ctx.zoom_factor() - 1.1).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn zoom_is_clamped_to_its_range() {
+        let mut app = DesktopApp::for_tests();
+        app.dispatch(Action::SetZoom(9.0));
+        assert!((app.settings.zoom - *theme::zoom::RANGE.end()).abs() < f32::EPSILON);
+        app.dispatch(Action::SetZoom(0.1));
+        assert!((app.settings.zoom - *theme::zoom::RANGE.start()).abs() < f32::EPSILON);
     }
 }

@@ -2,6 +2,9 @@
 
 use egui::{Response, Sense, StrokeKind, TextStyle, Ui, Widget, vec2};
 
+/// Width of the key column in [`shortcut_row`], so descriptions line up.
+const KEYS_COLUMN: f32 = 140.0;
+
 use crate::theme::{self, radius};
 
 /// A keycap-style label for a shortcut.
@@ -34,4 +37,16 @@ impl Widget for Kbd<'_> {
         }
         response
     }
+}
+
+/// One "keys — what they do" line in a shortcut list.
+pub fn shortcut_row(ui: &mut Ui, keys: &str, description: &str) {
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(
+            vec2(KEYS_COLUMN, 22.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| ui.add(Kbd(keys)),
+        );
+        ui.label(description);
+    });
 }

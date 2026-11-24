@@ -11,6 +11,7 @@ mod activity;
 mod dashboard;
 mod library;
 mod settings;
+mod welcome;
 
 use egui::{RichText, Ui};
 

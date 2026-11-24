@@ -100,6 +100,9 @@ Inter regular and semibold are embedded (`assets/fonts`, OFL). Use the five
 - Radii: `radius::SM 4` (badges, chips), `MD 6` (buttons, fields, rows),
   `LG 10` (cards, dialogs). Nested shapes use a smaller radius than their parent.
 - Controls are `size::CONTROL` (32) tall. Icons are `size::ICON` (16).
+- Interface size is a zoom factor: `zoom::DEFAULT 1.0`, `zoom::RANGE
+  0.7–2.0`, `zoom::STEP 0.1`. It scales every token above uniformly; never
+  change a token to make "everything bigger".
 - Page content is centred with a 1200px maximum width and a 28px gutter
   (`shell.rs`). Pages never add their own outer margin.
 - Do not nest cards. A page is a column of `card`/`section` blocks on the canvas.

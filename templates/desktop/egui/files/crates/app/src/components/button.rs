@@ -1,4 +1,4 @@
-//! Text buttons with an optional leading icon.
+//! Text buttons with an optional leading or trailing icon.
 
 use egui::{Response, Role, Sense, StrokeKind, TextStyle, Ui, Widget, WidgetInfo, vec2};
 
@@ -25,6 +25,15 @@ pub struct Button<'a> {
     kind: ButtonKind,
     label: &'a str,
     icon: Option<Icon>,
+    icon_side: IconSide,
+}
+
+/// Which side of the label a button's icon sits on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum IconSide {
+    #[default]
+    Leading,
+    Trailing,
 }
 
 impl<'a> Button<'a> {
@@ -33,6 +42,7 @@ impl<'a> Button<'a> {
             kind,
             label,
             icon: None,
+            icon_side: IconSide::Leading,
         }
     }
 
@@ -55,6 +65,14 @@ impl<'a> Button<'a> {
     /// Shows `icon` before the label.
     pub const fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self.icon_side = IconSide::Leading;
+        self
+    }
+
+    /// Shows `icon` after the label, for forward actions ("Next →").
+    pub const fn trailing_icon(mut self, icon: Icon) -> Self {
+        self.icon = Some(icon);
+        self.icon_side = IconSide::Trailing;
         self
     }
 
@@ -115,16 +133,21 @@ impl Widget for Button<'_> {
             ui.painter()
                 .rect(rect, radius::MD, fill, stroke, StrokeKind::Inside);
 
-            let mut x = rect.left() + space::M;
+            let leading = self.icon_side == IconSide::Leading;
+            let text_left = rect.left() + space::M + if leading { icon_width } else { 0.0 };
             if let Some(icon) = self.icon {
+                let icon_left = if leading {
+                    rect.left() + space::M
+                } else {
+                    rect.right() - space::M - size::ICON
+                };
                 let icon_rect = egui::Rect::from_min_size(
-                    egui::pos2(x, rect.center().y - size::ICON / 2.0),
+                    egui::pos2(icon_left, rect.center().y - size::ICON / 2.0),
                     vec2(size::ICON, size::ICON),
                 );
                 icons::paint(ui.painter(), icon_rect, icon, text_color);
-                x += icon_width;
             }
-            let text_pos = egui::pos2(x, rect.center().y - galley.size().y / 2.0);
+            let text_pos = egui::pos2(text_left, rect.center().y - galley.size().y / 2.0);
             ui.painter().galley(text_pos, galley, text_color);
             super::focus_ring(ui, &response, rect, radius::MD);
         }

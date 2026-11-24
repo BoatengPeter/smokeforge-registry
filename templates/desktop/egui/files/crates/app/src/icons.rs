@@ -41,11 +41,14 @@ pub enum Icon {
     Download,
     Upload,
     Undo,
+    ArrowRight,
+    Keyboard,
+    Minus,
 }
 
 impl Icon {
     /// Every icon, for galleries and tests.
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 26] = [
         Self::Dashboard,
         Self::Library,
         Self::Activity,
@@ -69,6 +72,9 @@ impl Icon {
         Self::Download,
         Self::Upload,
         Self::Undo,
+        Self::ArrowRight,
+        Self::Keyboard,
+        Self::Minus,
     ];
 }
 
@@ -204,6 +210,18 @@ pub fn shapes(icon: Icon, rect: Rect, color: Color32) -> Vec<Shape> {
             pen.arc(9.5, 9.5, 3.5, -90.0, 90.0);
             pen.line(&[(9.5, 13.0), (6.0, 13.0)]);
         }
+        Icon::ArrowRight => {
+            pen.line(&[(3.0, 8.0), (13.0, 8.0)]);
+            pen.line(&[(9.0, 4.0), (13.0, 8.0), (9.0, 12.0)]);
+        }
+        Icon::Keyboard => {
+            pen.rect(1.5, 4.0, 14.5, 12.0);
+            for x in [4.5, 7.0, 9.0, 11.5] {
+                pen.dot(x, 6.8, 0.6);
+            }
+            pen.line(&[(5.0, 9.5), (11.0, 9.5)]);
+        }
+        Icon::Minus => pen.line(&[(3.0, 8.0), (13.0, 8.0)]),
     }
     pen.finish()
 }

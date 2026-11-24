@@ -6,6 +6,7 @@
 - Pin egui/eframe exactly. Read the upstream changelog before upgrading.
 - Use one theme token module (`theme.rs`). Do not hardcode colors or sizes in feature files.
 - UI layers: `theme.rs` tokens → `icons.rs` → `components/` → `shell.rs` and `views/`. See `DESIGN.md` and `docs/UI.md`.
+- Keep `lib.rs` to app state, `Action`, and `dispatch`. A feature's own state types get their own module (`welcome.rs`), app-wide shortcuts live in `shortcuts.rs`, and reusable chrome goes in `components/` (`WizardWindow`), so views only compose.
 - Error, empty, offline, not-found, and confirmation screens follow `docs/STATES.md`.
 - Use stable widget IDs and `push_id` in loops.
 - Store refresh tokens only in the OS keyring. Never in SQLite or JSON.

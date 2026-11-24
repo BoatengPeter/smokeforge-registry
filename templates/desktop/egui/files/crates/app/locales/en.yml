@@ -63,6 +63,14 @@ settings:
   theme_help: Light, dark, or follow the system.
   language_help: Language for menus and labels.
   high_contrast_help: Stronger text, borders, and focus rings.
+  size: Interface size
+  size_help: Scales text and controls. Ctrl + and Ctrl − work anywhere.
+  size_smaller: Make the interface smaller
+  size_larger: Make the interface larger
+  help: Help
+  tour: Welcome tour
+  tour_help: The short introduction shown on first launch.
+  tour_open: Show welcome tour
   behaviour: Sync and system
   sync_help: When local changes are sent to the API.
   log_help: How much detail goes into the log files.
@@ -119,9 +127,40 @@ activity:
   conflicts_help: Records changed both here and on the server.
   jobs: Background jobs
   empty_body: Imports and sync runs show up here while they work.
-onboarding:
-  welcome: Welcome to Smokeforge. Start in the Library.
-  dismiss: Got it
+welcome:
+  window_title: Welcome to %{app}
+  drag_hint: Drag to move
+  skip: Skip the tour
+  back: Back
+  next: Next
+  finish: Get started
+  progress: Step %{step} of %{total}
+  intro_title: "%{app} keeps your work on this computer"
+  intro_body: Records live in a local database, so the app opens instantly and works offline. Sign in when you want them backed up and synced.
+  local_title: Saved as you go
+  local_body: Everything you create is written to this computer straight away. No network needed.
+  find_title: Find anything
+  find_body: Search the Library, or open the command palette to run any action by name.
+  sync_title: Sync when you're ready
+  sync_body: Sign in from Account to back up your records and pick them up on another machine.
+  appearance: Appearance
+  size: Size
+  keys_title: Keys worth knowing
+  keys_body: Every action has a name in the command palette; these few are worth remembering.
+  palette_title: One key opens everything
+  palette_body: The command palette lists every page and action with its shortcut.
+  key_new: Create a record
+  key_sidebar: Show or hide the sidebar
+  key_zoom: Make everything larger or smaller
+  key_escape: Close a dialog or this tour
+  ready_title: You're all set
+  ready_body: A couple of things you may want later.
+  data_title: Your data
+  data_body: The database, settings, and logs live in this folder. Back it up like any other.
+  open_folder: Open folder
+  first_title: Start with a record
+  first_body: The Library holds your records. Create one now, or look around first.
+  reopen: You can reopen this tour any time from Settings › Help.
 shell:
   search: Search or run a command…
   light_theme: Switch to light theme

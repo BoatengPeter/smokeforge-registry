@@ -56,6 +56,7 @@ impl DesktopApp {
 
         self.command_palette(ui);
         self.confirmation_dialog(ui);
+        self.welcome_window(ui);
         self.toasts.show(ui.ctx());
     }
 

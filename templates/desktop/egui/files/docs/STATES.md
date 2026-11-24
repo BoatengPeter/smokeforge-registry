@@ -14,6 +14,7 @@ here before using it in a page.
 | The page works but something is degraded | Notice | `components::Notice` | sign-in failed, last sync failed, keyring unavailable |
 | Work is in progress | Inline spinner + text | `ui.spinner()` + label | sign-in, sync |
 | A destructive, irreversible action | Confirmation dialog | `components::ConfirmDialog` | clear local data |
+| First launch, or the user asks for an introduction | Welcome tour | `components::WizardWindow` | `views/welcome.rs` |
 | A reversible action finished | Toast with Undo | `toasts` + status bar link | delete record (soft delete + Undo) |
 | A field is invalid | Inline error above the form | `palette.danger` label | Library editor validation |
 
@@ -69,6 +70,14 @@ it finishes.
 Settings dispatches `Action::RequestConfirmation(Confirmation::ClearLocalData)`.
 The shell draws a `ConfirmDialog` while `confirmation` is `Some`, and dispatches
 `Action::Confirm` or `Action::CancelConfirmation`.
+
+### First launch
+
+`DesktopApp.welcome` starts as `Some(WelcomePage::Intro)` when
+`settings.onboarded` is false. The tour is non-blocking: the app behind it
+works. Closing it any way (finish, ×, Esc) sets `onboarded`, so it never
+reappears uninvited; Settings › Help reopens it. See `docs/UI.md` › Welcome
+tour for adding pages.
 
 ## Adding a new state
 
