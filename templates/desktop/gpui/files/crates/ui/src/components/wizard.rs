@@ -21,8 +21,8 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 /// Window size in rems at 100% interface size.
-const WIDTH_REMS: f32 = 36.0;
-const HEIGHT_REMS: f32 = 39.0;
+const WIDTH_REMS: f32 = 52.0;
+const HEIGHT_REMS: f32 = 46.0;
 /// Space kept between the window and the edges of the app window, in pixels.
 const SCREEN_MARGIN: f32 = 16.0;
 
@@ -355,8 +355,11 @@ mod tests {
 
     #[test]
     fn size_shrinks_to_fit_small_windows() {
+        // 52 × 46 rem at 16 px, height capped by the 700 px viewport.
         let natural = wizard_size(viewport(), px(16.0));
-        assert_eq!(natural, size(px(576.0), px(624.0).min(px(668.0))));
+        assert_eq!(natural, size(px(832.0), px(668.0)));
+        let roomy = wizard_size(size(px(1600.0), px(1000.0)), px(16.0));
+        assert_eq!(roomy, size(px(832.0), px(736.0)));
         let small = wizard_size(size(px(400.0), px(300.0)), px(16.0));
         assert_eq!(small, size(px(368.0), px(268.0)));
     }

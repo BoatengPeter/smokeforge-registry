@@ -18,8 +18,8 @@ use super::{Badge, Button, HoverTone, IconButton, Tone};
 use crate::icons::Icon;
 use crate::theme::{self, radius, space};
 
-const WIDTH: f32 = 580.0;
-const HEIGHT: f32 = 620.0;
+const WIDTH: f32 = 820.0;
+const HEIGHT: f32 = 720.0;
 const HEADER: f32 = 56.0;
 const FOOTER: f32 = 64.0;
 /// Space kept between the window and the edges of the app window.
