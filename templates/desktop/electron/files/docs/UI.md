@@ -43,6 +43,13 @@ and a rare coral signal. The renderer palette has one source of truth in
 - Dashboard stat cards can be reordered with drag and drop or the keyboard; the
   order is stored as `dashboardOrder` in non-sensitive settings.
 - `Cmd/Ctrl+1/2/3` navigates Home, Library, and Activity.
+- `Cmd/Ctrl+=`, `-`, `0` change the interface size. It is the `zoom` setting
+  (limits in `src/shared/zoom.ts`); main applies it to every window with
+  `webContents.setZoomFactor`, and the menu's zoom items emit commands instead
+  of Electron's zoom roles, so the setting is the single source of truth.
+- Shortcuts are defined once in `appCommands` (`src/shared/commands.ts`).
+  Anything that shows one formats it with `formatAccelerator`, never a typed
+  string.
 - The native menu emits the same command IDs as the renderer keyboard registry.
 - Theme follows `nativeTheme`; light, dark, and system are persisted.
 - The title bar uses a CSS drag region and keeps every control in a no-drag
@@ -51,6 +58,35 @@ and a rare coral signal. The renderer palette has one source of truth in
 - Route errors render a recovery boundary instead of a blank window.
 - Offline status is shown in the status bar; queries use TanStack Query retry.
 - Settings, About, Activity, Library, and shell chrome use i18next keys.
+
+## Welcome tour
+
+```text
+┌ [logo] Welcome to App  v0.1.0 ················· Drag to move  [×] ┐  header: drags the window
+│ Title / paragraph                                                    │
+│ [icon] Feature title / body   × 3                                    │  body: scrolls, fixed height
+│ Appearance  [ System | Light | Dark ]                                 │
+│ Size        [ −  130%  + ]                                            │
+├──────────────────────────────────────────────────────────────────────┤
+└ ▬ • •                                                Back  [Next →] ┘
+```
+
+- Opens on first launch (`onboardingComplete` false), from Settings › Help,
+  and from the "Show welcome tour" command. Any close sets
+  `onboardingComplete` and `lastSeenVersion`, so What's new starts from there.
+- Split: `features/welcome/welcome-pages.ts` (page order),
+  `welcome-context.tsx` (open state, owned by the app shell and provided to
+  pages), `welcome-tour.tsx` (pages). Reusable parts are in `components/ui`:
+  `wizard-window` (+ `wizard-drag` maths), `feature-row`, `segmented`,
+  `value-stepper`, `inset`; `components/size-stepper` is shared with Settings.
+- It floats over the live app with no backdrop (`aria-modal="false"`), so
+  theme and size changes show behind it. The header drags it with pointer
+  capture; `clampOffset` keeps it on screen. Focus moves to it on open and
+  back on close. Escape skips; Enter / → / ← work while the window itself
+  has focus.
+- **Add a page:** add it to `welcomePages`, add `welcome.*` strings, and draw it
+  in `welcome-tour.tsx` from `components/ui` parts.
+- **Another multi-step flow:** reuse `WizardWindow`; do not copy the tour.
 
 ## Library screen
 

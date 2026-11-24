@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { windowChrome } from "../../shared/design-tokens";
 import { isTrustedRendererUrl } from "../../shared/security";
+import { appSettings } from "../features/settings/settings.ipc";
 import { devRendererUrl } from "../infra/dev-server";
 import { loadAppIcon } from "./app-icon";
 
@@ -56,6 +57,14 @@ export function createMainWindow(): BrowserWindow {
     if (!isTrustedRendererUrl(url, devUrl)) {
       event.preventDefault();
     }
+  });
+
+  // Interface size is a setting; apply it to every page load.
+  window.webContents.on("did-finish-load", () => {
+    void appSettings()
+      .read()
+      .then((settings) => window.webContents.setZoomFactor(settings.zoom))
+      .catch(() => undefined);
   });
 
   window.once("ready-to-show", () => window.show());

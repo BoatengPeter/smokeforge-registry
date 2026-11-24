@@ -61,9 +61,12 @@ export function installApplicationMenu(): void {
         commandItem("Command palette", commandIds.palette, "CmdOrCtrl+K"),
         commandItem("Toggle sidebar", commandIds.toggleSidebar, "CmdOrCtrl+B"),
         { type: "separator" },
-        { role: "resetZoom" },
-        { role: "zoomIn" },
-        { role: "zoomOut" },
+        // Interface size is a setting, so these go through the renderer
+        // (settings.update) instead of Electron's zoom roles. The renderer's
+        // key handler owns the shortcuts; the menu only shows them.
+        { ...commandItem("Actual size", commandIds.zoomReset, "CmdOrCtrl+0"), registerAccelerator: false },
+        { ...commandItem("Zoom in", commandIds.zoomIn, "CmdOrCtrl+="), registerAccelerator: false },
+        { ...commandItem("Zoom out", commandIds.zoomOut, "CmdOrCtrl+-"), registerAccelerator: false },
         { type: "separator" },
         { role: "togglefullscreen" },
         ...(app.isPackaged ? [] : [{ type: "separator" } as MenuItemConstructorOptions, { role: "reload" } as MenuItemConstructorOptions, { role: "toggleDevTools" } as MenuItemConstructorOptions]),

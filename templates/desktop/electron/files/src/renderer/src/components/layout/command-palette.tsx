@@ -10,7 +10,9 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
-import { appCommands, type CommandId } from "@shared/commands";
+import { appCommands, formatAccelerator, type CommandId } from "@shared/commands";
+
+const isMac = navigator.userAgent.includes("Mac");
 
 export function CommandPalette({
   open,
@@ -45,7 +47,7 @@ export function CommandPalette({
             >
               <CommandIcon className="size-4 opacity-50" />
               {t(command.labelKey)}
-              {command.accelerator ? <CommandShortcut>{command.accelerator}</CommandShortcut> : null}
+              {command.accelerator ? <CommandShortcut>{formatAccelerator(command.accelerator, isMac)}</CommandShortcut> : null}
             </CommandItem>
           ))}
         </CommandGroup>

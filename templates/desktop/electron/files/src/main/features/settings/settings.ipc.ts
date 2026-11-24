@@ -1,4 +1,4 @@
-import { app, nativeTheme } from "electron";
+import { BrowserWindow, app, nativeTheme } from "electron";
 
 import { settingsChannels, settingsSchemas } from "../../../shared/ipc/settings";
 import { userDataPath } from "../../infra/paths";
@@ -14,7 +14,18 @@ export function appSettings(): SettingsStore {
   return store;
 }
 
-function applySideEffects(patch: { theme?: string; launchAtLogin?: boolean; logLevel?: string }): void {
+/** Applies the interface size to every open window. */
+export function applyZoom(factor: number): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.setZoomFactor(factor);
+  }
+}
+
+function applySideEffects(patch: { theme?: string; launchAtLogin?: boolean; logLevel?: string; zoom?: number }): void {
+  if (typeof patch.zoom === "number") {
+    applyZoom(patch.zoom);
+  }
+
   if (patch.theme === "light" || patch.theme === "dark" || patch.theme === "system") {
     nativeTheme.themeSource = patch.theme;
   }

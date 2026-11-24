@@ -129,6 +129,12 @@ The window is a fixed shell with one scrolling content region:
 - Destructive actions are text buttons or icon buttons, never a red card.
 - Empty states explain the next action.
 - Toasts are bottom-right and short; use action toasts only for undo.
+- App-specific primitives beside shadcn live in `components/ui` too:
+  `WizardWindow` (floating multi-step window), `FeatureRow`, `Segmented`
+  (2–4 options), `ValueStepper` (− value +), `Inset` (`quiet` / one `callout`
+  per page). See `docs/UI.md` › Welcome tour.
+- Interface size scales the whole page (`zoom` setting); never change tokens
+  to make "everything bigger".
 
 ## Motion
 

@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SizeStepper } from "@renderer/components/size-stepper";
+import { useWelcomeTour } from "@renderer/features/welcome/welcome-context";
 import { useAppSettings } from "@renderer/lib/app-settings";
 import { DesktopApiError, invoke } from "@renderer/lib/desktop-api";
 import { useSystemVersion } from "@renderer/lib/query/hooks";
@@ -16,6 +18,7 @@ export function SettingsPage() {
   const { settings, update } = useAppSettings();
   const { data: info } = useSystemVersion();
   const updates = useUpdates();
+  const tour = useWelcomeTour();
 
   if (!settings) return <p className="p-6 text-sm text-muted-foreground">{t("common.loading")}</p>;
 
@@ -50,6 +53,15 @@ export function SettingsPage() {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-2 sm:grid-cols-[160px_1fr] sm:items-center">
+            <div>
+              <Label>{t("settings.size")}</Label>
+              <p className="mt-1 text-xs text-muted-foreground">{t("settings.sizeDescription")}</p>
+            </div>
+            <div>
+              <SizeStepper current={settings.zoom} onChange={(zoom) => void update({ zoom })} />
+            </div>
+          </div>
           <div className="flex items-center justify-between gap-4">
             <div>
               <Label htmlFor="launch-at-login">{t("settings.launch")}</Label>
@@ -61,6 +73,18 @@ export function SettingsPage() {
               onCheckedChange={(checked) => void update({ launchAtLogin: checked })}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.help")}</CardTitle>
+          <CardDescription>{t("settings.tourDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={tour.show} variant="outline">
+            {t("settings.tourOpen")}
+          </Button>
         </CardContent>
       </Card>
 

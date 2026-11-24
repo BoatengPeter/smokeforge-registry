@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { commandIds, type CommandId } from "@shared/commands";
+import { stepZoom, zoom } from "@shared/zoom";
+import { WelcomeTourProvider, useWelcomeTourState } from "@renderer/features/welcome/welcome-context";
+import { WelcomeTour } from "@renderer/features/welcome/welcome-tour";
 import { useAppSettings } from "@renderer/lib/app-settings";
 import { useSystemVersion } from "@renderer/lib/query/hooks";
 import { useAppStore } from "@renderer/lib/stores/app-store-provider";
@@ -34,6 +37,21 @@ const routeForCommand: Partial<Record<CommandId, string>> = {
   [commandIds.about]: "/about",
 };
 
+/** Ctrl/Cmd + key → command. Keep in step with the accelerators in `appCommands`. */
+const commandForKey: Partial<Record<string, CommandId>> = {
+  k: commandIds.palette,
+  b: commandIds.toggleSidebar,
+  n: commandIds.newItem,
+  ",": commandIds.settings,
+  "=": commandIds.zoomIn,
+  "+": commandIds.zoomIn,
+  "-": commandIds.zoomOut,
+  "0": commandIds.zoomReset,
+  "1": commandIds.home,
+  "2": commandIds.library,
+  "3": commandIds.activity,
+};
+
 export function AppShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -46,6 +64,7 @@ export function AppShell() {
   const setSidebarOpen = useAppStore((state) => state.setSidebarOpen);
   const reducedMotion = useReducedMotion();
   const restored = useRef(false);
+  const tour = useWelcomeTourState(info?.version);
   const savedRoute = useRef<string | null>(null);
 
   useEffect(() => {
@@ -97,10 +116,22 @@ export function AppShell() {
           case commandIds.checkUpdates:
             toast.info(t("commands.updateUnavailable"));
             break;
+          case commandIds.zoomIn:
+            void update({ zoom: stepZoom(settings?.zoom ?? zoom.default, zoom.step) });
+            break;
+          case commandIds.zoomOut:
+            void update({ zoom: stepZoom(settings?.zoom ?? zoom.default, -zoom.step) });
+            break;
+          case commandIds.zoomReset:
+            void update({ zoom: zoom.default });
+            break;
+          case commandIds.welcome:
+            tour.show();
+            break;
         }
       },
     }),
-    [navigate, setSidebarOpen, settings?.theme, sidebarOpen, t, update],
+    [navigate, setSidebarOpen, settings?.theme, settings?.zoom, sidebarOpen, t, tour, update],
   );
 
   useEffect(() => window.desktopApi.commands.on((id) => commands.run(id)), [commands]);
@@ -109,22 +140,7 @@ export function AppShell() {
     const listener = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
-      const id =
-        key === "k"
-          ? commandIds.palette
-          : key === "b"
-            ? commandIds.toggleSidebar
-            : key === "n"
-              ? commandIds.newItem
-              : key === ","
-                ? commandIds.settings
-                : key === "1"
-                  ? commandIds.home
-                  : key === "2"
-                    ? commandIds.library
-                    : key === "3"
-                      ? commandIds.activity
-                      : null;
+      const id = commandForKey[key];
       if (!id) return;
       event.preventDefault();
       commands.run(id);
@@ -134,7 +150,6 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", listener);
   }, [commands]);
 
-  const onboardingOpen = Boolean(settings && info && !settings.onboardingComplete);
   const whatsNewOpen = Boolean(
     settings?.onboardingComplete &&
       settings.lastSeenVersion &&
@@ -143,65 +158,53 @@ export function AppShell() {
       !whatsNewDismissed,
   );
 
-  const finishOnboarding = () => {
-    void update({ onboardingComplete: true, lastSeenVersion: info?.version ?? "" });
-  };
-
   const closeWhatsNew = () => {
     setWhatsNewDismissed(true);
     void update({ lastSeenVersion: info?.version ?? "" });
   };
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background">
-      <a
-        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2"
-        href="#main-content"
-      >
-        {t("common.skipToContent")}
-      </a>
-      <TitleBar onPalette={() => setPaletteOpen(true)} />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar />
-          <main className="scrollbar-thin min-h-0 flex-1 overflow-auto" id="main-content">
-            <motion.div
-              animate={{ opacity: 1, y: 0 }}
-              initial={reducedMotion ? false : { opacity: 0, y: 4 }}
-              key={location.pathname}
-              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <Outlet />
-            </motion.div>
-          </main>
-          <StatusBar />
+    <WelcomeTourProvider tour={tour}>
+      <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-background">
+        <a
+          className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2"
+          href="#main-content"
+        >
+          {t("common.skipToContent")}
+        </a>
+        <TitleBar onPalette={() => setPaletteOpen(true)} />
+        <div className="flex min-h-0 flex-1">
+          <Sidebar />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <TopBar />
+            <main className="scrollbar-thin min-h-0 flex-1 overflow-auto" id="main-content">
+              <motion.div
+                animate={{ opacity: 1, y: 0 }}
+                initial={reducedMotion ? false : { opacity: 0, y: 4 }}
+                key={location.pathname}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <Outlet />
+              </motion.div>
+            </main>
+            <StatusBar />
+          </div>
         </div>
+        <CommandPalette onOpenChange={setPaletteOpen} onRun={commands.run} open={paletteOpen} />
+        <WelcomeTour appName={t("app.name")} dataPath={info?.userDataPath} version={info?.version} />
+        <Dialog onOpenChange={(open) => { if (!open) closeWhatsNew(); }} open={whatsNewOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("whatsNew.title")}</DialogTitle>
+              <DialogDescription>{t("whatsNew.body")}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button onClick={closeWhatsNew}>{t("whatsNew.close")}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Toaster position="bottom-right" />
       </div>
-      <CommandPalette onOpenChange={setPaletteOpen} onRun={commands.run} open={paletteOpen} />
-      <Dialog onOpenChange={(open) => { if (!open) finishOnboarding(); }} open={onboardingOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("onboarding.title")}</DialogTitle>
-            <DialogDescription>{t("onboarding.body")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={finishOnboarding}>{t("onboarding.start")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog onOpenChange={(open) => { if (!open) closeWhatsNew(); }} open={whatsNewOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("whatsNew.title")}</DialogTitle>
-            <DialogDescription>{t("whatsNew.body")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={closeWhatsNew}>{t("whatsNew.close")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Toaster position="bottom-right" />
-    </div>
+    </WelcomeTourProvider>
   );
 }

@@ -3,6 +3,8 @@ import { dirname } from "node:path";
 
 import { z } from "zod";
 
+import { zoom } from "../../shared/zoom";
+
 const settingsSchema = z.object({
   schemaVersion: z.literal(1),
   theme: z.enum(["system", "light", "dark"]).default("system"),
@@ -14,6 +16,7 @@ const settingsSchema = z.object({
   updateChannel: z.enum(["stable", "beta"]).default("stable"),
   autoCheckUpdates: z.boolean().default(true),
   onboardingComplete: z.boolean().default(false),
+  zoom: z.number().min(zoom.min).max(zoom.max).default(zoom.default),
   lastSeenVersion: z.string().default(""),
   scheduledMaintenance: z.boolean().default(false),
   dashboardOrder: z
@@ -36,6 +39,7 @@ const defaults: Settings = {
   updateChannel: "stable",
   autoCheckUpdates: true,
   onboardingComplete: false,
+  zoom: zoom.default,
   lastSeenVersion: "",
   scheduledMaintenance: false,
   dashboardOrder: ["active", "total", "archived"],

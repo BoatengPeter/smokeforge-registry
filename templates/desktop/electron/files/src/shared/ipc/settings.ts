@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { zoom } from "../zoom";
+
 export const settingsChannels = {
   get: "settings:get",
   update: "settings:update",
@@ -16,6 +18,7 @@ export const settingsPatchSchema = z
     updateChannel: z.enum(["stable", "beta"]).optional(),
     autoCheckUpdates: z.boolean().optional(),
     onboardingComplete: z.boolean().optional(),
+    zoom: z.number().min(zoom.min).max(zoom.max).optional(),
     lastSeenVersion: z.string().trim().max(64).optional(),
     scheduledMaintenance: z.boolean().optional(),
     dashboardOrder: z
@@ -44,6 +47,7 @@ export type AppSettings = SettingsPatch & {
   updateChannel: "stable" | "beta";
   autoCheckUpdates: boolean;
   onboardingComplete: boolean;
+  zoom: number;
   lastSeenVersion: string;
   dashboardOrder: ("active" | "total" | "archived")[];
   scheduledMaintenance: boolean;
