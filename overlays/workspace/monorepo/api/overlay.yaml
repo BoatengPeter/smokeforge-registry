@@ -1,0 +1,102 @@
+id: workspace-api
+name: Workspace API wiring
+ops:
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-phony
+      marker: workspace:api-phony
+      content: ".PHONY: api-dev api-test api-ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-help
+      marker: workspace:api-help
+      content: |-
+        @echo "make api-dev    Run the API"
+        @echo "make api-test   Run API tests"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-targets
+      marker: workspace:api-targets
+      content: |-
+        api-dev:
+        	$(MAKE) -C apps/api run
+
+        api-test:
+        	$(MAKE) -C apps/api test
+
+        api-ci:
+        	@if [ -f apps/api/go.mod ]; then \
+        		$(MAKE) -C apps/api ci; \
+        	else \
+        		$(MAKE) -C apps/api fmt-check clippy test build; \
+        	fi
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-install
+      marker: workspace:api-install
+      content: "\t$(MAKE) -C apps/api install"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-test
+      marker: workspace:api-test
+      content: "\t$(MAKE) api-test"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-ci
+      marker: workspace:api-ci
+      content: "\t$(MAKE) api-ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-clean
+      marker: workspace:api-clean
+      content: "\t$(MAKE) -C apps/api clean"
+  - insertAfter:
+      file: README.md
+      anchor: workspace-clients
+      marker: workspace:api-readme
+      content: |-
+        ### API
+
+        The API is the source of truth for persistence, auth, and business rules.
+
+        ```bash
+        make api-dev
+        make api-test
+        ```
+
+        Read [`apps/api/AGENTS.md`](apps/api/AGENTS.md) and
+        [`apps/api/CONTEXT.md`](apps/api/CONTEXT.md) before changing it.
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: workspace-context-map
+      marker: workspace:api-context-map
+      content: "| API | [`apps/api/CONTEXT.md`](apps/api/CONTEXT.md) | HTTP contracts, auth, data access, background work |"
+  - insertAfter:
+      file: CONTEXT.md
+      anchor: workspace-context
+      marker: workspace:api-context
+      content: |-
+        ### API
+
+        The API owns persistence, authorization, and server-side secrets. Its app
+        guide and docs are authoritative for API changes.
+  - insertAfter:
+      file: AGENTS.md
+      anchor: workspace-agents
+      marker: workspace:api-agents
+      content: "- API: `apps/api/AGENTS.md`, `apps/api/CONTEXT.md`, and `apps/api/.agents/skills/`."
+  - insertAfter:
+      file: CLAUDE.md
+      anchor: workspace-claude
+      marker: workspace:api-claude
+      content: "- API: `apps/api/AGENTS.md`, `apps/api/CONTEXT.md`, and `apps/api/.claude/skills/`."
+  - insertAfter:
+      file: docs/CLIENTS.md
+      anchor: workspace-doc-clients
+      marker: workspace:api-doc
+      content: "- API: [`apps/api/CONTEXT.md`](../apps/api/CONTEXT.md)"
+  - insertAfter:
+      file: docs/SKILLS.md
+      anchor: workspace-skills
+      marker: workspace:api-skills
+      content: "- API: `apps/api/.agents/skills/` and `apps/api/.claude/skills/`"

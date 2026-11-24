@@ -15,6 +15,11 @@ SDK, JDK 17, and `GRADLE_BIN` or the generated Gradle wrapper.
 Xcode project with XcodeGen, runs Swift package tests, and builds for the iOS
 Simulator. It requires macOS, Xcode, XcodeGen, and `SMOKEFORGE_BIN`.
 
+`verify-workspace.sh` generates composable workspace projects, including the
+all-client shape, API + desktop without web, client-only, and API-only. It checks
+root agent files, skills, docs, Make targets, CI jobs, and selected-only app
+references.
+
 All scripts require `SMOKEFORGE_BIN` pointing to a built smokeforge binary.
 The Rust script also requires `cargo` and a Rust toolchain.
 

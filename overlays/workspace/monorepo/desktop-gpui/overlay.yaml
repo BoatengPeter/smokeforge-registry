@@ -1,0 +1,109 @@
+id: workspace-desktop-gpui
+name: Workspace GPUI wiring
+ops:
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-phony
+      marker: workspace:gpui-phony
+      content: ".PHONY: desktop-dev desktop-test desktop-build desktop-package desktop-ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-help
+      marker: workspace:gpui-help
+      content: |-
+        @echo "make desktop-dev      Run GPUI with cargo-watch"
+        @echo "make desktop-test     Run desktop checks"
+        @echo "make desktop-build    Build the desktop app"
+        @echo "make desktop-package  Package the desktop app"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-targets
+      marker: workspace:gpui-targets
+      content: |-
+        desktop-dev:
+        	$(MAKE) -C apps/desktop dev
+
+        desktop-test:
+        	$(MAKE) -C apps/desktop test
+
+        desktop-build:
+        	$(MAKE) -C apps/desktop build
+
+        desktop-package:
+        	$(MAKE) -C apps/desktop package
+
+        desktop-ci:
+        	$(MAKE) -C apps/desktop check test
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-install
+      marker: workspace:gpui-install
+      content: "\t$(MAKE) -C apps/desktop install"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-test
+      marker: workspace:gpui-test
+      content: "\t$(MAKE) desktop-test"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-ci
+      marker: workspace:gpui-ci
+      content: "\t$(MAKE) desktop-ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-clean
+      marker: workspace:gpui-clean
+      content: "\t$(MAKE) -C apps/desktop clean"
+  - insertAfter:
+      file: README.md
+      anchor: workspace-clients
+      marker: workspace:gpui-readme
+      content: |-
+        ### Desktop
+
+        Native GPUI desktop app. Run `make -C apps/desktop dev-tools` once before
+        using the watch-based dev loop.
+
+        ```bash
+        make desktop-dev
+        make desktop-test
+        make desktop-build
+        make desktop-package
+        ```
+
+        Read [`apps/desktop/AGENTS.md`](apps/desktop/AGENTS.md) and
+        [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md) before changing it.
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: workspace-context-map
+      marker: workspace:gpui-context-map
+      content: "| Desktop | [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md) | Native desktop, local data, API/sync |"
+  - insertAfter:
+      file: CONTEXT.md
+      anchor: workspace-context
+      marker: workspace:gpui-context
+      content: |-
+        ### Desktop
+
+        The native desktop app keeps API tokens in the platform keyring and local
+        data in its storage layer.
+  - insertAfter:
+      file: AGENTS.md
+      anchor: workspace-agents
+      marker: workspace:gpui-agents
+      content: "- Desktop: `apps/desktop/AGENTS.md`, `apps/desktop/CONTEXT.md`, and `apps/desktop/.agents/skills/`."
+  - insertAfter:
+      file: CLAUDE.md
+      anchor: workspace-claude
+      marker: workspace:gpui-claude
+      content: "- Desktop: `apps/desktop/AGENTS.md`, `apps/desktop/CONTEXT.md`, and `apps/desktop/.claude/skills/`."
+  - insertAfter:
+      file: docs/CLIENTS.md
+      anchor: workspace-doc-clients
+      marker: workspace:gpui-doc
+      content: "- Desktop: [`apps/desktop/CONTEXT.md`](../apps/desktop/CONTEXT.md)"
+  - insertAfter:
+      file: docs/SKILLS.md
+      anchor: workspace-skills
+      marker: workspace:gpui-skills
+      content: "- Desktop: `apps/desktop/.agents/skills/` and `apps/desktop/.claude/skills/`"

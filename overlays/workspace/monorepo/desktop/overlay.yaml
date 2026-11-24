@@ -1,0 +1,106 @@
+id: workspace-desktop-electron
+name: Workspace Electron wiring
+ops:
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-phony
+      marker: workspace:electron-phony
+      content: ".PHONY: desktop-dev desktop-test desktop-build desktop-package desktop-ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-help
+      marker: workspace:electron-help
+      content: |-
+        @echo "make desktop-dev      Run Electron with hot reload"
+        @echo "make desktop-test     Run desktop checks"
+        @echo "make desktop-build    Build the desktop app"
+        @echo "make desktop-package  Package the desktop app"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-targets
+      marker: workspace:electron-targets
+      content: |-
+        desktop-dev:
+        	$(MAKE) -C apps/desktop dev
+
+        desktop-test:
+        	$(MAKE) -C apps/desktop test
+
+        desktop-build:
+        	$(MAKE) -C apps/desktop build
+
+        desktop-package:
+        	$(MAKE) -C apps/desktop package
+
+        desktop-ci:
+        	$(MAKE) -C apps/desktop ci
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-install
+      marker: workspace:electron-install
+      content: "\t$(MAKE) -C apps/desktop install"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-test
+      marker: workspace:electron-test
+      content: "\t$(MAKE) desktop-test"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-ci
+      marker: workspace:electron-ci
+      content: "\t$(MAKE) desktop-ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-clean
+      marker: workspace:electron-clean
+      content: "\t$(MAKE) -C apps/desktop clean"
+  - insertAfter:
+      file: README.md
+      anchor: workspace-clients
+      marker: workspace:electron-readme
+      content: |-
+        ### Desktop
+
+        ```bash
+        make desktop-dev
+        make desktop-test
+        make desktop-build
+        make desktop-package
+        ```
+
+        Read [`apps/desktop/AGENTS.md`](apps/desktop/AGENTS.md) and
+        [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md) before changing it.
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: workspace-context-map
+      marker: workspace:electron-context-map
+      content: "| Desktop | [`apps/desktop/CONTEXT.md`](apps/desktop/CONTEXT.md) | Trusted process, local data, desktop UI |"
+  - insertAfter:
+      file: CONTEXT.md
+      anchor: workspace-context
+      marker: workspace:electron-context
+      content: |-
+        ### Desktop
+
+        The desktop app keeps API tokens and local data in its trusted process. The
+        renderer does not receive raw tokens.
+  - insertAfter:
+      file: AGENTS.md
+      anchor: workspace-agents
+      marker: workspace:electron-agents
+      content: "- Desktop: `apps/desktop/AGENTS.md`, `apps/desktop/CONTEXT.md`, and `apps/desktop/.agents/skills/`."
+  - insertAfter:
+      file: CLAUDE.md
+      anchor: workspace-claude
+      marker: workspace:electron-claude
+      content: "- Desktop: `apps/desktop/AGENTS.md`, `apps/desktop/CONTEXT.md`, and `apps/desktop/.claude/skills/`."
+  - insertAfter:
+      file: docs/CLIENTS.md
+      anchor: workspace-doc-clients
+      marker: workspace:electron-doc
+      content: "- Desktop: [`apps/desktop/CONTEXT.md`](../apps/desktop/CONTEXT.md)"
+  - insertAfter:
+      file: docs/SKILLS.md
+      anchor: workspace-skills
+      marker: workspace:electron-skills
+      content: "- Desktop: `apps/desktop/.agents/skills/` and `apps/desktop/.claude/skills/`"

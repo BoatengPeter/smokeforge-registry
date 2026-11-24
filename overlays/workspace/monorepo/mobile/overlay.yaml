@@ -1,0 +1,122 @@
+id: workspace-mobile
+name: Workspace mobile wiring
+ops:
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-phony
+      marker: workspace:mobile-phony
+      content: ".PHONY: android-build android-test android-lint android-ci ios-project ios-build ios-test ios-ci mobile-build mobile-test mobile-ci mobile-clean"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-help
+      marker: workspace:mobile-help
+      content: |-
+        @echo "make mobile-build   Build the selected mobile app(s)"
+        @echo "make mobile-test    Run selected mobile app tests"
+        @echo "make mobile-ci      Run selected mobile CI checks"
+        @echo "make ios-project    Generate the Xcode project when iOS is selected"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-targets
+      marker: workspace:mobile-targets
+      content: |-
+        android-build:
+        	@if [ -d apps/android ]; then $(MAKE) -C apps/android build; fi
+
+        android-test:
+        	@if [ -d apps/android ]; then $(MAKE) -C apps/android test; fi
+
+        android-lint:
+        	@if [ -d apps/android ]; then $(MAKE) -C apps/android lint; fi
+
+        android-ci:
+        	@if [ -d apps/android ]; then $(MAKE) -C apps/android ci; fi
+
+        ios-project:
+        	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios project; fi
+
+        ios-build:
+        	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios build; fi
+
+        ios-test:
+        	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios test; fi
+
+        ios-ci:
+        	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios ci; fi
+
+        mobile-build: android-build ios-build
+
+        mobile-test: android-test ios-test
+
+        mobile-ci: android-ci ios-ci
+
+        mobile-clean:
+        	@if [ -d apps/android ]; then $(MAKE) -C apps/android clean; fi
+        	@if [ -d apps/ios ]; then $(MAKE) -C apps/ios clean; fi
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-test
+      marker: workspace:mobile-test
+      content: "\t$(MAKE) mobile-test"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-ci
+      marker: workspace:mobile-ci
+      content: "\t$(MAKE) mobile-ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-clean
+      marker: workspace:mobile-clean
+      content: "\t$(MAKE) mobile-clean"
+  - insertAfter:
+      file: README.md
+      anchor: workspace-clients
+      marker: workspace:mobile-readme
+      content: |-
+        ### Mobile clients
+
+        Selected mobile clients use native UI and platform secure storage.
+
+        ```bash
+        make mobile-build
+        make mobile-test
+        make mobile-ci
+        ```
+
+        Read the `AGENTS.md` and `CONTEXT.md` in each selected app before changing
+        it.
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: workspace-context-map
+      marker: workspace:mobile-context-map
+      content: "| Mobile | selected `apps/*/CONTEXT.md` | Native UI, session lifecycle, secure token storage |"
+  - insertAfter:
+      file: CONTEXT.md
+      anchor: workspace-context
+      marker: workspace:mobile-context
+      content: |-
+        ### Mobile
+
+        Selected mobile apps keep tokens in platform secure storage and do not
+        connect directly to the database. Read each selected app's guide before
+        changing native code.
+  - insertAfter:
+      file: AGENTS.md
+      anchor: workspace-agents
+      marker: workspace:mobile-agents
+      content: "- Mobile: read the `AGENTS.md`, `CONTEXT.md`, and skills in each selected mobile app."
+  - insertAfter:
+      file: CLAUDE.md
+      anchor: workspace-claude
+      marker: workspace:mobile-claude
+      content: "- Mobile: read `AGENTS.md` and `CONTEXT.md` in each selected mobile app target."
+  - insertAfter:
+      file: docs/CLIENTS.md
+      anchor: workspace-doc-clients
+      marker: workspace:mobile-doc
+      content: "- Mobile: the context file in each selected mobile app"
+  - insertAfter:
+      file: docs/SKILLS.md
+      anchor: workspace-skills
+      marker: workspace:mobile-skills
+      content: "- Mobile: selected app-local Android or iOS skill trees"

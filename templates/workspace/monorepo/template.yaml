@@ -1,0 +1,5 @@
+id: workspace/monorepo
+variables:
+  - name: package_manager
+    prompt: Package manager for web and desktop clients
+    default: pnpm

@@ -1,0 +1,6 @@
+id: workspace-ci
+name: Workspace CI
+files: files
+ops:
+  - addFiles:
+      - {path: .github/workflows/ci.yml.tmpl, dest: .github/workflows/ci.yml}

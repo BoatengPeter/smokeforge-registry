@@ -304,6 +304,32 @@ jobs:
         run: ./tests/verify-ios.sh
         working-directory: registry
 
+  verify-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: registry
+      - uses: actions/checkout@v4
+        with:
+          repository: BoatengPeter/smokeforge
+          ref: main
+          path: cli
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache: true
+          cache-dependency-path: cli/go.sum
+      - name: Build smokeforge
+        run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
+        working-directory: cli
+      - name: Verify workspace templates
+        env:
+          SMOKEFORGE_BIN: ${{ github.workspace }}/bin/smokeforge
+        run: ./tests/verify-workspace.sh
+        working-directory: registry
+
   verify-egui:
     runs-on: ubuntu-latest
     timeout-minutes: 45

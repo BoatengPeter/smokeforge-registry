@@ -1,0 +1,103 @@
+id: workspace-web
+name: Workspace web wiring
+ops:
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-phony
+      marker: workspace:web-phony
+      content: ".PHONY: web-dev web-test web-build web-lint"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-help
+      marker: workspace:web-help
+      content: |-
+        @echo "make web-dev    Run the Next.js app"
+        @echo "make web-test   Run web tests"
+        @echo "make web-build  Build the Next.js app"
+        @echo "make web-lint   Lint the web app"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-targets
+      marker: workspace:web-targets
+      content: |-
+        web-dev:
+        	$(MAKE) -C apps/web dev
+
+        web-test:
+        	$(MAKE) -C apps/web test
+
+        web-build:
+        	$(MAKE) -C apps/web build
+
+        web-lint:
+        	$(MAKE) -C apps/web lint
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-install
+      marker: workspace:web-install
+      content: "\t$(MAKE) -C apps/web install"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-test
+      marker: workspace:web-test
+      content: "\t$(MAKE) web-test"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-ci
+      marker: workspace:web-ci
+      content: "\t$(MAKE) -C apps/web ci"
+  - insertAfter:
+      file: Makefile
+      anchor: workspace-clean
+      marker: workspace:web-clean
+      content: "\t$(MAKE) -C apps/web clean"
+  - insertAfter:
+      file: README.md
+      anchor: workspace-clients
+      marker: workspace:web-readme
+      content: |-
+        ### Web
+
+        ```bash
+        make web-dev
+        make web-test
+        make web-build
+        make web-lint
+        ```
+
+        Read [`apps/web/AGENTS.md`](apps/web/AGENTS.md) and
+        [`apps/web/CONTEXT.md`](apps/web/CONTEXT.md) before changing it.
+  - insertAfter:
+      file: CONTEXT-MAP.md
+      anchor: workspace-context-map
+      marker: workspace:web-context-map
+      content: "| Web | [`apps/web/CONTEXT.md`](apps/web/CONTEXT.md) | Server components, BFF routes, client state |"
+  - insertAfter:
+      file: CONTEXT.md
+      anchor: workspace-context
+      marker: workspace:web-context
+      content: |-
+        ### Web
+
+        The web client owns presentation, routing, and BFF behavior. Browser code
+        must not receive server-only secrets or refresh tokens.
+  - insertAfter:
+      file: AGENTS.md
+      anchor: workspace-agents
+      marker: workspace:web-agents
+      content: "- Web: `apps/web/AGENTS.md`, `apps/web/CONTEXT.md`, and `apps/web/.agents/skills/`."
+  - insertAfter:
+      file: CLAUDE.md
+      anchor: workspace-claude
+      marker: workspace:web-claude
+      content: "- Web: `apps/web/AGENTS.md`, `apps/web/CONTEXT.md`, and `apps/web/.claude/skills/`."
+  - insertAfter:
+      file: docs/CLIENTS.md
+      anchor: workspace-doc-clients
+      marker: workspace:web-doc
+      content: "- Web: [`apps/web/CONTEXT.md`](../apps/web/CONTEXT.md)"
+  - insertAfter:
+      file: docs/SKILLS.md
+      anchor: workspace-skills
+      marker: workspace:web-skills
+      content: "- Web: `apps/web/.agents/skills/` and `apps/web/.claude/skills/`"

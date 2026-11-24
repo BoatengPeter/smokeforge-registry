@@ -7,6 +7,8 @@ kinds:
     max: 1
   fullstack:
     max: 1
+  workspace:
+    max: 1
   mobile:
     max: 2
   desktop:
@@ -46,6 +48,11 @@ stacks:
     kind: fullstack
     name: Fullstack workspace
     template: templates/workspace/fullstack
+    variables: [package_manager]
+  - id: workspace/monorepo
+    kind: workspace
+    name: Composable workspace
+    template: templates/workspace/monorepo
     variables: [package_manager]
   - id: android/compose
     kind: mobile
@@ -137,6 +144,11 @@ presets:
     kinds: [fullstack]
     default: true
     features: [database:postgres, auth:jwt, data:tanstack-query, docker, ci:github]
+  - id: workspace-api
+    name: Workspace API
+    description: API with Postgres/JWT, CI, and any selected web, desktop, or mobile client
+    kinds: [workspace]
+    features: [database:postgres, auth:jwt, ci:github]
 features:
   - id: docker
     name: Docker
@@ -152,7 +164,7 @@ features:
       workspace/mobile: overlays/workspace/mobile/docker
   - id: ci
     name: CI
-    kinds: [backend, frontend, fullstack, desktop]
+    kinds: [backend, frontend, fullstack, workspace, desktop]
     variants:
       - id: github
         name: GitHub Actions
@@ -166,6 +178,7 @@ features:
           next: overlays/next/ci/github
           workspace/fullstack: overlays/workspace/fullstack/ci
           workspace/mobile: overlays/workspace/mobile/ci
+          workspace/monorepo: overlays/workspace/monorepo/ci
           desktop/electron: overlays/desktop/electron/ci/github
           desktop/egui: overlays/desktop/egui/ci/github
           desktop/gpui: overlays/desktop/gpui/ci/github

@@ -1,0 +1,28 @@
+.DS_Store
+.idea/
+.env
+*.log
+
+# JavaScript
+node_modules/
+.next/
+coverage/
+playwright-report/
+test-results/
+
+# Go
+bin/api
+
+# Rust
+target/
+
+# Android
+.gradle/
+**/build/
+local.properties
+
+# iOS
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/

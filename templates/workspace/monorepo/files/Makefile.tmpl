@@ -1,0 +1,23 @@
+.PHONY: help install test ci clean
+# smokeforge:anchor workspace-phony
+
+help:
+	@echo "make install    Install selected client dependencies"
+	@echo "make test       Run selected client tests"
+	@echo "make ci         Run selected client CI checks"
+	@echo "make clean      Remove selected client build output"
+	# smokeforge:anchor workspace-help
+
+install:
+	# smokeforge:anchor workspace-install
+
+test:
+	# smokeforge:anchor workspace-test
+
+ci:
+	# smokeforge:anchor workspace-ci
+
+clean:
+	# smokeforge:anchor workspace-clean
+
+# smokeforge:anchor workspace-targets

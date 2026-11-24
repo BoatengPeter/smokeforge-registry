@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "skills": {
+    "api-contract": {
+      "source": "smokeforge-registry",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/api-contract/SKILL.md",
+      "installMode": "copy"
+    },
+    "cross-client-testing": {
+      "source": "smokeforge-registry",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/cross-client-testing/SKILL.md",
+      "installMode": "copy"
+    },
+    "workspace-orchestration": {
+      "source": "smokeforge-registry",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/workspace-orchestration/SKILL.md",
+      "installMode": "copy"
+    }
+  }
+}

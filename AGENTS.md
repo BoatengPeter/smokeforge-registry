@@ -7,7 +7,8 @@ This repository is the versioned template registry used by
 ## Status
 
 M3 has Next.js, the Go/Gin backend, the Rust/Axum backend, the Android Compose
-and iOS SwiftUI bases, and the desktop bases implemented. The manifest, base files, overlays, and project-scoped skills
+and iOS SwiftUI bases, the desktop bases, and the composable `workspace` root
+implemented. The manifest, base files, overlays, and project-scoped skills
 exist; contract/build-matrix automation is the remaining work.
 
 ## Non-negotiables
@@ -21,10 +22,10 @@ exist; contract/build-matrix automation is the remaining work.
 4. **Overlays compose.** Do not duplicate full base trees for feature combinations.
 5. **Every base and every overlay×base pair must build.** Add contract tests and
    a native build check for new content.
-6. **Generated apps own their skills.** Frontend, mobile, and desktop skills
-   live under each template's `.agents/skills` and `.claude/skills`, not at the
-   registry root. They are copied into generated projects with `AGENTS.md`,
-   `CLAUDE.md`, and `skills-lock.json`.
+6. **Generated apps own their platform skills.** Frontend, mobile, and desktop
+   skills live under each app template's `.agents/skills` and `.claude/skills`,
+   not at the registry root. Composable workspace roots carry only cross-cutting
+   workspace skills plus root agent routers and a root lockfile.
 7. **Secrets never enter the registry.** Generated secrets are created locally by
    the CLI from `.env.example` declarations.
 
