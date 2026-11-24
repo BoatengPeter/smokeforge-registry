@@ -7,6 +7,8 @@ variables:
   - name: bundle_id
     prompt: Bundle identifier
     default: com.example.app
+    pattern: '[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z][A-Za-z0-9-]*)+'
   - name: api_url
     prompt: API URL
     default: http://localhost:8080
+    pattern: 'https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?'
