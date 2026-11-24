@@ -49,7 +49,7 @@ flowchart LR
 | New heavy job | `src/main/workers/` through `utilityProcess` |
 | Native window | `src/main/windows/` |
 | Update behavior | `src/main/features/updates/` |
-| CSP/permissions | `src/main/security/` |
+| CSP/permissions | `src/shared/csp.ts` (policy), `src/main/security/` (session) |
 | Packaging | `electron-builder.yml`, `scripts/after-pack.cjs` |
 
 Services should not import `electron` unless they genuinely need a main-process

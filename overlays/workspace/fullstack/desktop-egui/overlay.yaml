@@ -7,13 +7,14 @@ ops:
       anchor: desktop-phony
       marker: desktop:egui-phony
       content: |
-        .PHONY: desktop-dev desktop-check desktop-test desktop-build desktop-package
+        .PHONY: desktop-dev desktop-run desktop-check desktop-test desktop-build desktop-package
   - insertAfter:
       file: Makefile
       anchor: desktop-help
       marker: desktop:egui-help
       content: |
-        @echo "make desktop-dev     Run the egui desktop app"
+        @echo "make desktop-dev     Run the egui app with cargo-watch rebuild + restart"
+        @echo "make desktop-run     Run the egui app once"
         @echo "make desktop-check   Cargo check the egui workspace"
         @echo "make desktop-test    Run egui workspace tests"
         @echo "make desktop-build   Build the egui workspace"
@@ -24,6 +25,9 @@ ops:
       marker: desktop:egui-targets
       content: |-
         desktop-dev:
+        	$(MAKE) -C apps/desktop dev
+
+        desktop-run:
         	$(MAKE) -C apps/desktop run
 
         desktop-check:
@@ -70,7 +74,7 @@ ops:
         the API-client milestone.
 
         ```bash
-        make desktop-dev
+        make desktop-dev     # cargo-watch; run `make -C apps/desktop dev-tools` once
         make desktop-test
         make desktop-build
         ```

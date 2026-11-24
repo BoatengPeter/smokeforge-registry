@@ -11,6 +11,9 @@
 - no remote module
 - no arbitrary navigation or new windows
 - CSP delivered by the session, not only the HTML meta tag
+- one CSP source of truth in `src/shared/csp.ts`; only development (`make dev`)
+  adds `'unsafe-inline'` scripts and localhost `connect-src` for React Fast
+  Refresh and the Vite HMR socket (see [DEVELOPMENT.md](DEVELOPMENT.md))
 
 ## Trust boundary
 

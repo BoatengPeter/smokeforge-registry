@@ -1,7 +1,11 @@
-.PHONY: help install build check test lint fmt run desktop-entry package docker-build docker-run clean
+.PHONY: help dev dev-tools watch-check watch-test require-cargo-watch install build check test lint fmt run desktop-entry package docker-build docker-run clean
 
 help:
-	@echo "make run       Run the egui desktop app"
+	@echo "make dev       Run the egui app and rebuild + restart it on every save (cargo-watch)"
+	@echo "make run       Run the egui desktop app once"
+	@echo "make watch-check Re-run cargo check on every save"
+	@echo "make watch-test  Re-run workspace tests on every save"
+	@echo "make dev-tools Install the pinned cargo-watch used by the watch targets"
 	@echo "make desktop-entry Install a local launcher so the app icon appears in the desktop shell"
 	@echo "make check     Cargo check the workspace"
 	@echo "make test      Run workspace tests"
@@ -17,6 +21,29 @@ install:
 
 run: desktop-entry
 	cargo run -p {{.crate_name}}
+
+# Watch mode. Only crate sources (including locales and migrations), the
+# workspace manifest, and assets trigger a rebuild. target/, Cargo.lock, and
+# the app's data/config/log directories are not watched, so a running app never
+# retriggers itself. cargo-watch stops the old process before starting the new
+# one; settings, SQLite data, and saved layout survive the restart.
+WATCH_PATHS := -w crates -w Cargo.toml -w assets
+CARGO_WATCH_VERSION := 8.5.3
+
+dev: require-cargo-watch desktop-entry
+	cargo watch -c -q $(WATCH_PATHS) -x 'run -p {{.crate_name}}'
+
+watch-check: require-cargo-watch
+	cargo watch -c -q $(WATCH_PATHS) -x 'check --workspace --all-targets'
+
+watch-test: require-cargo-watch
+	cargo watch -c -q $(WATCH_PATHS) -x 'test --workspace'
+
+dev-tools:
+	cargo install cargo-watch --version $(CARGO_WATCH_VERSION) --locked
+
+require-cargo-watch:
+	@cargo watch --version >/dev/null 2>&1 || { echo "cargo-watch is not installed. Run: make dev-tools"; exit 1; }
 
 desktop-entry:
 	@sh scripts/install-dev-desktop.sh

@@ -76,6 +76,12 @@ React Router is the preferred router. Use Data Mode with `createHashRouter` in
 for shell layout, route-level error boundaries, and `<Link>`/`<NavLink>` for
 internal navigation. Do not introduce another router.
 
+## Local development
+
+Run `make dev` for hot reload (renderer HMR, preload reload, main-process
+restart). Read `docs/DEVELOPMENT.md` before changing `electron.vite.config.ts`,
+`src/renderer/index.html`, or the CSP in `src/shared/csp.ts`.
+
 ## Quality gate
 
 ```bash

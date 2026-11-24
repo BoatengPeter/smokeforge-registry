@@ -92,7 +92,10 @@ fn start_instance_listener() -> (Arc<AtomicBool>, Option<std::thread::JoinHandle
 
 fn install_panic_hook() {
     let path = std::env::temp_dir().join("{{.crate_name}}-panic.log");
+    let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = std::fs::write(&path, format!("{info}\n"));
+        // Keep the standard stderr report so panics show up in `make dev`.
+        default_hook(info);
     }));
 }

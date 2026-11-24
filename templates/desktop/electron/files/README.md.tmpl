@@ -51,7 +51,8 @@ docs/                   architecture, design, security, storage, updates, packag
 
 ```bash
 make install
-make dev
+make dev           # hot reload: renderer HMR, preload reload, main restart
+make dev-inspect   # dev + V8 inspector on the main process (port 5858)
 make test
 make typecheck
 make build
@@ -62,6 +63,9 @@ pnpm db:generate
 ```
 
 The first install creates the lockfile; commit it afterward.
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for what reloads on save, the
+development Content-Security-Policy, and main-process debugging.
 
 ## Architecture
 

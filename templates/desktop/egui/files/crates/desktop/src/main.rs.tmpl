@@ -53,15 +53,18 @@ fn main() -> eframe::Result<()> {
 }
 
 fn install_panic_hook() {
-    let path = std::env::temp_dir().join("smokeforge-egui-panic.log");
+    let path = std::env::temp_dir().join("{{.crate_name}}-panic.log");
+    let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let report = format!("{info}\n");
         let _ = std::fs::write(&path, report);
+        // Keep the standard stderr report so panics show up in `make dev`.
+        default_hook(info);
     }));
 }
 
 fn instance_path() -> std::path::PathBuf {
-    std::env::temp_dir().join("smokeforge-egui-instance.port")
+    std::env::temp_dir().join("{{.crate_name}}-instance.port")
 }
 
 fn forward_to_running_instance() -> bool {

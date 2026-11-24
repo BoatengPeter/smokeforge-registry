@@ -24,7 +24,7 @@ ops:
       anchor: desktop-help
       marker: desktop:make-help
       content: |
-        @echo "make desktop-dev     Run the Electron app"
+        @echo "make desktop-dev     Run the Electron app with hot reload"
         @echo "make desktop-test    Run desktop checks"
         @echo "make desktop-build   Build the Electron app"
         @echo "make desktop-package Package the Electron app"

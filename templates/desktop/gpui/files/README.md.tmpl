@@ -19,6 +19,7 @@ Linux requires the GPUI native development packages. See
 More documentation:
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Development and watch mode](docs/DEVELOPMENT.md)
 - [Authentication](docs/AUTH.md)
 - [Sync](docs/SYNC.md)
 - [Docker](docs/DOCKER.md)
@@ -30,7 +31,11 @@ More documentation:
 ```bash
 make doctor
 make install
-make run
+make dev-tools     # once: install the pinned cargo-watch
+make dev           # run and rebuild + restart on every save
+make watch-check   # cargo check on every save
+make watch-test    # tests on every save
+make run           # run once
 make check
 make test
 make lint
@@ -38,7 +43,10 @@ make fmt
 make package
 ```
 
-`make run` installs a local desktop entry on Linux so the Smoke icon appears in the desktop shell. Packaged builds use the bundled icon.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for what triggers a rebuild,
+what survives a restart, and watch-mode troubleshooting.
+
+`make run` and `make dev` install a local desktop entry on Linux so the Smoke icon appears in the desktop shell. Packaged builds use the bundled icon.
 
 Read `CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, `DESIGN.md`, and `docs/UI.md` before changing code.
 

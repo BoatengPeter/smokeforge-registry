@@ -25,6 +25,10 @@ For Rust work, read the matching vendored skill:
 - Tokens belong in the OS keyring, never JSON or SQLite.
 - Read `DESIGN.md` before visual changes and `docs/UI.md` before shell changes.
 
+## Local development
+
+use `make dev` (cargo-watch rebuild + restart on save) or `make watch-check`; see `docs/DEVELOPMENT.md`. Watch targets are for humans, not for verification: run the quality gate below before reporting completion.
+
 ## Quality gate
 
 ```bash

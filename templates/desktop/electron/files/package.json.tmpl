@@ -9,7 +9,8 @@
   },
   "scripts": {
     "postinstall": "install-electron",
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev --watch",
+    "dev:inspect": "electron-vite dev --watch --inspect",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "package": "electron-vite build && electron-builder",

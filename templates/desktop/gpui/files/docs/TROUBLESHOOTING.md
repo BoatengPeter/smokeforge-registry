@@ -24,3 +24,9 @@ keyring/Secret Service for persistent refresh tokens.
 
 Open Account/Activity and choose **Keep local** or **Use server**. No conflict is
 auto-resolved.
+
+## Watch mode (`make dev`)
+
+See [DEVELOPMENT.md](DEVELOPMENT.md#troubleshooting): install cargo-watch with
+`make dev-tools`, and quit any other running copy of the app, because the
+single-instance handoff makes the new process exit.
