@@ -1,6 +1,7 @@
 use super::*;
 
 impl AppView {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn library_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let items = self
             .database
@@ -42,7 +43,7 @@ impl AppView {
                                             });
                                             true
                                         })
-                                })
+                                });
                             })),
                     ),
                 )

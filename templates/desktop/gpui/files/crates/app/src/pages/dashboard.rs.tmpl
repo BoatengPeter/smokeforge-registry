@@ -5,6 +5,7 @@ use {{.crate_name}}_core::LibraryStatus;
 const RECENT_LIMIT: usize = 5;
 
 impl AppView {
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn dashboard_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let items = self
             .database

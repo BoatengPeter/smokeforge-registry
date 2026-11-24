@@ -294,7 +294,11 @@ jobs:
           cache: true
           cache-dependency-path: cli/go.sum
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.48.0/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
       - name: Build smokeforge
         run: go build -o "$GITHUB_WORKSPACE/bin/smokeforge" ./cmd/smokeforge
         working-directory: cli

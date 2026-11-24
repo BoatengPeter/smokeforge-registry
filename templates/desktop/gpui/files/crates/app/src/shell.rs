@@ -69,7 +69,7 @@ impl AppView {
                                 .small()
                                 .icon(IconName::Search)
                                 .label(t("shell.search"))
-                                .when_some(shortcut, |button, kbd| button.child(kbd))
+                                .when_some(shortcut, gpui_kit::ParentElement::child)
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.show_command = true;
                                     this.command_state
@@ -123,7 +123,7 @@ impl AppView {
             )
     }
 
-    fn status_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn status_bar(cx: &mut Context<Self>) -> impl IntoElement {
         StatusBar::new()
             .left(
                 h_flex()
@@ -199,7 +199,7 @@ impl Render for AppView {
                         ),
                 ),
             )
-            .child(self.status_bar(cx))
+            .child(Self::status_bar(cx))
             .when_some(command, |this, command| {
                 this.child(
                     h_flex()

@@ -85,7 +85,7 @@ for stack in "${stacks[@]}"; do
     --registry "$ROOT" \
     --kind backend \
     --stack "$stack" \
-    --name "Verify $stack base" \
+    --name "Verify ${stack//\//-} base" \
     --preset api-custom \
     --var "module_path=example.com/verify/$slug/minimal" \
     --var http_port=8080 \
@@ -101,7 +101,7 @@ for stack in "${stacks[@]}"; do
     --registry "$ROOT" \
     --kind backend \
     --stack "$stack" \
-    --name "Verify $stack full" \
+    --name "Verify ${stack//\//-} full" \
     --preset api \
     --feature totp \
     --feature cache:redis \
