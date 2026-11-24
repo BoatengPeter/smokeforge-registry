@@ -104,6 +104,7 @@ command:
   new_record: New record
   toggle_sidebar: Toggle sidebar
   toggle_theme: Toggle light/dark theme
+  welcome: Show welcome tour
   toggle_contrast: Toggle high contrast
   empty: No matching commands.
 account:
@@ -161,8 +162,18 @@ welcome:
   first_title: Start with a record
   first_body: The Library holds your records. Create one now, or look around first.
   reopen: You can reopen this tour any time from Settings › Help.
+go_to:
+  title: "Go to…"
+  placeholder: "Go to a page, record, or action…"
+  escape: "Esc"
+  pages: "Pages"
+  records: "Records"
+  actions: "Actions"
+  record_hint: "record"
+  empty: "Nothing matches."
 shell:
-  search: Search or run a command…
+  search: Go to…
+  new_record: New record
   light_theme: Switch to light theme
   dark_theme: Switch to dark theme
   minimize: Minimize

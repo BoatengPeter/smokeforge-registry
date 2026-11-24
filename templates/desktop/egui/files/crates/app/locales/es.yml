@@ -104,6 +104,7 @@ command:
   new_record: Nuevo registro
   toggle_sidebar: Mostrar u ocultar barra lateral
   toggle_theme: Cambiar tema claro/oscuro
+  welcome: Ver recorrido de bienvenida
   toggle_contrast: Cambiar alto contraste
   empty: No hay comandos coincidentes.
 account:
@@ -161,8 +162,18 @@ welcome:
   first_title: Empieza con un registro
   first_body: La Biblioteca guarda tus registros. Crea uno ahora o echa un vistazo primero.
   reopen: Puedes volver a abrir este recorrido desde Ajustes › Ayuda.
+go_to:
+  title: "Ir a…"
+  placeholder: "Ir a una página, registro o acción…"
+  escape: "Esc"
+  pages: "Páginas"
+  records: "Registros"
+  actions: "Acciones"
+  record_hint: "registro"
+  empty: "No hay coincidencias."
 shell:
-  search: Buscar o ejecutar un comando…
+  search: Ir a…
+  new_record: Nuevo registro
   light_theme: Cambiar a tema claro
   dark_theme: Cambiar a tema oscuro
   minimize: Minimizar

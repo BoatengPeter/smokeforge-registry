@@ -7,23 +7,40 @@ design. Read `DESIGN.md` first for the tokens and rules, and
 ## Shell
 
 ```text
-┌ title bar (44) ── logo · app name ······ [ Search or run a command  Ctrl K ] ······ theme · window controls ┐
-│ sidebar │ tabs (egui_tiles) ─────────────────────────────────────────────────────────────────────────────── │
-│ 220/52  │  canvas · centred page column (max 1200, gutter 28)                                               │
-│         │     PageHeader                                                                                    │
-│         │     cards / sections …                                                                            │
-└ status bar (30) ── ● Local · Undo ··························································· Commands Ctrl K · v0.1.0 ┘
+┌ [logo] App      [⌕][◧] ┬ title bar (44) ··························· theme · window controls ┐
+│ Workspace           [+] │ tabs (egui_tiles) ────────────────────────────────────────────── │
+│  ▣ Home                 │  canvas · centred page column (max 1200, gutter 28)              │
+│  ▤ Library              │     PageHeader                                                    │
+│  ∿ Activity             │     cards / sections …                                            │
+│ ─────────────────────── │                                                                   │
+│  ⚙ Settings             │                                                                   │
+│  ⓘ About                ├ status bar (30) ── ● Local · Undo ················ Go to Ctrl K · v0.1.0 ┘
+└ sidebar 220 / rail 52 ──┘
 ```
 
-- `shell.rs` owns the frame: `Panel::top` title bar, `Panel::bottom` status
-  bar, `Panel::left` sidebar, `CentralPanel` workspace, the command palette
-  (`egui::Modal`), the confirmation dialog, and the welcome tour.
-- The title bar is draggable and double-click maximizes. Window controls are
-  drawn on Windows/Linux; macOS keeps native traffic lights.
+- `shell.rs` owns the frame: a full-height `Panel::left` sidebar (added
+  first, so the title and status bars span the content only), `Panel::top`
+  title bar, `Panel::bottom` status bar, `CentralPanel` workspace, the "Go to…"
+  window, the confirmation dialog, and the welcome tour.
+- Sidebar: the header (logo, app name, search, collapse) is as tall as the
+  title bar and drags the window too; a "Workspace" label with a "+" (New
+  record); the workspace pages; and a footer with Settings and About
+  (`Pane::in_sidebar_footer`). Collapsed, it is a 52 px icon rail with tooltips.
+  On macOS the header leaves room for the traffic lights, and the rail moves
+  the expand button below them.
+- The title bar and sidebar header drag the window (`window_drag`), and a
+  double click maximizes. Window controls are drawn on Windows/Linux; macOS
+  keeps native traffic lights.
+- "Go to…" (sidebar search button, `Ctrl/Cmd+K`): a `PickerWindow` 40 px from
+  the top with an accent search field and three groups: pages, records
+  matching the query (up to 6, only while typing), and "+" actions (every
+  non-navigation `Command`). ↑/↓ move through all rows, Enter runs, Esc or the
+  Esc chip closes. The rows come from `go_to::items`; add an action by adding a
+  `Command`.
 - Navigation dispatches `Action::Navigate` and activates the matching tile.
   Panes are tabbed (`egui_tiles`) and rearrangeable; tab colours come from the
   palette in `PaneBehavior`.
-- Keyboard: `Ctrl/Cmd+K` command palette (arrow keys + Enter), `Ctrl/Cmd+N`
+- Keyboard: `Ctrl/Cmd+K` "Go to…" (arrow keys + Enter), `Ctrl/Cmd+N`
   new record, `Ctrl/Cmd+B` toggle sidebar, `Ctrl/Cmd +`/`−`/`0` interface
   size, `Esc` closes overlays. Shortcuts are defined once in `shortcuts.rs`;
   anything that displays a shortcut formats those constants with
@@ -94,6 +111,7 @@ block with a `*_view(&mut self, ui)` method:
 | `FeatureRow` | icon tile + title + body, for tours and intros |
 | `WizardWindow` + `WizardText` → `WizardEvent` | floating, draggable multi-step window (welcome tour) |
 | `text_field`, `password_field`, `text_area`, `search_field` | labelled inputs |
+| `PickerWindow`, `picker_search`, `picker_group`, `PickerRow` + `RowLead` | the "Go to…" window and any search-and-pick list |
 | `Kbd`, `shortcut_row` | shortcut chips; a keys/description line in shortcut lists |
 | `EmptyState`, `StatusPage`, `Notice`, `ConfirmDialog` | states, see `docs/STATES.md` |
 

@@ -1,24 +1,27 @@
-//! The app frame: title bar, sidebar, status bar, workspace tabs, and the
-//! command palette.
+//! The app frame: full-height sidebar, title bar, status bar, workspace tabs,
+//! and the "Go to…" window.
 
 use egui::{
-    CentralPanel, Color32, Frame, Margin, Panel, RichText, Role, ScrollArea, Sense, Stroke,
-    StrokeKind, TextStyle, Ui, Visuals, WidgetInfo, vec2,
+    CentralPanel, Color32, Frame, Margin, Panel, RichText, ScrollArea, Sense, Stroke, Ui,
+    UiBuilder, Visuals, vec2,
 };
 use egui_tiles::{Behavior, TabState, TileId, Tiles, Tree, UiResponse};
 
 use crate::components::{
-    ConfirmChoice, ConfirmDialog, HoverTone, IconButton, Kbd, ListRow, NavDensity, NavItem,
-    search_field,
+    ConfirmChoice, ConfirmDialog, HoverTone, IconButton, Kbd, NavDensity, NavItem, PickerRow,
+    PickerWindow, RowLead, picker_group, picker_search,
 };
-use crate::icons::{self, Icon};
-use crate::theme::{self, Palette, radius, size, space};
-use crate::{Action, DesktopApp, Pane, commands, t};
+use crate::go_to::{self, GoToItem};
+use crate::icons::Icon;
+use crate::theme::{self, Palette, size, space};
+use crate::{Action, DesktopApp, Pane, t};
 
 /// Left inset that keeps the title bar clear of the macOS traffic lights.
 const MACOS_TRAFFIC_LIGHTS: f32 = 78.0;
-const SEARCH_PILL_WIDTH: f32 = 340.0;
-const PALETTE_WIDTH: f32 = 520.0;
+/// Side of the sidebar's icon buttons (search, collapse, section "+").
+const NAV_BUTTON: f32 = 26.0;
+/// The "Go to…" list scrolls past this height.
+const GO_TO_LIST_HEIGHT: f32 = 320.0;
 const TAB_BAR_HEIGHT: f32 = 38.0;
 /// Widest a page's content grows before it centres in the workspace.
 const CONTENT_MAX_WIDTH: f32 = 1200.0;
@@ -29,7 +32,20 @@ impl DesktopApp {
     pub(crate) fn shell(&mut self, ui: &mut Ui) {
         let palette = theme::palette(ui.ctx());
         let bar = Frame::new().fill(palette.surface);
+        let sidebar_width = if self.settings.sidebar_open {
+            size::SIDEBAR
+        } else {
+            size::SIDEBAR_COLLAPSED
+        };
 
+        // The sidebar runs the full window height and its header is the
+        // window's top-left corner; the title and status bars span the
+        // content only. Panel order sets this: left first.
+        Panel::left("sidebar")
+            .exact_size(sidebar_width)
+            .resizable(false)
+            .frame(bar.inner_margin(Margin::symmetric(8, 0)))
+            .show(ui, |ui| self.sidebar(ui));
         Panel::top("title-bar")
             .exact_size(size::TITLE_BAR)
             .resizable(false)
@@ -40,127 +56,163 @@ impl DesktopApp {
             .resizable(false)
             .frame(bar.inner_margin(Margin::symmetric(12, 0)))
             .show(ui, |ui| self.status_bar(ui));
-        let sidebar_width = if self.settings.sidebar_open {
-            size::SIDEBAR
-        } else {
-            size::SIDEBAR_COLLAPSED
-        };
-        Panel::left("sidebar")
-            .exact_size(sidebar_width)
-            .resizable(false)
-            .frame(bar.inner_margin(Margin::same(10)))
-            .show(ui, |ui| self.sidebar(ui));
         CentralPanel::no_frame()
             .frame(Frame::new().fill(palette.canvas))
             .show(ui, |ui| self.workspace(ui, palette));
 
-        self.command_palette(ui);
+        self.go_to_window(ui);
         self.confirmation_dialog(ui);
         self.welcome_window(ui);
         self.toasts.show(ui.ctx());
     }
 
+    /// Theme toggle and window controls over the content area. The whole bar
+    /// drags the window.
     fn title_bar(&mut self, ui: &mut Ui) {
-        let palette = theme::palette(ui.ctx());
-        let bar = ui.max_rect();
-        let drag = ui.interact(
-            bar,
-            ui.scope_id().with("title-drag"),
-            Sense::click_and_drag(),
-        );
-        if drag.drag_started() {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
-        }
-        if drag.double_clicked() {
-            let maximized = ui.input(|input| input.viewport().maximized.unwrap_or(false));
-            ui.ctx()
-                .send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
-        }
-
+        window_drag(ui, "title-drag", ui.max_rect());
         let mut action = None;
-        ui.horizontal_centered(|ui| {
-            if cfg!(target_os = "macos") {
-                ui.add_space(MACOS_TRAFFIC_LIGHTS);
-            } else {
-                ui.add_space(space::XS);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            if !cfg!(target_os = "macos") {
+                window_controls(ui);
+                ui.add_space(space::S);
             }
-            ui.add(
-                egui::Image::new(egui::include_image!("../../../assets/logo.png"))
-                    .fit_to_exact_size(vec2(18.0, 18.0))
-                    .tint(palette.text),
-            );
-            ui.label(RichText::new(&self.app_name).font(theme::semibold(14.0)));
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                if !cfg!(target_os = "macos") {
-                    window_controls(ui);
-                    ui.add_space(space::S);
-                }
-                let (icon, label) = match ui.ctx().theme() {
-                    egui::Theme::Dark => (Icon::Sun, t("shell.light_theme")),
-                    egui::Theme::Light => (Icon::Moon, t("shell.dark_theme")),
-                };
-                if ui.add(IconButton::new(icon, &label)).clicked() {
-                    action = Some(Action::ToggleTheme);
-                }
-            });
+            let (icon, label) = match ui.ctx().theme() {
+                egui::Theme::Dark => (Icon::Sun, t("shell.light_theme")),
+                egui::Theme::Light => (Icon::Moon, t("shell.dark_theme")),
+            };
+            if ui.add(IconButton::new(icon, &label)).clicked() {
+                action = Some(Action::ToggleTheme);
+            }
         });
-
-        let pill = egui::Rect::from_center_size(
-            bar.center(),
-            vec2(
-                SEARCH_PILL_WIDTH.min(bar.width() * 0.4),
-                size::CONTROL - 2.0,
-            ),
-        );
-        if search_pill(ui, pill, &palette).clicked() {
-            action = Some(Action::OpenPalette);
-        }
         if let Some(action) = action {
             self.dispatch(action);
         }
     }
 
+    /// Header (logo, name, search, collapse), the workspace pages, and a
+    /// footer with Settings and About. Collapsed, it is an icon rail.
     fn sidebar(&mut self, ui: &mut Ui) {
-        let palette = theme::palette(ui.ctx());
         let density = if self.settings.sidebar_open {
             NavDensity::Expanded
         } else {
             NavDensity::Collapsed
         };
-        let mut action = None;
+        let mut action = self.sidebar_header(ui, density);
+        ui.add_space(space::S);
         ui.spacing_mut().item_spacing.y = 2.0;
+
         if density == NavDensity::Expanded {
-            ui.add_space(space::XS);
-            ui.label(
-                RichText::new(t("shell.workspace").to_uppercase())
-                    .small()
-                    .color(palette.text_tertiary),
-            );
-            ui.add_space(space::XS);
+            if let Some(section_action) = sidebar_section(ui, &t("shell.workspace")) {
+                action = Some(section_action);
+            }
+        } else if cfg!(target_os = "macos") {
+            // On the macOS rail the traffic lights fill the header row.
+            if ui
+                .add(IconButton::new(Icon::PanelLeft, &t("shell.expand")).side(NAV_BUTTON))
+                .clicked()
+            {
+                action = Some(Action::ToggleSidebar);
+            }
         }
-        for pane in Pane::all(self.api_mode) {
-            let label = t(pane.title_key());
-            let item = NavItem::new(pane.icon(), &label)
-                .selected(pane == self.pane)
-                .density(density);
-            if ui.add(item).clicked() {
+        let (main, footer): (Vec<Pane>, Vec<Pane>) = Pane::all(self.api_mode)
+            .into_iter()
+            .partition(|pane| !pane.in_sidebar_footer());
+        for pane in main {
+            if self.nav_item(ui, pane, density).clicked() {
                 action = Some(Action::Navigate(pane));
             }
         }
+
         ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-            let label = match density {
-                NavDensity::Expanded => t("shell.collapse"),
-                NavDensity::Collapsed => t("shell.expand"),
-            };
-            if ui.add(IconButton::new(Icon::PanelLeft, &label)).clicked() {
-                action = Some(Action::ToggleSidebar);
+            ui.add_space(space::S);
+            // Bottom-up: the last pane is drawn first, at the bottom.
+            for pane in footer.into_iter().rev() {
+                if self.nav_item(ui, pane, density).clicked() {
+                    action = Some(Action::Navigate(pane));
+                }
             }
+            ui.add_space(space::XS);
+            ui.separator();
         });
         if let Some(action) = action {
             self.dispatch(action);
         }
+    }
+
+    fn nav_item(&self, ui: &mut Ui, pane: Pane, density: NavDensity) -> egui::Response {
+        let label = t(pane.title_key());
+        ui.add(
+            NavItem::new(pane.icon(), &label)
+                .selected(pane == self.pane)
+                .density(density),
+        )
+    }
+
+    /// The sidebar's top row, as tall as the title bar so they read as one
+    /// band. It drags the window like the title bar.
+    fn sidebar_header(&self, ui: &mut Ui, density: NavDensity) -> Option<Action> {
+        let (header, _) =
+            ui.allocate_exact_size(vec2(ui.available_width(), size::TITLE_BAR), Sense::hover());
+        window_drag(ui, "sidebar-drag", header);
+        let mut action = None;
+        ui.scope_builder(
+            UiBuilder::new()
+                .max_rect(header)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            |ui| {
+                ui.spacing_mut().item_spacing.x = space::XS;
+                if density == NavDensity::Collapsed {
+                    if !cfg!(target_os = "macos") {
+                        ui.add_space((header.width() - NAV_BUTTON) / 2.0);
+                        if ui
+                            .add(
+                                IconButton::new(Icon::PanelLeft, &t("shell.expand"))
+                                    .side(NAV_BUTTON),
+                            )
+                            .clicked()
+                        {
+                            action = Some(Action::ToggleSidebar);
+                        }
+                    }
+                    return;
+                }
+                ui.add_space(if cfg!(target_os = "macos") {
+                    MACOS_TRAFFIC_LIGHTS - 8.0
+                } else {
+                    6.0
+                });
+                ui.add(
+                    egui::Image::new(egui::include_image!("../../../assets/logo.png"))
+                        .fit_to_exact_size(vec2(20.0, 20.0))
+                        .corner_radius(5),
+                );
+                ui.add_space(space::XS);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = space::XS;
+                    if ui
+                        .add(
+                            IconButton::new(Icon::PanelLeft, &t("shell.collapse")).side(NAV_BUTTON),
+                        )
+                        .clicked()
+                    {
+                        action = Some(Action::ToggleSidebar);
+                    }
+                    if ui
+                        .add(IconButton::new(Icon::Search, &t("shell.search")).side(NAV_BUTTON))
+                        .clicked()
+                    {
+                        action = Some(Action::OpenPalette);
+                    }
+                    ui.add(
+                        egui::Label::new(RichText::new(&self.app_name).font(theme::semibold(14.0)))
+                            .selectable(false)
+                            .truncate(),
+                    );
+                });
+            },
+        );
+        action
     }
 
     fn status_bar(&mut self, ui: &mut Ui) {
@@ -200,7 +252,7 @@ impl DesktopApp {
                         .small()
                         .color(palette.text_tertiary),
                 );
-                ui.add(Kbd(shortcut_label()));
+                ui.add(Kbd(&ui.ctx().format_shortcut(&crate::shortcuts::PALETTE)));
             });
         });
         if let Some(action) = action {
@@ -216,70 +268,158 @@ impl DesktopApp {
         self.tree = tree;
     }
 
-    fn command_palette(&mut self, ui: &mut Ui) {
+    /// The "Go to…" window (sidebar search, Ctrl/Cmd+K): pages, matching
+    /// records, and actions. Rows come from `go_to::items`.
+    fn go_to_window(&mut self, ui: &mut Ui) {
         if !self.palette_open {
             return;
         }
-        let commands =
-            commands::filter_commands(&self.palette_query, |command| t(command.label_key()));
-        if !commands.is_empty() {
-            let last = commands.len() - 1;
-            ui.input(|input| {
-                if input.key_pressed(egui::Key::ArrowDown) {
-                    self.palette_selection = (self.palette_selection + 1).min(last);
-                }
-                if input.key_pressed(egui::Key::ArrowUp) {
-                    self.palette_selection = self.palette_selection.saturating_sub(1);
-                }
-            });
-            self.palette_selection = self.palette_selection.min(last);
-        }
+        let records = if self.palette_query.trim().is_empty() {
+            Vec::new()
+        } else {
+            self.records(&self.palette_query)
+                .map(|items| {
+                    items
+                        .into_iter()
+                        .map(|item| (item.id, item.title))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let rows = go_to::items(
+            &self.palette_query,
+            &Pane::all(self.api_mode),
+            records,
+            |pane| t(pane.title_key()),
+            |command| t(command.label_key()),
+        );
+        ui.input(|input| {
+            if input.key_pressed(egui::Key::ArrowDown) {
+                self.palette_selection =
+                    go_to::step_selection(self.palette_selection, rows.len(), true);
+            }
+            if input.key_pressed(egui::Key::ArrowUp) {
+                self.palette_selection =
+                    go_to::step_selection(self.palette_selection, rows.len(), false);
+            }
+        });
+        self.palette_selection = self.palette_selection.min(rows.len().saturating_sub(1));
         let enter = ui.input(|input| input.key_pressed(egui::Key::Enter));
 
+        let title = t("go_to.title");
         let mut chosen = None;
-        let modal = egui::Modal::new(egui::Id::unique("command-palette"))
-            .backdrop_color(Color32::from_black_alpha(70))
+        let response = PickerWindow::new(egui::Id::unique("go-to"), &title, &t("go_to.escape"))
             .show(ui.ctx(), |ui| {
-                ui.set_width(PALETTE_WIDTH);
-                let query = self.palette_query.clone();
-                let search = search_field(
-                    ui,
-                    &t("command.title"),
-                    &mut self.palette_query,
-                    &t("command.placeholder"),
-                );
+                let before = self.palette_query.clone();
+                let search =
+                    picker_search(ui, &title, &mut self.palette_query, &t("go_to.placeholder"));
                 if self.palette_needs_focus {
                     search.request_focus();
                     self.palette_needs_focus = false;
                 }
-                if query != self.palette_query {
+                if before != self.palette_query {
                     self.palette_selection = 0;
                 }
-                ui.add_space(space::S);
-                if commands.is_empty() {
+                if rows.is_empty() {
                     let palette = theme::palette(ui.ctx());
-                    ui.label(RichText::new(t("command.empty")).color(palette.text_secondary));
+                    ui.label(RichText::new(t("go_to.empty")).color(palette.text_secondary));
                 }
-                ui.spacing_mut().item_spacing.y = 2.0;
-                for (index, command) in commands.iter().enumerate() {
-                    let label = t(command.label_key());
-                    let selected = index == self.palette_selection;
-                    let row = ui.push_id(command.label_key(), |ui| {
-                        ui.add(ListRow::new(&label).selected(selected))
+                ScrollArea::vertical()
+                    .max_height(GO_TO_LIST_HEIGHT)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        let mut group = None;
+                        for (index, row) in rows.iter().enumerate() {
+                            let heading = match row {
+                                GoToItem::Page(_) => "go_to.pages",
+                                GoToItem::Record { .. } => "go_to.records",
+                                GoToItem::Action(_) => "go_to.actions",
+                            };
+                            if group != Some(heading) {
+                                picker_group(ui, &t(heading));
+                                group = Some(heading);
+                            }
+                            let selected = index == self.palette_selection;
+                            let clicked = ui
+                                .push_id(row.key(), |ui| go_to_row(ui, row, selected))
+                                .inner
+                                .clicked();
+                            if clicked || (selected && enter) {
+                                chosen = Some(row.clone());
+                            }
+                        }
                     });
-                    if row.inner.clicked() || (selected && enter) {
-                        chosen = Some(*command);
-                    }
-                }
             });
 
-        if chosen.is_some() || modal.should_close() {
+        if chosen.is_some() || response.close {
             self.dispatch(Action::ClosePalette);
             self.palette_query.clear();
         }
-        if let Some(command) = chosen {
-            self.dispatch(Action::RunCommand(command));
+        match chosen {
+            Some(GoToItem::Page(pane)) => self.dispatch(Action::Navigate(pane)),
+            Some(GoToItem::Record { id, .. }) => {
+                self.dispatch(Action::Navigate(Pane::Library));
+                self.dispatch(Action::Select(Some(id)));
+            }
+            Some(GoToItem::Action(command)) => self.dispatch(Action::RunCommand(command)),
+            None => {}
         }
+    }
+}
+
+/// One "Go to…" row: pages and records get their icon, actions a "+".
+fn go_to_row(ui: &mut Ui, row: &GoToItem, selected: bool) -> egui::Response {
+    match row {
+        GoToItem::Page(pane) => {
+            let label = t(pane.title_key());
+            ui.add(PickerRow::new(RowLead::Icon(pane.icon()), &label).selected(selected))
+        }
+        GoToItem::Record { title, .. } => {
+            let hint = t("go_to.record_hint");
+            ui.add(
+                PickerRow::new(RowLead::Icon(Icon::Library), title)
+                    .hint(&hint)
+                    .selected(selected),
+            )
+        }
+        GoToItem::Action(command) => {
+            let label = t(command.label_key());
+            ui.add(PickerRow::new(RowLead::Plus, &label).selected(selected))
+        }
+    }
+}
+
+/// A sidebar section label with a "+" (New record) at its trailing edge.
+fn sidebar_section(ui: &mut Ui, label: &str) -> Option<Action> {
+    let palette = theme::palette(ui.ctx());
+    let mut action = None;
+    ui.horizontal(|ui| {
+        ui.add_space(space::S + 2.0);
+        ui.label(RichText::new(label).color(palette.text_tertiary));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui
+                .add(IconButton::new(Icon::Plus, &t("shell.new_record")).side(NAV_BUTTON))
+                .clicked()
+            {
+                action = Some(Action::NewRecord);
+            }
+        });
+    });
+    action
+}
+
+/// Makes `rect` drag the window; a double click maximizes. Call before
+/// adding the controls inside `rect` so they keep their clicks.
+fn window_drag(ui: &Ui, id_salt: &str, rect: egui::Rect) {
+    let drag = ui.interact(rect, ui.scope_id().with(id_salt), Sense::click_and_drag());
+    if drag.drag_started() {
+        ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+    }
+    if drag.double_clicked() {
+        let maximized = ui.input(|input| input.viewport().maximized.unwrap_or(false));
+        ui.ctx()
+            .send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
     }
 }
 
@@ -311,51 +451,6 @@ impl DesktopApp {
     }
 }
 
-/// The centred "search or run a command" button in the title bar.
-fn search_pill(ui: &mut Ui, rect: egui::Rect, palette: &Palette) -> egui::Response {
-    let label = t("shell.search");
-    let response = ui.interact(rect, ui.scope_id().with("search-pill"), Sense::click());
-    response.widget_info(|| WidgetInfo::labeled(Role::Button, true, &label));
-    let fill = if response.hovered() {
-        palette.hover
-    } else {
-        palette.field
-    };
-    ui.painter().rect(
-        rect,
-        radius::MD,
-        fill,
-        Stroke::new(1.0, palette.border),
-        StrokeKind::Inside,
-    );
-    let icon_rect = egui::Rect::from_min_size(
-        egui::pos2(rect.left() + space::S + 2.0, rect.center().y - 7.0),
-        vec2(14.0, 14.0),
-    );
-    icons::paint(ui.painter(), icon_rect, Icon::Search, palette.text_tertiary);
-    let font = TextStyle::Body.resolve(ui.style());
-    let text = crate::components::single_line(
-        ui,
-        &label,
-        font,
-        palette.text_tertiary,
-        rect.width() - 80.0,
-    );
-    let text_pos = egui::pos2(
-        icon_rect.right() + space::S,
-        rect.center().y - text.size().y / 2.0,
-    );
-    ui.painter().galley(text_pos, text, palette.text_tertiary);
-    let chip = egui::Rect::from_min_size(
-        egui::pos2(rect.right() - 54.0, rect.center().y - 9.0),
-        vec2(48.0, 18.0),
-    );
-    ui.put(chip, Kbd(shortcut_label()));
-    crate::components::focus_ring(ui, &response, rect, radius::MD);
-    response
-}
-
-/// Minimize, maximize, and close for client-decorated windows.
 fn window_controls(ui: &mut Ui) {
     let close = t("shell.close");
     let maximize = t("shell.maximize");
@@ -374,14 +469,6 @@ fn window_controls(ui: &mut Ui) {
     if ui.add(IconButton::new(Icon::Minimize, &minimize)).clicked() {
         ui.ctx()
             .send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-    }
-}
-
-const fn shortcut_label() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "⌘ K"
-    } else {
-        "Ctrl K"
     }
 }
 

@@ -1,4 +1,5 @@
-//! Command registry for the keyboard-first shell.
+//! Command registry for the keyboard-first shell. The "Go to…" window
+//! (`crate::go_to`) lists every non-navigation command as an action.
 
 use crate::Pane;
 
@@ -9,10 +10,11 @@ pub enum Command {
     ToggleSidebar,
     ToggleTheme,
     ToggleHighContrast,
+    ShowWelcome,
 }
 
 impl Command {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Navigate(Pane::Dashboard),
         Self::Navigate(Pane::Library),
         Self::Navigate(Pane::Activity),
@@ -23,6 +25,7 @@ impl Command {
         Self::ToggleSidebar,
         Self::ToggleTheme,
         Self::ToggleHighContrast,
+        Self::ShowWelcome,
     ];
 
     #[must_use]
@@ -38,34 +41,7 @@ impl Command {
             Self::ToggleSidebar => "command.toggle_sidebar",
             Self::ToggleTheme => "command.toggle_theme",
             Self::ToggleHighContrast => "command.toggle_contrast",
+            Self::ShowWelcome => "command.welcome",
         }
-    }
-}
-
-#[must_use]
-pub fn filter_commands(query: &str, label: impl Fn(Command) -> String) -> Vec<Command> {
-    let query = query.trim().to_lowercase();
-    Command::ALL
-        .into_iter()
-        .filter(|command| query.is_empty() || label(*command).to_lowercase().contains(&query))
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_query_keeps_every_command() {
-        assert_eq!(
-            filter_commands("", |_| String::new()).len(),
-            Command::ALL.len()
-        );
-    }
-
-    #[test]
-    fn filter_is_case_insensitive() {
-        let commands = filter_commands("THEME", |command| command.label_key().to_owned());
-        assert_eq!(commands, vec![Command::ToggleTheme]);
     }
 }

@@ -36,7 +36,7 @@ are the only code that turns tokens into pixels; pages compose components.
 | Tokens | `theme.rs` | palettes, type scale, spacing, radii, shadows, fonts, egui `Visuals`/`Style` | widgets, layout |
 | Icons | `icons.rs` | every icon, drawn in code on a 16×16 grid | colours (callers pass one) |
 | Components | `components/*.rs` | reusable, presentational widgets | database, API, `Action` dispatch |
-| Shell | `shell.rs` | title bar, sidebar, status bar, tabs, command palette, confirmations | page content |
+| Shell | `shell.rs` | sidebar, title bar, status bar, tabs, "Go to…", confirmations | page content |
 | Pages | `views/*.rs` | one page each: data loading, composition, dispatching one `Action` | raw colours, custom painting |
 | States | `components/{status_page,notice,confirm_dialog,empty_state}.rs`, `startup.rs` | error, empty, not-found, offline, confirmation screens | business logic |
 

@@ -18,6 +18,7 @@ use {{.crate_name}}_storage::{Database, Paths, Settings, SettingsStore};
 pub mod commands;
 pub mod components;
 pub mod credentials;
+pub mod go_to;
 pub mod icons;
 pub mod logging;
 mod shell;
@@ -67,6 +68,11 @@ impl Pane {
             Self::Account => Icon::Account,
             Self::About => Icon::About,
         }
+    }
+
+    /// Settings and About sit in the sidebar footer, below the workspace pages.
+    const fn in_sidebar_footer(self) -> bool {
+        matches!(self, Self::Settings | Self::About)
     }
 
     fn all(api_mode: bool) -> Vec<Self> {
@@ -634,6 +640,7 @@ impl DesktopApp {
             Command::ToggleSidebar => self.dispatch(Action::ToggleSidebar),
             Command::ToggleTheme => self.dispatch(Action::ToggleTheme),
             Command::ToggleHighContrast => self.dispatch(Action::ToggleHighContrast),
+            Command::ShowWelcome => self.dispatch(Action::ShowWelcome),
         }
     }
 
@@ -841,19 +848,50 @@ mod tests {
     }
 
     #[test]
-    fn command_palette_navigates_and_names_controls() {
+    fn go_to_navigates_and_names_controls() {
         let mut app = DesktopApp::for_tests();
         app.dispatch(Action::OpenPalette);
 
         let mut harness = harness(app);
-        harness.get_by_label("Go to Library").click();
+        // Sidebar items are tabs; "Go to…" rows are list-box options.
+        harness
+            .get_by_role_and_label(egui::Role::ListBoxOption, "Library")
+            .click();
         harness.run();
 
         assert_eq!(harness.state().pane, Pane::Library);
         assert!(
             !harness.state().palette_open,
-            "running a command closes the palette"
+            "choosing a row closes Go to…"
         );
+    }
+
+    #[test]
+    fn sidebar_search_opens_go_to_and_finds_records() {
+        let mut harness = harness(DesktopApp::for_tests());
+        harness
+            .get_by_role_and_label(egui::Role::Button, "Go to…")
+            .click();
+        harness.run();
+        assert!(harness.state().palette_open);
+
+        let title = harness
+            .state()
+            .records("")
+            .expect("seeded records")
+            .first()
+            .expect("at least one seeded record")
+            .title
+            .clone();
+        harness.state_mut().palette_query.clone_from(&title);
+        harness.run();
+        harness
+            .get_by_role_and_label(egui::Role::ListBoxOption, &title)
+            .click();
+        harness.run();
+
+        assert_eq!(harness.state().pane, Pane::Library);
+        assert!(matches!(harness.state().editor, Editor::Record(_)));
     }
 
     #[test]
