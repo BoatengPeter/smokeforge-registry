@@ -27,7 +27,7 @@ public final class HomeViewModel {
         } catch let error as AppError {
             self.error = error
         } catch {
-            error = .unknown
+            self.error = .unknown
         }
     }
 }
