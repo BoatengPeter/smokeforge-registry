@@ -160,7 +160,7 @@ impl DesktopApp {
             logging_guard,
             last_deleted: None,
             form_error: None,
-            tokens: credentials::TokenStore::new("smokeforge-egui", "auth"),
+            tokens: credentials::TokenStore::new("{{.bundle_id}}", "auth"),
             api_mode,
             api_base: std::env::var("SMOKEFORGE_API_URL")
                 .unwrap_or_else(|_| "http://localhost:8080".to_owned()),

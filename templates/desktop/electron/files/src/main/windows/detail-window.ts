@@ -3,10 +3,11 @@ import { join } from "node:path";
 
 import { windowChrome } from "../../shared/design-tokens";
 import { isTrustedRendererUrl } from "../../shared/security";
+import { devRendererUrl } from "../infra/dev-server";
 import { loadAppIcon } from "./app-icon";
 
 export function openLibraryItemWindow(itemId: string): void {
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  const devUrl = devRendererUrl();
   const icon = loadAppIcon();
   const window = new BrowserWindow({
     width: 920,

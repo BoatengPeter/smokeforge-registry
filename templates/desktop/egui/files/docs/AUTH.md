@@ -12,7 +12,10 @@ in per-user SQLite and never leaves the machine.
 Set `SMOKEFORGE_API_MODE=api` and `SMOKEFORGE_API_URL` before launch. The Account
 pane appears; sign-in uses `/api/v1/auth/login`.
 
-- The refresh token is written through `TokenStore` to the OS keyring.
+- The refresh token is written through `TokenStore` to the OS keyring under
+  service = the app's bundle identifier, account = `auth`. Each generated app
+  has its own entry; never use a shared service name, or apps on the same
+  machine overwrite and can read each other's tokens.
 - The access token stays in process memory only.
 - If the keyring is unavailable, the token store degrades to memory and shows a
   warning in Settings.

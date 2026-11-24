@@ -29,8 +29,11 @@ flowchart LR
 3. Wait for `app.whenReady()`.
 4. Register the `app://` handler, session security, and IPC handlers.
 5. Create the main window.
-6. In development, load `ELECTRON_RENDERER_URL`; in production, load
-   `app://bundle/index.html`.
+6. In development, load the electron-vite dev server from
+   `ELECTRON_RENDERER_URL`; in production, load `app://bundle/index.html`.
+   `src/main/infra/dev-server.ts` ignores the variable in packaged builds and
+   accepts only loopback http(s) servers, so an installed app cannot be pointed
+   at another page by launching it with an environment variable.
 
 ## Extension points
 

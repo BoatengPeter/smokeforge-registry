@@ -10,6 +10,9 @@
 - no raw `ipcRenderer` exposure
 - no remote module
 - no arbitrary navigation or new windows
+- renderer trust uses exact origins (`src/shared/security.ts`), never string
+  prefixes; `ELECTRON_RENDERER_URL` is honored only in unpackaged development
+  builds and only for loopback dev servers (`src/main/infra/dev-server.ts`)
 - CSP delivered by the session, not only the HTML meta tag
 - one CSP source of truth in `src/shared/csp.ts`; only development (`make dev`)
   adds `'unsafe-inline'` scripts and localhost `connect-src` for React Fast

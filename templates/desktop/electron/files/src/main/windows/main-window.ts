@@ -4,12 +4,13 @@ import { join } from "node:path";
 
 import { windowChrome } from "../../shared/design-tokens";
 import { isTrustedRendererUrl } from "../../shared/security";
+import { devRendererUrl } from "../infra/dev-server";
 import { loadAppIcon } from "./app-icon";
 
 const titleBarOverlay = windowChrome.titleBarOverlay;
 
 export function createMainWindow(): BrowserWindow {
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  const devUrl = devRendererUrl();
   const icon = loadAppIcon();
   const windowState = windowStateKeeper({
     defaultWidth: 1180,

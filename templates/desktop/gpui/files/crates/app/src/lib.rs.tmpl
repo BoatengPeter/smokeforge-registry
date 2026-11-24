@@ -164,7 +164,7 @@ impl AppView {
             database,
             title_input,
             tags_input,
-            tokens: credentials::TokenStore::new("smokeforge-gpui", "auth"),
+            tokens: credentials::TokenStore::new("{{.bundle_id}}", "auth"),
             api_mode,
             api_base,
             email_input,

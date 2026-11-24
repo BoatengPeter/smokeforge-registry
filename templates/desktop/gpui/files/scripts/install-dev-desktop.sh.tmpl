@@ -4,23 +4,29 @@ set -eu
 [ "$(uname -s)" = "Linux" ] || exit 0
 
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-app_id="{{.bundle_id}}"
+# Template values are single-quoted data, never shell code. The CLI also
+# restricts their characters (see template.yaml patterns and project names).
+app_id='{{.bundle_id}}'
+app_name='{{.project_name}}'
+exec_path="$project_dir/target/debug/{{.crate_name}}"
 entry_dir="$HOME/.local/share/applications"
 icon_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
 
 mkdir -p "$entry_dir" "$icon_dir"
 cp "$project_dir/assets/icon.png" "$icon_dir/$app_id.png"
-cat > "$entry_dir/$app_id.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name={{.project_name}}
-Comment=Local development build
-Exec=$project_dir/target/debug/{{.crate_name}}
-Icon=$app_id
-Terminal=false
-StartupWMClass=$app_id
-Categories=Utility;
-EOF
+# printf writes the values verbatim; nothing in them is expanded. Exec is
+# quoted so project paths with spaces still launch.
+printf '%s\n' \
+  '[Desktop Entry]' \
+  'Type=Application' \
+  "Name=$app_name" \
+  'Comment=Local development build' \
+  "Exec=\"$exec_path\"" \
+  "Icon=$app_id" \
+  'Terminal=false' \
+  "StartupWMClass=$app_id" \
+  'Categories=Utility;' \
+  > "$entry_dir/$app_id.desktop"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$entry_dir" >/dev/null 2>&1 || true

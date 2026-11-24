@@ -3,10 +3,9 @@ import type { ZodType } from "zod";
 
 import { isTrustedRendererUrl } from "../../shared/security";
 import { fail, ok, type Result } from "../../shared/types/result";
+import { devRendererUrl } from "../infra/dev-server";
 import { log } from "../infra/logger";
 import { PublicError } from "../infra/public-error";
-
-const devRendererUrl = process.env.ELECTRON_RENDERER_URL;
 
 function trustedSender(event: IpcMainInvokeEvent): boolean {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -16,7 +15,7 @@ function trustedSender(event: IpcMainInvokeEvent): boolean {
     return false;
   }
 
-  return isTrustedRendererUrl(url, devRendererUrl);
+  return isTrustedRendererUrl(url, devRendererUrl());
 }
 
 export function handle<TInput, TOutput>(
