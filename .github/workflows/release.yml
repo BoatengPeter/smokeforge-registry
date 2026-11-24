@@ -24,9 +24,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NOTES: >-
-            Registry release with fullstack desktop, offline Library sync,
-            versioned idempotent APIs, manual conflicts, and retry/changefeed
-            support.
+            Registry release with the composable workspace root, iOS SwiftUI
+            and mobile composition, fullstack desktop, offline Library sync,
+            versioned idempotent APIs, and conflict/retry support.
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
             || gh release create "$GITHUB_REF_NAME" \
