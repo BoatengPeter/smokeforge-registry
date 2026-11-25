@@ -148,14 +148,7 @@ impl AppView {
         cx: &mut Context<Self>,
         focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Self {
-        // Each generated app gets its own data, config, and log folders.
-        let paths = {{.crate_name}}_storage::Paths::discover("{{.project_name}}").unwrap_or_else(|_| {
-            {{.crate_name}}_storage::Paths {
-                data: std::env::temp_dir().join("{{.crate_name}}"),
-                config: std::env::temp_dir().join("{{.crate_name}}"),
-                logs: std::env::temp_dir().join("{{.crate_name}}-logs"),
-            }
-        });
+        let paths = discover_paths("{{.project_name}}");
         let settings_store = {{.crate_name}}_storage::SettingsStore::new(&paths.config);
         let settings = settings_store.load().unwrap_or_default();
         let logging_guard = logging::init(&paths.logs, &settings.log_level);
@@ -251,6 +244,19 @@ impl AppView {
             Pane::Library => self.library_body(cx).into_any_element(),
         }
     }
+}
+
+/// This app's data, config, and log folders, named after the project so
+/// generated apps never share them. Falls back to the temp directory.
+fn discover_paths(app_name: &str) -> {{.crate_name}}_storage::Paths {
+    {{.crate_name}}_storage::Paths::discover(app_name).unwrap_or_else(|_| {
+        let temp = std::env::temp_dir();
+        {{.crate_name}}_storage::Paths {
+            data: temp.join("{{.crate_name}}"),
+            config: temp.join("{{.crate_name}}"),
+            logs: temp.join("{{.crate_name}}-logs"),
+        }
+    })
 }
 
 /// Opens and seeds the local database, or returns why it failed.
