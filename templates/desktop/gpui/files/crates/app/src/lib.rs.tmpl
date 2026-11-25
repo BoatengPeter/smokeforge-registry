@@ -11,15 +11,17 @@ use gpui_kit::base::{StyledExt, h_flex, v_flex};
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::TitleBar;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
-use gpui_kit::component::command::{Command, CommandItem, CommandState};
+use gpui_kit::component::command::{Command, CommandGroup, CommandItem, CommandState};
 use gpui_kit::component::input::InputState;
 use gpui_kit::component::sidebar::{
-    Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem,
+    Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarItem as _, SidebarMenu,
+    SidebarMenuItem,
 };
 use gpui_kit::component::status_bar::StatusBar;
 use gpui_kit::component::{Sizable as _, Theme, ThemeMode};
 use gpui_kit::prelude::FluentBuilder as _;
 pub mod credentials;
+pub mod go_to;
 pub mod keymap;
 pub mod logging;
 pub mod pages;
@@ -53,7 +55,9 @@ gpui_kit::actions!(
         ZoomIn,
         ZoomOut,
         ZoomReset,
-        ShowWelcome
+        ShowWelcome,
+        ToggleSidebar,
+        NewRecord
     ]
 );
 
@@ -80,6 +84,11 @@ impl Pane {
         }
         panes.push(Self::About);
         panes
+    }
+
+    /// Settings and About sit in the sidebar footer, below the workspace pages.
+    const fn in_sidebar_footer(self) -> bool {
+        matches!(self, Self::Settings | Self::About)
     }
 
     const fn title_key(self) -> &'static str {

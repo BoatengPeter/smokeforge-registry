@@ -1,7 +1,8 @@
 use super::*;
 
-use gpui_kit::component::kbd::Kbd;
-use gpui_kit::component::{Icon, IconName};
+use gpui_kit::component::{Collapsible as _, Icon, IconName};
+
+use crate::ui::PickerFrame;
 
 impl Pane {
     const fn icon(self) -> IconName {
@@ -67,85 +68,200 @@ impl AppView {
         cx.notify();
     }
 
-    fn title_bar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The theme toggle over the content area. GPUI Kit's `TitleBar` moves the
+    /// window and draws the window controls.
+    fn title_bar(cx: &mut Context<Self>) -> impl IntoElement {
         let (theme_icon, theme_label) = if cx.theme().mode.is_dark() {
             (IconName::Sun, t("shell.light_theme"))
         } else {
             (IconName::Moon, t("shell.dark_theme"))
         };
-        let shortcut = Kbd::global_binding_for_action(&ToggleCommand, window);
         TitleBar::new().child(
-            h_flex()
-                .w_full()
-                .pr_2()
-                .justify_between()
-                .child(
-                    h_flex()
-                        .gap_2()
-                        .child(img(self.logo.clone()).size_4())
-                        .child(div().text_sm().font_semibold().child(t("app.name"))),
-                )
-                .child(
-                    h_flex()
-                        .gap_1()
-                        .child(
-                            Button::new("open-command")
-                                .ghost()
-                                .small()
-                                .icon(IconName::Search)
-                                .label(t("shell.search"))
-                                .when_some(shortcut, gpui_kit::ParentElement::child)
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.show_command = true;
-                                    this.command_state
-                                        .update(cx, |state, cx| state.focus(window, cx));
-                                    cx.notify();
-                                })),
-                        )
-                        .child(
-                            Button::new("toggle-theme")
-                                .ghost()
-                                .small()
-                                .icon(theme_icon)
-                                .tooltip(theme_label)
-                                .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
-                        ),
-                ),
+            h_flex().w_full().pr_2().justify_end().child(
+                Button::new("toggle-theme")
+                    .ghost()
+                    .small()
+                    .icon(theme_icon)
+                    .tooltip(theme_label)
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_theme(cx))),
+            ),
         )
     }
 
-    fn sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// Full-height sidebar: header (logo, name, search, collapse), the
+    /// workspace pages with a "+" (New record), and Settings / About in the
+    /// footer. Collapsed, GPUI Kit draws it as an icon rail.
+    fn sidebar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let collapsed = !self.settings.sidebar_open;
+        let (main, footer): (Vec<Pane>, Vec<Pane>) = Pane::available(self.api_mode)
+            .into_iter()
+            .partition(|pane| !pane.in_sidebar_footer());
+        let footer_menu = SidebarMenu::new()
+            .children(footer.into_iter().map(|pane| self.nav_item(pane, cx)))
+            .collapsed(collapsed)
+            .render("sidebar-footer-menu", window, cx)
+            .into_any_element();
+
         Sidebar::new("main-sidebar")
             .w(rems(15.))
-            .header(
-                SidebarHeader::new().child(
-                    h_flex()
-                        .gap_2()
-                        .child(img(self.logo.clone()).size_5())
-                        .child(div().text_sm().font_semibold().child(t("app.name"))),
-                ),
+            .collapsed(collapsed)
+            .header(SidebarHeader::new().child(self.sidebar_header(collapsed, cx)))
+            .child(
+                SidebarGroup::new(t("sidebar.workspace"))
+                    .suffix(|_, _| {
+                        Button::new("sidebar-new-record")
+                            .ghost()
+                            .xsmall()
+                            .icon(IconName::Plus)
+                            .tooltip(t("shell.new_record"))
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(NewRecord), cx);
+                            })
+                    })
+                    .child(
+                        SidebarMenu::new()
+                            .children(main.into_iter().map(|pane| self.nav_item(pane, cx))),
+                    ),
+            )
+            .footer(SidebarFooter::new().child(footer_menu))
+    }
+
+    fn nav_item(&self, pane: Pane, cx: &mut Context<Self>) -> SidebarMenuItem {
+        SidebarMenuItem::new(pane.label())
+            .icon(Icon::new(pane.icon()))
+            .active(self.active == pane)
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.active = pane;
+                cx.notify();
+            }))
+    }
+
+    /// Logo and name (which drag the window), then search and collapse.
+    fn sidebar_header(&self, collapsed: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        let toggle_label = if collapsed {
+            t("shell.expand")
+        } else {
+            t("shell.collapse")
+        };
+        let toggle = Button::new("sidebar-toggle")
+            .ghost()
+            .small()
+            .icon(IconName::PanelLeft)
+            .tooltip(toggle_label)
+            .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx)));
+        if collapsed {
+            return h_flex().w_full().justify_center().child(toggle);
+        }
+        h_flex()
+            .w_full()
+            .gap_1()
+            .items_center()
+            .child(
+                h_flex()
+                    .id("sidebar-drag")
+                    .flex_1()
+                    .min_w_0()
+                    .gap_2()
+                    .items_center()
+                    .when(cfg!(target_os = "macos"), |this| this.pl(rems(4.5)))
+                    .window_control_area(WindowControlArea::Drag)
+                    .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
+                    .child(img(self.logo.clone()).size_5().rounded_md().flex_none())
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_sm()
+                            .font_semibold()
+                            .child(t("app.name")),
+                    ),
             )
             .child(
-                SidebarGroup::new(t("sidebar.workspace")).child(SidebarMenu::new().children(
-                    Pane::available(self.api_mode).into_iter().map(|pane| {
-                        SidebarMenuItem::new(pane.label())
-                            .icon(Icon::new(pane.icon()))
-                            .active(self.active == pane)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.active = pane;
-                                cx.notify();
-                            }))
-                    }),
-                )),
+                Button::new("sidebar-search")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Search)
+                    .tooltip(t("shell.search"))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_go_to(window, cx))),
             )
-            .footer(
-                SidebarFooter::new().child(
-                    div()
-                        .text_xs()
-                        .text_color(cx.theme().sidebar_foreground)
-                        .child(t("sidebar.footer")),
-                ),
-            )
+            .child(toggle)
+    }
+
+    fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.settings.sidebar_open = !self.settings.sidebar_open;
+        let _ = self.settings_store.save(&self.settings);
+        cx.notify();
+    }
+
+    fn open_go_to(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.show_command = true;
+        self.command_state
+            .update(cx, |state, cx| state.focus(window, cx));
+        cx.notify();
+    }
+
+    fn close_go_to(&mut self, cx: &mut Context<Self>) {
+        self.show_command = false;
+        cx.notify();
+    }
+
+    /// Opens Library and puts the cursor in the new-record form.
+    fn new_record(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.active = Pane::Library;
+        let focus = self.title_input.read(cx).focus_handle(cx);
+        window.focus(&focus, cx);
+        cx.notify();
+    }
+
+    /// "Go to…" (sidebar search, Ctrl/Cmd+K): pages and actions in a GPUI Kit
+    /// `Command` inside the ui crate's `PickerFrame`. Rows dispatch their
+    /// actions; confirming or cancelling closes it.
+    fn go_to(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.show_command {
+            return None;
+        }
+        let entity = cx.entity();
+        let close = move |_: &mut Window, cx: &mut App| {
+            entity.update(cx, Self::close_go_to);
+        };
+        let pages = CommandGroup::new().label(t("go_to.pages")).items(
+            Pane::available(self.api_mode).into_iter().map(|pane| {
+                CommandItem::new()
+                    .icon(Icon::new(pane.icon()))
+                    .label(pane.label())
+                    .action(go_to::page_action(pane))
+            }),
+        );
+        let actions =
+            CommandGroup::new()
+                .label(t("go_to.actions"))
+                .items(go_to::ACTIONS.iter().map(|row| {
+                    CommandItem::new()
+                        .icon(Icon::new(row.icon.clone()))
+                        .label(t(row.label_key))
+                        .action((row.action)())
+                }));
+        let on_cancel = close.clone();
+        let command = Command::new(&self.command_state)
+            .bordered(false)
+            .placeholder(t("go_to.placeholder"))
+            .group(pages)
+            .group(actions)
+            .max_h(rems(20.))
+            .on_confirm(move |_, window, cx| close(window, cx))
+            .on_cancel(move |window, cx| on_cancel(window, cx));
+        Some(
+            PickerFrame::new(t("go_to.title"))
+                .escape(
+                    Button::new("go-to-escape")
+                        .ghost()
+                        .xsmall()
+                        .label(t("go_to.escape"))
+                        .on_click(cx.listener(|this, _, _, cx| this.close_go_to(cx))),
+                )
+                .body(command)
+                .into_any_element(),
+        )
     }
 
     fn status_bar(cx: &mut Context<Self>) -> impl IntoElement {
@@ -179,65 +295,42 @@ impl Render for AppView {
         }
 
         let welcome = self.welcome_window(window, cx);
-        let entity = cx.entity();
-        let panes = Pane::available(self.api_mode);
-        let command = self.show_command.then(|| {
-            Command::new(&self.command_state)
-                .items(panes.iter().copied().map(|pane| {
-                    CommandItem::new()
-                        .icon(Icon::new(pane.icon()))
-                        .label(pane.label())
-                }))
-                .on_confirm(move |path, _, cx| {
-                    if let Some(pane) = panes.get(path.row).copied() {
-                        entity.update(cx, |this, cx| {
-                            this.active = pane;
-                            this.show_command = false;
-                            cx.notify();
-                        });
-                    }
-                })
-                .w_112()
-        });
+        let go_to = self.go_to(cx);
 
-        v_flex()
+        // The sidebar runs the full window height; the title and status bars
+        // span the content column only.
+        h_flex()
             .relative()
             .size_full()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(self.title_bar(window, cx))
+            .child(self.sidebar(window, cx))
             .child(
-                h_flex().flex_1().min_h_0().child(self.sidebar(cx)).child(
-                    div()
-                        .id("workspace")
-                        .flex_1()
-                        .min_w_0()
-                        .h_full()
-                        .overflow_y_scroll()
-                        .child(
-                            v_flex()
-                                .w_full()
-                                .max_w(rems(72.))
-                                .mx_auto()
-                                .px_8()
-                                .py_6()
-                                .gap_6()
-                                .child(self.pane_body(cx)),
-                        ),
-                ),
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .child(Self::title_bar(cx))
+                    .child(
+                        div()
+                            .id("workspace")
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scroll()
+                            .child(
+                                v_flex()
+                                    .w_full()
+                                    .max_w(rems(72.))
+                                    .mx_auto()
+                                    .px_8()
+                                    .py_6()
+                                    .gap_6()
+                                    .child(self.pane_body(cx)),
+                            ),
+                    )
+                    .child(Self::status_bar(cx)),
             )
-            .child(Self::status_bar(cx))
-            .when_some(command, |this, command| {
-                this.child(
-                    h_flex()
-                        .absolute()
-                        .top_16()
-                        .left_0()
-                        .right_0()
-                        .justify_center()
-                        .child(command),
-                )
-            })
+            .when_some(go_to, gpui_kit::ParentElement::child)
             .when_some(welcome, gpui_kit::ParentElement::child)
             .map(|root| Self::window_handlers(root, cx))
     }
@@ -272,13 +365,14 @@ impl AppView {
             cx.notify();
         }))
         .on_action(cx.listener(|this, _: &ToggleCommand, window, cx| {
-            this.show_command = !this.show_command;
             if this.show_command {
-                this.command_state
-                    .update(cx, |state, cx| state.focus(window, cx));
+                this.close_go_to(cx);
+            } else {
+                this.open_go_to(window, cx);
             }
-            cx.notify();
         }))
+        .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
+        .on_action(cx.listener(|this, _: &NewRecord, window, cx| this.new_record(window, cx)))
         // The tour is dragged by its header but follows the pointer
         // anywhere in the window, so moves and releases are tracked here.
         .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, window, cx| {

@@ -9,8 +9,8 @@
 use gpui_kit::{Action, App, KeyBinding};
 
 use crate::{
-    ShowAbout, ShowAccount, ShowActivity, ShowDashboard, ShowLibrary, ShowSettings, ToggleCommand,
-    ToggleTheme, ZoomIn, ZoomOut, ZoomReset,
+    NewRecord, ShowAbout, ShowAccount, ShowActivity, ShowDashboard, ShowLibrary, ShowSettings,
+    ToggleCommand, ToggleSidebar, ToggleTheme, ZoomIn, ZoomOut, ZoomReset,
 };
 
 /// Every global keybinding, resolved for the host OS.
@@ -39,6 +39,8 @@ fn table() -> Vec<(&'static str, Box<dyn Action>)> {
         ("secondary-5", Box::new(ShowAccount)),
         ("secondary-6", Box::new(ShowAbout)),
         ("secondary-k", Box::new(ToggleCommand)),
+        ("secondary-b", Box::new(ToggleSidebar)),
+        ("secondary-n", Box::new(NewRecord)),
         ("secondary-shift-l", Box::new(ToggleTheme)),
         ("secondary-=", Box::new(ZoomIn)),
         ("secondary-+", Box::new(ZoomIn)),

@@ -7,16 +7,31 @@ The app uses GPUI Kit components and semantic theme tokens. `crates/ui` holds sh
 ## Shell
 
 ```text
-┌ title bar ── logo · app name ···························· [⌕ Search or run a command  Ctrl K] [☀] ┐
-│ sidebar (w_60) │ content column (max_w_5xl, px_8 py_6), scrolls                                     │
-│  icon · label  │   PageHeader (title, subtitle, one primary action)                                 │
-│                │   SectionCard / StatCard / Table / EmptyState / StatusPage …                       │
-└ status bar ── ● Local ································································ version ┘
+┌ [logo] App    [⌕][◧] ┬ title bar ··································· [☀] window controls ┐
+│ Workspace         [+] │ content column (max_w 72rem, px_8 py_6), scrolls                      │
+│  ▣ Dashboard          │   PageHeader (title, subtitle, one primary action)                    │
+│  ▤ Library            │   SectionCard / StatCard / Table / EmptyState / StatusPage …          │
+│  ◔ Activity           │                                                                        │
+│ ───────────────────── │                                                                        │
+│  ⚙ Settings           │                                                                        │
+│  ⓘ About              ├ status bar ── ● Local ····································· version ┘
+└ Sidebar 15rem / rail ─┘
 ```
 
 - `shell.rs` owns the frame, theme switching (`sync_theme`, `toggle_theme`),
-  interface size (`sync_zoom`, `set_zoom`), the command palette, and the
-  welcome tour layer. Pages own their `PageHeader`; the shell draws none.
+  interface size (`sync_zoom`, `set_zoom`), the "Go to…" window, and the
+  welcome tour layer.
+- Sidebar (GPUI Kit `Sidebar`, full window height; the title and status bars
+  span the content column): the header has the logo and name (they drag the
+  window), a search button, and a collapse button; a `SidebarGroup` "Workspace"
+  with a "+" suffix (`NewRecord`); Settings and About in the `SidebarFooter`
+  (`Pane::in_sidebar_footer`). `settings.sidebar_open` persists the state;
+  collapsed, GPUI Kit draws an icon rail. `secondary-b` toggles it.
+- "Go to…" (sidebar search, `secondary-k`): the ui crate's `PickerFrame`
+  (title, Esc, 40rem wide, 2.5rem from the top) around a GPUI Kit `Command`
+  with a Pages and an Actions group. Every row carries the action it
+  dispatches (`go_to::page_action`, `go_to::ACTIONS`), so a row and its
+  shortcut do the same thing. Add an action as a row in `go_to::ACTIONS`. Pages own their `PageHeader`; the shell draws none.
 - Keyboard (`secondary` = Ctrl on Windows/Linux, Cmd on macOS):
   `secondary-1`…`6` pages, `secondary-k` command palette, `secondary-shift-l`
   theme, `secondary-=`/`-`/`0` interface size. All bindings live in

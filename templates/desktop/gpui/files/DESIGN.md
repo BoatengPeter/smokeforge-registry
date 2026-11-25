@@ -22,7 +22,7 @@ Design Guides (`.agents/skills/gpui-kit-design-guides`); read them first.
 | --- | --- | --- |
 | Theme | `crates/ui/themes/smokeforge.json` | every colour, the font family, base size, radii, shadows — light and dark |
 | Theme install | `crates/ui/src/theme.rs` | registers Inter and the themes once at startup; contrast tests |
-| Components | `crates/ui/src/components/` | `PageHeader`, `SectionCard`, `StatCard`, `EmptyState`, `StatusPage`, `FeatureRow`, `Inset` (`callout`), `ValueStepper`, `WizardWindow` |
+| Components | `crates/ui/src/components/` | `PageHeader`, `SectionCard`, `StatCard`, `EmptyState`, `StatusPage`, `FeatureRow`, `Inset` (`callout`), `ValueStepper`, `WizardWindow`, `PickerFrame` |
 | Shell | `crates/app/src/shell.rs` | title bar, sidebar, content column, status bar, command palette |
 | Pages | `crates/app/src/pages/` | one page per file; compose GPUI Kit and `crates/ui` components |
 | States | `crates/app/src/pages/states.rs`, `docs/STATES.md` | error, empty, degraded, confirmation |
