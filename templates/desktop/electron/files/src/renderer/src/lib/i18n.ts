@@ -1,10 +1,12 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
+import { appName } from "@shared/app-info";
+
 const resources = {
   en: {
     translation: {
-      app: { name: "Smokeforge", tagline: "Desktop workspace" },
+      app: { name: appName, tagline: "Desktop workspace" },
       nav: {
         home: "Home",
         library: "Library",

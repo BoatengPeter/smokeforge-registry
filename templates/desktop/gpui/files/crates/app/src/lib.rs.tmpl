@@ -148,11 +148,12 @@ impl AppView {
         cx: &mut Context<Self>,
         focus_requested: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Self {
-        let paths = {{.crate_name}}_storage::Paths::discover("Smokeforge").unwrap_or_else(|_| {
+        // Each generated app gets its own data, config, and log folders.
+        let paths = {{.crate_name}}_storage::Paths::discover("{{.project_name}}").unwrap_or_else(|_| {
             {{.crate_name}}_storage::Paths {
-                data: std::env::temp_dir().join("smokeforge"),
-                config: std::env::temp_dir().join("smokeforge"),
-                logs: std::env::temp_dir().join("smokeforge-logs"),
+                data: std::env::temp_dir().join("{{.crate_name}}"),
+                config: std::env::temp_dir().join("{{.crate_name}}"),
+                logs: std::env::temp_dir().join("{{.crate_name}}-logs"),
             }
         });
         let settings_store = {{.crate_name}}_storage::SettingsStore::new(&paths.config);
