@@ -38,8 +38,21 @@ and a rare coral signal. The renderer palette has one source of truth in
 
 ## Shell behavior
 
-- `Cmd/Ctrl+K` opens the command palette.
+- Sidebar (`components/layout/sidebar.tsx`): full window height; the title
+  bar and status bar span the content column only. The 44 px header (logo,
+  name, "Go to…" search, collapse) sits level with the title bar and drags the
+  window; a "Workspace" label with a "+" (new library item); Home, Library,
+  Activity, Account; Settings and About in a footer. Collapsed, it is a 52 px
+  icon rail. On macOS the header leaves room for the traffic lights and the
+  rail moves the expand button below them.
+- `Cmd/Ctrl+K` and the sidebar search open "Go to…" (`go-to.tsx`): 640 px
+  wide, 40 px from the top, a title with an Esc button, an accent search field,
+  and two groups built from `appCommands`: pages (`nav:*`) and "+" actions.
+  Choosing a row runs the same command as its shortcut; add an action by
+  adding it to `appCommands`.
 - `Cmd/Ctrl+B` collapses the sidebar.
+- The title bar height is `windowChrome.titleBarOverlay.height` (44), shared
+  with the native overlay that draws the Windows/Linux window controls.
 - Dashboard stat cards can be reordered with drag and drop or the keyboard; the
   order is stored as `dashboardOrder` in non-sensitive settings.
 - `Cmd/Ctrl+1/2/3` navigates Home, Library, and Activity.

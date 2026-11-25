@@ -4,7 +4,8 @@ test.describe.configure({ timeout: 60_000 });
 
 async function dismissOnboarding(page: import("@playwright/test").Page) {
   await page.waitForTimeout(800);
-  const button = page.getByRole("button", { name: "Get started" });
+  // The first-run welcome tour floats over the app; skip it.
+  const button = page.getByRole("button", { name: "Skip the tour" });
   if (await button.count()) await button.click();
 }
 
@@ -23,7 +24,7 @@ test("opens the shell, navigates to Library, and edits a record", async () => {
   await expect(page.getByLabel("Title")).toHaveValue("Field notes");
 
   await page.keyboard.press("ControlOrMeta+K");
-  await expect(page.getByPlaceholder(/Type a command/i)).toBeVisible();
+  await expect(page.getByPlaceholder(/Go to a page/i)).toBeVisible();
   await page.keyboard.press("Escape");
 
   await app.close();

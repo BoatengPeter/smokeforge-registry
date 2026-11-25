@@ -14,6 +14,18 @@ const resources = {
         about: "About",
         sections: { workspace: "Workspace", system: "System" },
       },
+      shell: {
+        search: "Go to…",
+        collapse: "Collapse sidebar",
+        expand: "Expand sidebar",
+      },
+      goTo: {
+        title: "Go to…",
+        placeholder: "Go to a page or action…",
+        escape: "Esc",
+        pages: "Pages",
+        actions: "Actions",
+      },
       commands: {
         title: "Command palette",
         placeholder: "Type a command or search…",

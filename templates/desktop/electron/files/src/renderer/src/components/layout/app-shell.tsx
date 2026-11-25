@@ -22,7 +22,7 @@ import { useAppSettings } from "@renderer/lib/app-settings";
 import { useSystemVersion } from "@renderer/lib/query/hooks";
 import { useAppStore } from "@renderer/lib/stores/app-store-provider";
 
-import { CommandPalette } from "./command-palette";
+import { GoTo } from "./go-to";
 import { Sidebar } from "./sidebar";
 import { StatusBar } from "./status-bar";
 import { TitleBar } from "./title-bar";
@@ -172,10 +172,12 @@ export function AppShell() {
         >
           {t("common.skipToContent")}
         </a>
-        <TitleBar onPalette={() => setPaletteOpen(true)} />
+        {/* The sidebar runs the full window height; the title and status
+            bars span the content column only. */}
         <div className="flex min-h-0 flex-1">
-          <Sidebar />
+          <Sidebar onSearch={() => setPaletteOpen(true)} />
           <div className="flex min-w-0 flex-1 flex-col">
+            <TitleBar />
             <TopBar />
             <main className="scrollbar-thin min-h-0 flex-1 overflow-auto" id="main-content">
               <motion.div
@@ -190,7 +192,7 @@ export function AppShell() {
             <StatusBar />
           </div>
         </div>
-        <CommandPalette onOpenChange={setPaletteOpen} onRun={commands.run} open={paletteOpen} />
+        <GoTo onOpenChange={setPaletteOpen} onRun={commands.run} open={paletteOpen} />
         <WelcomeTour appName={t("app.name")} dataPath={info?.userDataPath} version={info?.version} />
         <Dialog onOpenChange={(open) => { if (!open) closeWhatsNew(); }} open={whatsNewOpen}>
           <DialogContent>
